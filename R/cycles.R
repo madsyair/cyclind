@@ -49,14 +49,15 @@ check_inputs <- function(candidates, spec) {
 
 cycle_one <- function(x, name, spec, unit = "level") {
   x <- as_ts_like(as.numeric(x), x)
-  notes <- character(0)
-  # X-13 warnings name the series and are kept in the result (butir 3)
+  store <- new.env(parent = emptyenv())
+  store$notes <- character(0)
+  # X-13 warnings name the series and are kept in the result
   record <- function(cnd) {
     msg <- conditionMessage(cnd)
     if (!grepl(sprintf("'%s'", name), msg, fixed = TRUE)) {
       msg <- sprintf("Series '%s': %s", name, msg)
     }
-    notes <<- c(notes, msg)
+    store$notes <- c(store$notes, msg)
     cyclind_warn(msg, setdiff(class(cnd), c("cyclind_warning", "warning",
                                             "condition")))
     invokeRestart("muffleWarning")
@@ -65,7 +66,7 @@ cycle_one <- function(x, name, spec, unit = "level") {
     cycle_one_body(x, name, spec, unit),
     cyclind_warning_x13 = record, cyclind_warning_outlier_share = record
   )
-  out@notes <- unique(notes)
+  out@notes <- unique(store$notes)
   out
 }
 
