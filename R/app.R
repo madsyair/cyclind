@@ -403,6 +403,7 @@ app_ui <- function(language = "en") {
         shiny::selectInput("cyc_series", t("series"), choices = NULL),
         shiny::h4(t("cycle_pair")), shiny::plotOutput("cycle_pair"),
         shiny::h4(t("steps_log")), shiny::verbatimTextOutput("cycle_steps"),
+        shiny::h4(t("outlier_report")), shiny::tableOutput("outlier_table"),
         shiny::h4(t("cycles_all")), shiny::plotOutput("cycles_grid",
                                                      height = "auto")
       ),
@@ -607,6 +608,17 @@ quality_display <- function(q, p = function(x) x) {
   out <- data.frame(group = p(tab$group), criterion = p(tab$criterion),
                     value = fmt_value(tab$value), threshold = thr,
                     status = p(status), stringsAsFactors = FALSE)
+  translate_names(out, p)
+}
+
+# The outlier report of step 4 with translated headers.
+outlier_table_app <- function(cycles, p) {
+  rep <- outlier_report(cycles)
+  out <- data.frame(series = rep$name, "outliers replaced" = rep$n_removed,
+                    "outliers kept" = rep$n_kept,
+                    "share replaced" = sprintf("%.1f%%", 100 * rep$share),
+                    "outlier periods" = rep$periods, note = rep$note,
+                    check.names = FALSE, stringsAsFactors = FALSE)
   translate_names(out, p)
 }
 
@@ -1257,6 +1269,10 @@ app_server <- function(language = "en") {
       need(4L)
       shiny::req(input$cyc_series %in% names(rv$cycles))
       show(rv$cycles[[input$cyc_series]])
+    })
+    output$outlier_table <- shiny::renderTable({
+      need(4L)
+      outlier_table_app(rv$cycles, p)
     })
     output$cycles_grid <- shiny::renderPlot({
       need(4L)

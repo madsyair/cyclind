@@ -48,6 +48,28 @@ check_inputs <- function(candidates, spec) {
 
 cycle_one <- function(x, name, spec, unit = "level") {
   x <- as_ts_like(as.numeric(x), x)
+  notes <- character(0)
+  # X-13 warnings name the series and are kept in the result (butir 3)
+  record <- function(cnd) {
+    msg <- conditionMessage(cnd)
+    if (!grepl(sprintf("'%s'", name), msg, fixed = TRUE)) {
+      msg <- sprintf("Series '%s': %s", name, msg)
+    }
+    notes <<- c(notes, msg)
+    cyclind_warn(msg, setdiff(class(cnd), c("cyclind_warning", "warning",
+                                            "condition")))
+    invokeRestart("muffleWarning")
+  }
+  out <- withCallingHandlers(
+    cycle_one_body(x, name, spec, unit),
+    cyclind_warning_x13 = record, cyclind_warning_outlier_share = record,
+    cyclind_warning_transform = record
+  )
+  out@notes <- unique(notes)
+  out
+}
+
+cycle_one_body <- function(x, name, spec, unit) {
   steps <- character(0)
   span <- non_na_span(x)
   if (anyNA(span) || span[2] - span[1] + 1L < 4L * spec@freq) {
@@ -76,6 +98,8 @@ cycle_one <- function(x, name, spec, unit = "level") {
   attr(core, "step") <- NULL
   out <- treat_outliers(outliers, core)
   steps <- c(steps, out$step)
+  found <- located_outliers(out$table, span[1] + seq_along(core) - 1L, x)
+  check_outlier_share(found, length(core), outliers, name)
   core <- out$x
   fc <- out$forecast
   # cycle form (F-08): after seasonal adjustment, transformation and
@@ -129,7 +153,46 @@ cycle_one <- function(x, name, spec, unit = "level") {
   }
   new("CycleSeries", name = name, original = x, transformed = place(core),
       cycle = place(cyc), normalised = place(normalise_cycle(cyc)),
-      steps = c(steps, "normalised (mean 0, mean absolute deviation 1)"))
+      steps = c(steps, "normalised (mean 0, mean absolute deviation 1)"),
+      outliers = found)
+}
+
+# Outliers of a treatment with their dates: `pos` maps positions of the
+# treated span to positions of the full series `x`.
+located_outliers <- function(table, pos, x) {
+  if (is.null(table) || nrow(table) == 0L) return(empty_outliers())
+  table <- table[!is.na(table$index), , drop = FALSE]
+  if (nrow(table) == 0L) return(empty_outliers())
+  tm <- as.numeric(stats::time(x))[pos[table$index]]
+  f <- stats::frequency(x)
+  out <- data.frame(time = tm,
+                    period = period_label(tm, f),
+                    type = table$type, removed = table$removed,
+                    stringsAsFactors = FALSE)
+  out <- out[order(out$time), , drop = FALSE]
+  rownames(out) <- NULL
+  out
+}
+
+empty_outliers <- function() {
+  data.frame(time = numeric(0), period = character(0), type = character(0),
+             removed = logical(0), stringsAsFactors = FALSE)
+}
+
+# Warning when the outliers removed exceed the share allowed by the
+# treatment (butir 1).
+check_outlier_share <- function(found, n, method, name) {
+  limit <- outlier_max_share(method)
+  share <- sum(found$removed) / n
+  if (share > limit) {
+    cyclind_warn(sprintf(paste("Series '%s': the share of outliers removed",
+                               "(%d of %d observations, %.1f%%) exceeds",
+                               "max_share = %s; check the series or the",
+                               "outlier treatment."), name,
+                         sum(found$removed), n, 100 * share, limit),
+                 "cyclind_warning_outlier_share")
+  }
+  invisible(share)
 }
 
 # Outlier treatment of a specification (specifications saved before 0.1.3
@@ -148,10 +211,21 @@ spec_extension <- function(spec) {
 apply_transform <- function(x, transform, name, engine = "auto") {
   positive <- all(x > 0)
   if (transform == "test") {
-    use_log <- positive && log_test(x, engine)
+    test <- if (positive) log_test(x, engine) else FALSE
+    failed <- attr(test, "failed")
+    use_log <- isTRUE(test)
     out <- if (use_log) log(x) else x
-    attr(out, "step") <- if (use_log) "log (regARIMA log/level test)" else
+    attr(out, "step") <- if (!is.null(failed)) {
+      cyclind_warn(sprintf(paste("The regARIMA log/level test (X-13 or",
+                                 "TRAMO) failed for series '%s' (%s); the",
+                                 "series is kept in levels."), name, failed),
+                   "cyclind_warning_x13")
+      sprintf("levels (regARIMA log/level test failed: %s)", failed)
+    } else if (use_log) {
+      "log (regARIMA log/level test)"
+    } else {
       "levels (regARIMA log/level test)"
+    }
     return(out)
   }
   if (transform == "log" && !positive) {
@@ -190,7 +264,8 @@ replace_outliers <- function(x, threshold) {
   v[flag] <- NA
   v <- fill_internal_na(v)
   if (first) v[1] <- v[2] - stats::median(d)
-  list(x = as_ts_like(v, x), n = as.integer(n_flag))
+  list(x = as_ts_like(v, x), n = as.integer(n_flag),
+       index = sort(c(if (first) 1L, as.integer(flag))))
 }
 
 seasonal_adjust_x13 <- function(x, holidays = list()) {
@@ -200,7 +275,7 @@ seasonal_adjust_x13 <- function(x, holidays = list()) {
   }
   reg <- holiday_regressors(x, holidays)
   if (is.null(reg)) {
-    fit <- suppressMessages(seasonal::seas(x))
+    fit <- run_x13(suppressMessages(seasonal::seas(x)))
     step <- "seasonally adjusted (X-13ARIMA-SEATS)"
   } else {
     # X-13 needs the regressors over its forecast horizon (three years);
@@ -209,11 +284,18 @@ seasonal_adjust_x13 <- function(x, holidays = list()) {
       stats::time(x)[length(x)] + 3 - 1e-8
     args <- list(x, xreg = reg, regression.usertype = "holiday")
     if (!covered) args <- c(args, list(x11 = "", forecast.maxlead = 0))
-    fit <- suppressMessages(do.call(seasonal::seas, args))
+    fit <- run_x13(suppressMessages(do.call(seasonal::seas, args)))
     step <- sprintf("seasonally adjusted (X-13ARIMA-SEATS%s, holidays: %s)",
                     if (covered) "" else ", X-11 without forecasts",
                     paste(vapply(holidays, function(h) h@name, ""),
                           collapse = ", "))
+  }
+  if (inherits(fit, "error")) {
+    # without the adjustment the cycle would carry the seasonal pattern:
+    # stop rather than go on with an unadjusted series
+    cyclind_abort(paste("Seasonal adjustment with X-13ARIMA-SEATS failed:",
+                        one_line(conditionMessage(fit))),
+                  "cyclind_error_x13")
   }
   out <- as_ts_like(as.numeric(seasonal::final(fit)), x)
   attr(out, "step") <- step

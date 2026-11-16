@@ -23,6 +23,13 @@ seasonal adjustment (\code{ts}); with the growth rate form
 \item{\code{normalised}}{Normalised cycle (mean 0, mean absolute deviation 1).}
 
 \item{\code{steps}}{Character log of the transformations applied.}
+
+\item{\code{outliers}}{Data frame of the outliers found: \code{time}, \code{period},
+\code{type} (\code{"AO"}, \code{"TC"} or \code{"LS"}) and \code{removed} (was the effect
+removed?). See \code{\link[=outlier_report]{outlier_report()}}.}
+
+\item{\code{notes}}{Warnings raised while the cycle was extracted (a failed
+X-13 model, a high share of outliers, a doubtful transformation).}
 }}
 
 \seealso{

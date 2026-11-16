@@ -14,6 +14,7 @@ oecd_spec(
   amplitude = c("sd", "mad"),
   transform = "test",
   filter = NULL,
+  outlier_types = "AO",
   ...
 )
 }
@@ -44,6 +45,13 @@ that are already growth rates or percentages.}
 Hodrick-Prescott filter, for example \code{\link[=hp_smoother]{hp_smoother()}} for series that
 are already growth rates (FR-014.8). \code{NULL} keeps the OECD filter (or
 the default filter of the cycle form).}
+
+\item{outlier_types}{Outlier types whose effects are removed by
+\code{\link[=tramo_outliers]{tramo_outliers()}}: any of \code{"AO"}, \code{"TC"}, \code{"LS"}. The default \code{"AO"}
+follows the OECD practice (Gyomai, Ahmad and Astolfi 2017, p. 283:
+additive outliers are filtered, level shifts only on expert judgement;
+ADR-010); the other types are detected and reported but kept.
+\code{c("AO", "TC")} was the default before 0.1.0.9000.}
 
 \item{...}{Further arguments of \code{\link[=cli_spec]{cli_spec()}}. With \verb{form =}
 \code{\link[=growth_form]{growth_form()}} (experimental, not part of the OECD method) the

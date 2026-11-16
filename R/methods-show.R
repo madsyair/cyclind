@@ -170,6 +170,23 @@ setMethod("show", "CycleSeries", function(object) {
   cat("<CycleSeries> '", object@name, "', ", period_label(tm[span[1]], f),
       " to ", period_label(tm[span[2]], f), "\n", sep = "")
   cat(paste0("  - ", object@steps, collapse = "\n"), "\n", sep = "")
+  ol <- series_outliers(object)
+  if (nrow(ol) > 0L) {
+    cat("  outliers: ", sum(ol$removed), " replaced",
+        if (any(ol$removed)) {
+          paste0(" (", paste(ol$type[ol$removed], ol$period[ol$removed],
+                             collapse = ", "), ")")
+        },
+        if (any(!ol$removed)) {
+          paste0("; detected and kept: ",
+                 paste(ol$type[!ol$removed], ol$period[!ol$removed],
+                       collapse = ", "))
+        }, "\n", sep = "")
+  }
+  notes <- series_notes(object)
+  if (length(notes) > 0L) {
+    cat(paste0("  ! ", notes, collapse = "\n"), "\n", sep = "")
+  }
   invisible(object)
 })
 
@@ -295,6 +312,12 @@ setMethod("show", "CliResult", function(object) {
   a <- object@assessment@table
   cat("  candidates: ", nrow(a), " (", sum(a$class == "leading"),
       " leading)\n", sep = "")
+  rep <- outlier_report(object)
+  cat("  outliers: ", sum(rep$n_removed), " replaced in ",
+      sum(rep$n_removed > 0L), " series",
+      if (any(nzchar(rep$note))) {
+        sprintf("; %d series with warnings", sum(nzchar(rep$note)))
+      }, "; see outlier_report()\n", sep = "")
   if (is.null(object@composite)) {
     cat("  no composite: no candidate qualified as leading\n")
   } else {

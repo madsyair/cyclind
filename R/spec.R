@@ -375,6 +375,7 @@ setMethod("update", "CliSpec", function(object, ...) {
     args$filter <- default_filter(args$form)
   }
   types <- methods::getSlots("CliSpec")
+  old_outliers <- object@outliers
   for (nm in names(args)) {
     value <- args[[nm]]
     if (is.numeric(value) ||
@@ -389,6 +390,12 @@ setMethod("update", "CliSpec", function(object, ...) {
   }
   if (is(object@outliers, "RobustOutliers")) {
     object@outlier_threshold <- object@outliers@threshold
+  }
+  # switching the outlier treatment off keeps its end extension (butir 2)
+  carried <- carried_extension(old_outliers, object@outliers)
+  if (!is.null(carried) && !"extension" %in% names(args) &&
+      is(object@extension, "NoExtension")) {
+    object@extension <- carried
   }
   check_valid(object)
   check_form_filter(object)
@@ -462,6 +469,12 @@ setMethod("update", "CliSpec", function(object, ...) {
 #' @param transform Transformation before the filter (see [cli_spec()]);
 #'   the OECD log/level test (`"test"`) by default. `"none"` suits series
 #'   that are already growth rates or percentages.
+#' @param outlier_types Outlier types whose effects are removed by
+#'   [tramo_outliers()]: any of `"AO"`, `"TC"`, `"LS"`. The default `"AO"`
+#'   follows the OECD practice (Gyomai, Ahmad and Astolfi 2017, p. 283:
+#'   additive outliers are filtered, level shifts only on expert judgement;
+#'   ADR-010); the other types are detected and reported but kept.
+#'   `c("AO", "TC")` was the default before 0.1.0.9000.
 #' @param filter A [CycleFilter-class] in place of the OECD double
 #'   Hodrick-Prescott filter, for example [hp_smoother()] for series that
 #'   are already growth rates (FR-014.8). `NULL` keeps the OECD filter (or
@@ -496,7 +509,7 @@ oecd_spec <- function(freq = 12, seasonal_adjust = FALSE, holidays = list(),
                       engine = c("auto", "tramo", "x13"),
                       classifier = oecd_classifier(), forecast = NULL,
                       amplitude = c("sd", "mad"), transform = "test",
-                      filter = NULL, ...) {
+                      filter = NULL, outlier_types = "AO", ...) {
   check_frequency(freq)
   engine <- match.arg(engine)
   if (identical(amplitude, c("sd", "mad"))) amplitude <- "sd"
@@ -524,7 +537,8 @@ oecd_spec <- function(freq = 12, seasonal_adjust = FALSE, holidays = list(),
            seasonal_adjust = seasonal_adjust, holidays = holidays,
            min_median_lead = cls@coincident * freq / 12,
            classifier = cls,
-           outliers = tramo_outliers(engine = engine, forecast = forecast),
+           outliers = tramo_outliers(engine = engine, forecast = forecast,
+                                     remove = outlier_types),
            lag_shift = TRUE, extension = no_extension(),
            amplitude = amplitude, ...)
 }

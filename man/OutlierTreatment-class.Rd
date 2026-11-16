@@ -14,13 +14,14 @@
 \alias{treat_outliers,TramoOutliers-method}
 \title{Outlier treatment}
 \usage{
-robust_outliers(threshold = 5)
+robust_outliers(threshold = 5, max_share = 0.05)
 
 tramo_outliers(
   engine = c("auto", "tramo", "x13"),
-  remove = c("AO", "TC"),
+  remove = "AO",
   forecast = NULL,
-  critical = NULL
+  critical = NULL,
+  max_share = 0.05
 )
 
 treat_outliers(method, x, ...)
@@ -33,6 +34,9 @@ treat_outliers(method, x, ...)
 }
 \arguments{
 \item{threshold}{Robust z-score above which a change is extreme.}
+
+\item{max_share}{Share of the observations of a series above which the
+outliers removed give a warning (default 0.05, one month in twenty).}
 
 \item{engine}{\code{"auto"}, \code{"tramo"} (RJDemetra) or \code{"x13"} (seasonal).}
 
@@ -92,17 +96,39 @@ procedure (Chen and Liu 1993); \code{"auto"} takes TRAMO when \pkg{RJDemetra}
 is installed and X-13 otherwise.
 }
 
-By default only AO and TC (temporary shocks) are removed. Level shifts
-are detected, so that they are not mistaken for other outliers, but kept:
-in monthly activity data the automatic procedure often labels the onset
-of a recession a level shift, and removing it would erase a genuine
-cyclical movement. Use \code{remove = c("AO", "TC", "LS")} for the fully
-linearised series.
+By default only additive outliers (AO) are removed, as the OECD
+describes its practice (Gyomai, Ahmad and Astolfi 2017, p. 283: additive
+outliers are filtered, level shifts are analysed and removed only on
+expert judgement; ADR-010). Transitory changes (TC) and level shifts
+(LS) are detected, so that they are not mistaken for other outliers,
+and reported, but kept: in monthly activity data the automatic
+procedure often labels the onset of a recession a level shift or a
+transitory change, and removing it would erase a genuine cyclical
+movement. \code{remove = c("AO", "TC")} was the default before 0.1.0.9000;
+\code{remove = c("AO", "TC", "LS")} gives the fully linearised series (Gyomai
+and Guidetti 2012, p. 6).
+
+Every treatment reports the outliers it found: \code{\link[=cli_cycles]{cli_cycles()}} keeps
+their dates and types in the \code{outliers} slot of each
+\linkS4class{CycleSeries}, \code{\link[=outlier_report]{outlier_report()}} tabulates them, and the
+\code{show()} methods print them. When the outliers removed from a series
+exceed \code{max_share} of its observations, a warning of class
+\code{cyclind_warning_outlier_share} is given and recorded in the \code{notes}
+slot: so many replaced values change the cycle itself, and the series or
+the threshold deserve a look.
+
+When X-13ARIMA-SEATS cannot estimate the model, the series keeps its
+outliers, a warning of class \code{cyclind_warning_x13} names the series and
+the error, and the \code{notes} slot records it. Errors of the system (a full
+disk, a missing X-13 binary, a file that cannot be written) stop the run
+with an error of class \code{cyclind_error_system}.
 
 New treatments are added by defining a subclass and a method for the
 generic \code{treat_outliers()}, which returns a list with the cleaned series
-\code{x}, the number of outliers \code{n}, a description \code{step} and a numeric
-vector \code{forecast} (possibly empty).
+\code{x}, the number of outliers \code{n}, a description \code{step}, a numeric vector
+\code{forecast} (possibly empty) and, optionally, a data frame \code{table} of the
+outliers found (\code{index}, \code{type}, \code{removed}) and a character \code{failed}
+(the error message when the model failed).
 }
 \examples{
 robust_outliers()
@@ -119,7 +145,11 @@ Course in Time Series Analysis}, 171--201. Wiley, New York.
 
 Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
 Indicators}. OECD Publishing, Paris.
+
+Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of
+composite leading indicators. In \emph{Handbook on Cyclical Composite
+Indicators}, 271--291. Eurostat, Luxembourg.
 }
 \seealso{
-\code{\link[=cli_spec]{cli_spec()}}, \code{\link[=oecd_spec]{oecd_spec()}}
+\code{\link[=cli_spec]{cli_spec()}}, \code{\link[=oecd_spec]{oecd_spec()}}, \code{\link[=outlier_report]{outlier_report()}}
 }
