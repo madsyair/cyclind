@@ -219,3 +219,46 @@ test_that("cycle_agreement checks its arguments and accepts objects", {
   expect_true(all(u > 0 & u < 1))
   expect_identical(u, cyclind:::pm_uniform(5, 3))
 })
+
+# ---- butir 10: provenance ---------------------------------------------------
+
+test_that("cyclind_provenance records versions and checksums", {
+  cand <- sim_candidates(seed = 1)
+  pv <- cyclind_provenance(cand)
+  expect_s3_class(pv, "data.frame")
+  expect_named(pv, c("item", "value"))
+  expect_true(all(c("cyclind", "R", "seasonal", "X-13 (x13binary)",
+                    "RJDemetra", "md5 of data") %in% pv$item))
+  expect_equal(pv$value[pv$item == "cyclind"],
+               as.character(utils::packageVersion("cyclind")))
+  md5 <- pv$value[pv$item == "md5 of data"]
+  expect_match(md5, "^[0-9a-f]{32}$")
+  # the checksum depends on the values only
+  expect_equal(cyclind_provenance(cand)$value[pv$item == "md5 of data"], md5)
+  cand2 <- cand
+  cand2@data[1, 1] <- cand2@data[1, 1] + 1e-6
+  expect_false(identical(
+    cyclind_provenance(cand2)$value[pv$item == "md5 of data"], md5))
+  # a ts and a data frame work too; files are hashed as they are
+  expect_match(cyclind_provenance(cand@data)$value[7], "^[0-9a-f]{32}$")
+  f <- tempfile(fileext = ".csv")
+  on.exit(unlink(f))
+  utils::write.csv(data.frame(a = 1:3), f, row.names = FALSE)
+  pf <- cyclind_provenance(files = f)
+  expect_equal(pf$value[pf$item == paste("md5 of", basename(f))],
+               unname(as.character(tools::md5sum(f))))
+  expect_error(cyclind_provenance(files = "no-such-file.csv"),
+               class = "cyclind_error_argument")
+  expect_error(cyclind_provenance(list(1)), class = "cyclind_error_argument")
+  expect_false("md5 of data" %in% cyclind_provenance()$item)
+})
+
+test_that("the exported script prints the provenance", {
+  skip_if_not_installed("shiny")
+  state <- list(source = "example", frequency = 12, seed = 1,
+                meta = data.frame(name = "lead_6", rationale = "early_stage"),
+                reference = "reference", spec_call = "cli_spec(freq = 12)",
+                mode = "auto")
+  script <- cyclind:::app_script(state)
+  expect_match(script, "cyclind_provenance(cand)", fixed = TRUE)
+})

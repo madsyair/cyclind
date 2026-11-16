@@ -651,11 +651,19 @@ app_script <- function(state) {
     if (isTRUE(state$cand_rebuilt)) {
       lines <- c(lines, "", candidate_lines(state, "cand@data"))
     }
-    return(paste(c(lines, analysis_lines(state)), collapse = "\n"))
+    return(paste(c(lines, analysis_lines(state), provenance_lines()),
+                 collapse = "\n"))
   }
   lines <- c("library(cyclind)", "", data_lines(state))
   lines <- c(lines, "", candidate_lines(state, "data"))
-  paste(c(lines, analysis_lines(state)), collapse = "\n")
+  paste(c(lines, analysis_lines(state), provenance_lines()),
+        collapse = "\n")
+}
+
+# Last lines of the script: versions and checksum of the input (butir 10).
+provenance_lines <- function() {
+  c("", "# Provenance: versions of cyclind, R and X-13, checksum of the data",
+    "print(cyclind_provenance(cand))")
 }
 
 # Step 1 of the script: the data as loaded, with the column separator and

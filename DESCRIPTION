@@ -55,6 +55,7 @@ Suggests:
     spelling,
     tempdisagg,
     testthat (>= 3.0.0),
+    tools,
     xts
 VignetteBuilder: knitr
 Config/testthat/edition: 3
@@ -80,6 +81,7 @@ Collate:
     'outliers.R'
     'outlier-report.R'
     'agreement.R'
+    'provenance.R'
     'cycles.R'
     'assessment.R'
     'aggregate.R'

@@ -63,8 +63,7 @@ cycle_one <- function(x, name, spec, unit = "level") {
   }
   out <- withCallingHandlers(
     cycle_one_body(x, name, spec, unit),
-    cyclind_warning_x13 = record, cyclind_warning_outlier_share = record,
-    cyclind_warning_transform = record
+    cyclind_warning_x13 = record, cyclind_warning_outlier_share = record
   )
   out@notes <- unique(notes)
   out
