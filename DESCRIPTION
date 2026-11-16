@@ -79,6 +79,7 @@ Collate:
     'candidates.R'
     'outliers.R'
     'outlier-report.R'
+    'agreement.R'
     'cycles.R'
     'assessment.R'
     'aggregate.R'

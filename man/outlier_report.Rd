@@ -26,6 +26,8 @@ cycle was extracted (a failed X-13 model, a share of outliers above
 \linkS4class{CycleSeries}.
 }
 \examples{
-cand <- cli_candidates(simulate_cycles(seed = 1), "reference")
+sim <- simulate_cycles(seed = 1)
+meta <- data.frame(name = colnames(sim)[-1], rationale = "early_stage")
+cand <- cli_candidates(sim, "reference", meta = meta)
 outlier_report(cli_cycles(cand, cli_spec(12)))
 }

@@ -15,7 +15,9 @@
 #'   and period of each outlier, kept ones in brackets), `types` (counts by
 #'   type) and `note` (warnings, empty when there were none).
 #' @examples
-#' cand <- cli_candidates(simulate_cycles(seed = 1), "reference")
+#' sim <- simulate_cycles(seed = 1)
+#' meta <- data.frame(name = colnames(sim)[-1], rationale = "early_stage")
+#' cand <- cli_candidates(sim, "reference", meta = meta)
 #' outlier_report(cli_cycles(cand, cli_spec(12)))
 #' @export
 outlier_report <- function(x) {

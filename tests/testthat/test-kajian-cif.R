@@ -131,3 +131,91 @@ test_that("twin candidates (|r| >= 0.99) are dropped and reported", {
   expect_equal(p("twin dropped x (|r| 0.995 with y)"),
                "kembar dibuang x (|r| 0.995 dengan y)")
 })
+
+# ---- butir 5: crisis-robust agreement with the reference --------------------
+
+crisis_pair <- function() {
+  set.seed(11)
+  n <- 240
+  tm <- 2000 + (0:(n - 1)) / 12
+  ref <- sin(2 * pi * (1:n) / 48)
+  x <- ref + rnorm(n, 0, 0.2)
+  y <- ref + rnorm(n, 0, 0.6)
+  crisis <- tm >= 2010 & tm < 2011
+  x[crisis] <- x[crisis] - 8
+  list(ref = ts(ref, start = 2000, frequency = 12),
+       x = ts(x, start = 2000, frequency = 12),
+       y = ts(y, start = 2000, frequency = 12))
+}
+
+test_that("agreement outside excluded periods is robust to a crisis", {
+  d <- crisis_pair()
+  all_in <- cycle_agreement(d$x, d$ref)
+  out <- cycle_agreement(d$x, d$ref, exclude = c(2010, 2010 + 11 / 12))
+  expect_named(out, c("statistic", "x", "y", "difference", "lower",
+                      "upper"))
+  expect_equal(out$statistic, c("pearson", "spearman", "rmse"))
+  expect_gt(out$x[1], all_in$x[1] + 0.2)
+  keep <- !(stats::time(d$x) >= 2010 & stats::time(d$x) < 2011)
+  expect_equal(out$x[2], stats::cor(d$x[keep], d$ref[keep],
+                                    method = "spearman"))
+  expect_equal(attr(out, "n"), 228L)
+  expect_equal(attr(out, "n_excluded"), 12L)
+  # several windows, as a list
+  two <- cycle_agreement(d$x, d$ref, exclude = list(c(2010, 2010.95),
+                                                    c(2015, 2015.5)))
+  expect_equal(attr(two, "n_excluded"), 19L)
+  expect_true(all(is.na(out$lower)))
+})
+
+test_that("paired block bootstrap gives reproducible intervals", {
+  d <- crisis_pair()
+  ex <- c(2010, 2010.95)
+  had_seed <- exists(".Random.seed", envir = globalenv())
+  before <- if (had_seed) get(".Random.seed", envir = globalenv())
+  a <- cycle_agreement(d$x, d$ref, y = d$y, exclude = ex, reps = 199,
+                       seed = 42)
+  if (had_seed) {
+    expect_identical(get(".Random.seed", envir = globalenv()), before)
+  }
+  b <- cycle_agreement(d$x, d$ref, y = d$y, exclude = ex, reps = 199,
+                       seed = 42)
+  c2 <- cycle_agreement(d$x, d$ref, y = d$y, exclude = ex, reps = 199,
+                        seed = 7)
+  expect_identical(a, b)
+  expect_false(identical(a$lower, c2$lower))
+  expect_equal(a$difference, a$x - a$y)
+  # x is much closer to the reference than y outside the crisis
+  expect_gt(a$lower[1], 0)
+  expect_lt(a$upper[3], 0)
+  expect_true(all(a$lower <= a$difference & a$difference <= a$upper))
+  expect_equal(attr(a, "block"), 24)
+  expect_equal(attr(a, "seed"), 42)
+  # one series: the interval of its own statistics
+  one <- cycle_agreement(d$x, d$ref, exclude = ex, reps = 99, seed = 1,
+                         block = 12)
+  expect_true(all(one$lower <= one$x & one$x <= one$upper))
+})
+
+test_that("cycle_agreement checks its arguments and accepts objects", {
+  d <- crisis_pair()
+  expect_error(cycle_agreement(d$x, d$ref, reps = 10),
+               class = "cyclind_error_argument")
+  expect_error(cycle_agreement(d$x, d$ref, reps = 10, seed = 1.5),
+               class = "cyclind_error_argument")
+  expect_error(cycle_agreement(d$x, d$ref, exclude = c(2011, 2010)),
+               class = "cyclind_error_argument")
+  expect_error(cycle_agreement(d$x, d$ref, exclude = "2010"),
+               class = "cyclind_error_argument")
+  expect_error(cycle_agreement(1:10, d$ref), class = "cyclind_error_argument")
+  q <- ts(1:80, frequency = 4, start = 2000)
+  expect_error(cycle_agreement(q, d$ref), class = "cyclind_error_frequency")
+  expect_error(cycle_agreement(d$x, d$ref, exclude = c(1990, 2030)),
+               class = "cyclind_error_short_series")
+  res <- suppressWarnings(cli_build(sim_candidates(seed = 1)))
+  ag <- cycle_agreement(composite(res), cycles(res)$reference)
+  expect_gt(ag$x[1], 0.5)
+  u <- cyclind:::pm_uniform(5, 3)
+  expect_true(all(u > 0 & u < 1))
+  expect_identical(u, cyclind:::pm_uniform(5, 3))
+})
