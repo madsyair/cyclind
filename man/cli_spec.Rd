@@ -54,7 +54,12 @@ available components to the previous value
 \item{transform}{\code{"auto"} (logarithm for strictly positive series),
 \code{"log"}, \code{"none"} or \code{"test"} (logarithm when the log/level test of a
 regARIMA model prefers it, as TRAMO does at the OECD; needs
-\pkg{RJDemetra} or \pkg{seasonal}).}
+\pkg{RJDemetra} or \pkg{seasonal}). With \code{"auto"} and \code{"test"},
+series declared in percent (\code{unit = "percent"} in the metadata of
+\code{\link[=cli_candidates]{cli_candidates()}}: interest rates, unemployment rates, survey
+balances) stay in levels, since their cycle is additive; \code{"log"} takes
+the logarithm of every series. Before 0.1.0.9000, \code{"auto"} also logged
+positive series in percent.}
 
 \item{seasonal_adjust}{Seasonally adjust with X-13ARIMA-SEATS (needs the
 \pkg{seasonal} package)?}

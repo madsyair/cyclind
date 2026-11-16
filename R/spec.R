@@ -31,7 +31,12 @@
 #' @param transform `"auto"` (logarithm for strictly positive series),
 #'   `"log"`, `"none"` or `"test"` (logarithm when the log/level test of a
 #'   regARIMA model prefers it, as TRAMO does at the OECD; needs
-#'   \pkg{RJDemetra} or \pkg{seasonal}).
+#'   \pkg{RJDemetra} or \pkg{seasonal}). With `"auto"` and `"test"`,
+#'   series declared in percent (`unit = "percent"` in the metadata of
+#'   [cli_candidates()]: interest rates, unemployment rates, survey
+#'   balances) stay in levels, since their cycle is additive; `"log"` takes
+#'   the logarithm of every series. Before 0.1.0.9000, `"auto"` also logged
+#'   positive series in percent.
 #' @param seasonal_adjust Seasonally adjust with X-13ARIMA-SEATS (needs the
 #'   \pkg{seasonal} package)?
 #' @param outlier_threshold Robust z-score of period-to-period changes above

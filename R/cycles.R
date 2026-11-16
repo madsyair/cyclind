@@ -3,7 +3,8 @@
 #' Applies, series by series on its own non-missing span: interpolation of
 #' internal gaps, optional seasonal adjustment of the original series with
 #' X-13ARIMA-SEATS, the transformation (`"auto"` takes logarithms of strictly
-#' positive series), outlier replacement, the cycle form of the
+#' positive series, except series in percent such as interest rates, see
+#' `unit` in [cli_candidates()]), outlier replacement, the cycle form of the
 #' specification (the level by default, or the growth rate, see
 #' [growth_form()]), the extension of the series end with forecasts
 #' ([ar_extension()] by default), the cycle filter and the OECD
@@ -93,7 +94,7 @@ cycle_one_body <- function(x, name, spec, unit) {
   outliers <- spec_outliers(spec)
   engine <- if (methods::.hasSlot(outliers, "engine")) outliers@engine else
     "auto"
-  core <- apply_transform(core, spec@transform, name, engine)
+  core <- apply_transform(core, spec@transform, name, engine, unit = unit)
   steps <- c(steps, attr(core, "step"))
   attr(core, "step") <- NULL
   out <- treat_outliers(outliers, core)
@@ -208,8 +209,16 @@ spec_extension <- function(spec) {
     no_extension()
 }
 
-apply_transform <- function(x, transform, name, engine = "auto") {
+apply_transform <- function(x, transform, name, engine = "auto",
+                            unit = "level") {
   positive <- all(x > 0)
+  # a rate, a percentage or a balance (unit "percent", e.g. an interest
+  # rate) has no multiplicative trend: "auto" and "test" keep it in levels
+  # (butir 4); only an explicit "log" takes its logarithm
+  if (identical(unit, "percent") && transform %in% c("auto", "test")) {
+    attr(x, "step") <- "levels (no log: series in percent)"
+    return(x)
+  }
   if (transform == "test") {
     test <- if (positive) log_test(x, engine) else FALSE
     failed <- attr(test, "failed")
