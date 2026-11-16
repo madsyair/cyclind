@@ -297,7 +297,10 @@ cci_build <- function(x, spec = NULL, components = NULL, select = TRUE) {
       "initial index of the given components"
     }
     sel <- if (select) {
-      elimination_loop(comps, evaluate, spec, first)
+      twins <- drop_twins(comps, cycles, assessment, spec)
+      out <- elimination_loop(twins$keep, evaluate, spec, first)
+      out$audit <- rbind(twins$audit, out$audit)
+      out
     } else {
       keep_all(comps, evaluate, spec, first)
     }

@@ -35,7 +35,9 @@ cli_spec(
   lag_shift = FALSE,
   extension = NULL,
   form = NULL,
-  amplitude = c("mad", "sd")
+  amplitude = c("mad", "sd"),
+  matching = c("nearest", "maximum"),
+  twin_threshold = 0.99
 )
 }
 \arguments{
@@ -151,6 +153,24 @@ the reference cycle (in percent deviation from trend): \code{"mad"}
 cycle; \code{"sd"} gives it the standard deviation of the reference cycle
 over their common dates, which reproduces the OECD amplitude-adjusted
 CLI (see \code{\link[=oecd_spec]{oecd_spec()}}). Only the index changes, not the cycle.}
+
+\item{matching}{Rule that pairs turning points. Reference turning points
+are taken in time order; each is paired with a candidate turning point
+of the same type inside \code{lead_window} that is later than the candidate
+turning point paired before and not used yet. \code{"nearest"} (default)
+takes the one closest in time, as the OECD package CIF does;
+\code{"maximum"} takes the most pronounced one, the highest peak or deepest
+trough of the candidate cycle, and the closest of equally pronounced
+ones. Unpaired reference turning points are missed and unpaired
+candidate turning points are extra. \code{"maximum"} keeps a small wiggle
+just before the reference turn from replacing the main turn of the
+candidate, at the cost of longer leads.}
+
+\item{twin_threshold}{Candidates whose normalised cycles correlate at
+least this much in absolute value are twins: before the selection loop
+only the one with the higher peak cross-correlation with the reference
+is kept (default 0.99, as in CIF). The twins dropped are listed in the
+audit log and in a warning. 1 drops identical cycles only.}
 }
 \value{
 A \linkS4class{CliSpec} object.

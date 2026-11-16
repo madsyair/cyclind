@@ -88,6 +88,9 @@ setMethod("show", "CliSpec", function(object) {
     end <- "forecasts of the outlier treatment"
   }
   cat("  end:         ", end, "\n", sep = "")
+  if (identical(spec_matching(object), "maximum")) {
+    cat("  matching:    largest turning point in the window\n")
+  }
   cat(classifier_lines(spec_classifier(object), object), sep = "")
   if (methods::.hasSlot(object, "lag_shift") && isTRUE(object@lag_shift)) {
     cat("  lag-shift:   components aligned on the shortest median lead\n")

@@ -20,6 +20,16 @@
 #' (\textrm{missed share} + \textrm{extra share}),}
 #' where the lead is that of the cross-correlation peak.
 #'
+#' Before the loop, twin candidates whose normalised cycles correlate at
+#' least `spec@twin_threshold` (0.99) in absolute value are reduced to the
+#' one with the higher peak cross-correlation with the reference; the twins
+#' dropped are listed in a warning (`cyclind_warning_twins`) and in the
+#' audit log (iteration 0). Twins add the same information twice and give
+#' it double weight. A selected composite of fewer than three components
+#' gives a warning (`cyclind_warning_few_components`): it is little more
+#' than the cycle of its components and is fragile when one of them is
+#' revised.
+#'
 #' When `spec@oos_cutoffs` is not empty the selection-bias harness
 #' ([cli_selection_bias()]) is run as well and stored in the validation.
 #'
@@ -95,6 +105,8 @@ select_components <- function(cycles, assessment, spec, reference) {
     return(list(composite = NULL, validation = NULL,
                 audit = empty_audit("no leading candidates")))
   }
+  twins <- drop_twins(comps, cycles, assessment, spec)
+  comps <- twins$keep
   shift_on <- methods::.hasSlot(spec, "lag_shift") && isTRUE(spec@lag_shift)
   evaluate <- function(cs) {
     sh <- if (shift_on) lag_shifts(cs, assessment) else NULL
@@ -104,9 +116,82 @@ select_components <- function(cycles, assessment, spec, reference) {
   }
   sel <- elimination_loop(comps, evaluate, spec,
                           "initial composite of all leading candidates")
+  sel$audit <- rbind(twins$audit, sel$audit)
   # the prediction group only for the chosen composite
   sel$validation <- cli_validate(sel$composite, ref, spec)
   sel
+}
+
+# Twin threshold of a specification (objects saved before 0.1.0.9000 keep
+# every candidate but identical ones).
+spec_twin_threshold <- function(spec) {
+  if (methods::.hasSlot(spec, "twin_threshold") &&
+      length(spec@twin_threshold) == 1L) spec@twin_threshold else 1
+}
+
+# Candidates whose cycles correlate at least `threshold` in absolute value
+# with a better candidate (higher `score`), in order of the score: data
+# frame of `name`, `twin_of` and `r` (butir 8).
+find_twins <- function(comps, cycles, score, threshold) {
+  out <- data.frame(name = character(0), twin_of = character(0),
+                    r = numeric(0), stringsAsFactors = FALSE)
+  if (length(comps) < 2L) return(out)
+  s <- score[comps]
+  s[is.na(s)] <- -Inf
+  ord <- comps[order(-s, seq_along(comps))]
+  kept <- ord[1]
+  for (nm in ord[-1]) {
+    a <- as.numeric(cycles[[nm]]@normalised)
+    r <- vapply(kept, function(k) {
+      b <- as.numeric(cycles[[k]]@normalised)
+      ok <- !is.na(a) & !is.na(b)
+      if (sum(ok) < 3L || stats::sd(a[ok]) == 0 || stats::sd(b[ok]) == 0) {
+        return(0)
+      }
+      stats::cor(a[ok], b[ok])
+    }, numeric(1))
+    hit <- which(abs(r) >= threshold)
+    if (length(hit) > 0L) {
+      out[nrow(out) + 1L, ] <- list(nm, kept[hit[1]], r[hit[1]])
+    } else {
+      kept <- c(kept, nm)
+    }
+  }
+  out
+}
+
+# Drop twin candidates before the selection loop, with a warning and audit
+# rows.
+drop_twins <- function(comps, cycles, assessment, spec) {
+  tab <- assessment@table
+  score <- stats::setNames(tab$ccf_r, tab$name)
+  tw <- find_twins(comps, cycles, score, spec_twin_threshold(spec))
+  if (nrow(tw) == 0L) return(list(keep = comps, audit = NULL))
+  action <- sprintf("twin dropped %s (|r| %.3f with %s)", tw$name,
+                    abs(tw$r), tw$twin_of)
+  cyclind_warn(sprintf(paste("Twin candidates dropped before the selection",
+                             "(|r| >= %s): %s."), spec_twin_threshold(spec),
+                       paste(sprintf("%s (twin of %s)", tw$name, tw$twin_of),
+                             collapse = ", ")),
+               "cyclind_warning_twins")
+  audit <- do.call(rbind, lapply(action, function(a) {
+    row <- empty_audit(a)
+    row$n_components <- NA_integer_
+    row
+  }))
+  list(keep = setdiff(comps, tw$name), audit = audit)
+}
+
+# A composite of fewer than three components (butir 7).
+warn_few_components <- function(comps) {
+  if (length(comps) > 0L && length(comps) < 3L) {
+    cyclind_warn(sprintf(paste("The selected composite has %d component(s):",
+                               "%s. With fewer than three it is little more",
+                               "than the cycle of its components."),
+                         length(comps), paste(comps, collapse = ", ")),
+                 "cyclind_warning_few_components")
+  }
+  invisible(comps)
 }
 
 # Backward elimination shared by the leading and coincident composites:
@@ -148,6 +233,7 @@ elimination_loop <- function(comps, evaluate, spec, first_action) {
   }
   audit <- do.call(rbind, rows)
   rownames(audit) <- NULL
+  warn_few_components(comps)
   list(composite = current$composite, validation = current$validation,
        audit = audit)
 }

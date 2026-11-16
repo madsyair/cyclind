@@ -60,6 +60,22 @@
 #' @param lead_window Turning points are paired when the candidate turns at
 #'   most `lead_window[1]` periods after and `lead_window[2]` periods before
 #'   the reference (default `c(12, 24)` months or `c(4, 8)` quarters).
+#' @param matching Rule that pairs turning points. Reference turning points
+#'   are taken in time order; each is paired with a candidate turning point
+#'   of the same type inside `lead_window` that is later than the candidate
+#'   turning point paired before and not used yet. `"nearest"` (default)
+#'   takes the one closest in time, as the OECD package CIF does;
+#'   `"maximum"` takes the most pronounced one, the highest peak or deepest
+#'   trough of the candidate cycle, and the closest of equally pronounced
+#'   ones. Unpaired reference turning points are missed and unpaired
+#'   candidate turning points are extra. `"maximum"` keeps a small wiggle
+#'   just before the reference turn from replacing the main turn of the
+#'   candidate, at the cost of longer leads.
+#' @param twin_threshold Candidates whose normalised cycles correlate at
+#'   least this much in absolute value are twins: before the selection loop
+#'   only the one with the higher peak cross-correlation with the reference
+#'   is kept (default 0.99, as in CIF). The twins dropped are listed in the
+#'   audit log and in a warning. 1 drops identical cycles only.
 #' @param ccf_lag_max Largest lead or lag of the cross-correlation search
 #'   (default 24 months or 8 quarters).
 #' @param alpha Significance level of the tests (default 0.05).
@@ -126,8 +142,11 @@ cli_spec <- function(freq = 12, filter = NULL, dater = NULL,
                      oos_cutoffs = numeric(0), holidays = list(),
                      classifier = NULL, outliers = NULL, lag_shift = FALSE,
                      extension = NULL, form = NULL,
-                     amplitude = c("mad", "sd")) {
+                     amplitude = c("mad", "sd"),
+                     matching = c("nearest", "maximum"),
+                     twin_threshold = 0.99) {
   check_frequency(freq)
+  matching <- match.arg(matching)
   monthly <- freq == 12
   if (is(holidays, "HolidayEffect")) holidays <- list(holidays)
   check_strategy(classifier, "Classifier", "classifier")
@@ -204,7 +223,9 @@ cli_spec <- function(freq = 12, filter = NULL, dater = NULL,
     lag_shift = lag_shift,
     extension = if (is.null(extension)) ar_extension() else extension,
     form = form,
-    amplitude = amplitude
+    amplitude = amplitude,
+    matching = matching,
+    twin_threshold = as.numeric(twin_threshold)
   )
   if (is(spec@outliers, "RobustOutliers")) {
     spec@outlier_threshold <- spec@outliers@threshold
@@ -254,7 +275,8 @@ upgrade_spec <- function(object) {
   old <- list(holidays = list(), classifier = cyclind_classifier(),
               outliers = robust_outliers(object@outlier_threshold),
               lag_shift = FALSE, extension = no_extension(),
-              form = level_form(), amplitude = "mad")
+              form = level_form(), amplitude = "mad", matching = "nearest",
+              twin_threshold = 1)
   for (nm in names(old)) {
     if (!methods::.hasSlot(object, nm)) attr(object, nm) <- old[[nm]]
   }
@@ -350,6 +372,16 @@ setValidity("CliSpec", function(object) {
       (length(object@amplitude) != 1L ||
          !isTRUE(object@amplitude %in% c("mad", "sd")))) {
     msg <- c(msg, "`amplitude` must be \"mad\" or \"sd\".")
+  }
+  if (methods::.hasSlot(object, "matching") &&
+      (length(object@matching) != 1L ||
+         !isTRUE(object@matching %in% c("nearest", "maximum")))) {
+    msg <- c(msg, "`matching` must be \"nearest\" or \"maximum\".")
+  }
+  if (methods::.hasSlot(object, "twin_threshold") &&
+      (length(object@twin_threshold) != 1L ||
+         !isTRUE(object@twin_threshold > 0 && object@twin_threshold <= 1))) {
+    msg <- c(msg, "`twin_threshold` must be in (0, 1].")
   }
   if (length(msg) == 0L) TRUE else msg
 })

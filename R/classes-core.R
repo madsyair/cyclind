@@ -50,6 +50,10 @@
 #' @slot amplitude Measure that matches the amplitude of the composite index
 #'   to that of the reference cycle: `"mad"` (mean absolute deviation) or
 #'   `"sd"` (standard deviation).
+#' @slot matching Which candidate turning point in the matching window is
+#'   paired with a reference turning point: `"nearest"` or `"maximum"`.
+#' @slot twin_threshold Absolute correlation of two candidate cycles from
+#'   which the weaker one is dropped before aggregation.
 #' @seealso [cli_spec()]
 #' @exportClass CliSpec
 setClass("CliSpec", representation(
@@ -65,11 +69,12 @@ setClass("CliSpec", representation(
   max_iter = "numeric", min_components = "numeric", horizon = "numeric",
   oos_cutoffs = "numeric", holidays = "list", classifier = "Classifier",
   outliers = "OutlierTreatment", lag_shift = "logical",
-  extension = "Extension", form = "CycleForm", amplitude = "character"
+  extension = "Extension", form = "CycleForm", amplitude = "character",
+  matching = "character", twin_threshold = "numeric"
 ), prototype(holidays = list(), classifier = cyclind_classifier(),
              outliers = robust_outliers(5), lag_shift = FALSE,
              extension = no_extension(), form = level_form(),
-             amplitude = "mad"))
+             amplitude = "mad", matching = "nearest", twin_threshold = 0.99))
 
 #' Reference and candidate series
 #'

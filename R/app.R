@@ -611,6 +611,18 @@ quality_display <- function(q, p = function(x) x) {
   translate_names(out, p)
 }
 
+# Warnings of the package shown in the interface: a translated sentence
+# for the warnings added from the CIF comparison, followed by the details.
+app_warning_text <- function(w, t) {
+  keys <- c(cyclind_warning_few_components = "warn_few_components",
+            cyclind_warning_twins = "warn_twins",
+            cyclind_warning_outlier_share = "warn_outlier_share",
+            cyclind_warning_x13 = "warn_x13")
+  hit <- keys[names(keys) %in% class(w)]
+  if (length(hit) == 0L) return(conditionMessage(w))
+  paste0(t(hit[[1]]), " (", conditionMessage(w), ")")
+}
+
 # The outlier report of step 4 with translated headers.
 outlier_table_app <- function(cycles, p) {
   rep <- outlier_report(cycles)
@@ -833,7 +845,7 @@ app_server <- function(language = "en") {
     safely <- function(expr) {
       tryCatch(
         withCallingHandlers(expr, warning = function(w) {
-          shiny::showNotification(conditionMessage(w), type = "warning",
+          shiny::showNotification(app_warning_text(w, t), type = "warning",
                                   duration = 8)
           invokeRestart("muffleWarning")
         }),

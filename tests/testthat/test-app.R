@@ -334,3 +334,19 @@ test_that("step 4 shows the outliers of each series in both languages", {
   expect_match(cyclind:::app_text$en$outlier_report, "Outliers")
   expect_match(cyclind:::app_text$id$outlier_report, "Pencilan")
 })
+
+test_that("new warnings are translated in the interface", {
+  w <- structure(class = c("cyclind_warning_few_components",
+                           "cyclind_warning", "warning", "condition"),
+                 list(message = "The selected composite has 2", call = NULL))
+  t_id <- function(k) cyclind:::app_text$id[[k]]
+  t_en <- function(k) cyclind:::app_text$en[[k]]
+  expect_match(cyclind:::app_warning_text(w, t_id), "kurang dari tiga")
+  expect_match(cyclind:::app_warning_text(w, t_en), "fewer than three")
+  expect_match(cyclind:::app_warning_text(w, t_id), "has 2", fixed = TRUE)
+  plain <- simpleWarning("other")
+  expect_equal(cyclind:::app_warning_text(plain, t_id), "other")
+  for (k in c("warn_twins", "warn_outlier_share", "warn_x13")) {
+    expect_true(nzchar(t_id(k)) && nzchar(t_en(k)))
+  }
+})
