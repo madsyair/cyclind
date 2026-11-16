@@ -5,12 +5,13 @@
 \alias{cyclind_app}
 \title{Run the step-by-step graphical interface}
 \usage{
-run_app(language = c("id", "en"), ...)
+run_app(language = c("en", "id"), ...)
 
-cyclind_app(language = c("id", "en"))
+cyclind_app(language = c("en", "id"))
 }
 \arguments{
-\item{language}{Interface language: \code{"id"} (Indonesian) or \code{"en"}.}
+\item{language}{Interface language: \code{"en"} (English, the default) or
+\code{"id"} (Indonesian).}
 
 \item{...}{Passed to \code{\link[shiny:runApp]{shiny::runApp()}}, e.g. \code{launch.browser}.}
 }
@@ -36,10 +37,10 @@ deployment on Shiny Server or Posit Connect (see
 \examples{
 if (interactive()) {
   run_app()
-  run_app(language = "en")
+  run_app(language = "id")
 }
 if (requireNamespace("shiny", quietly = TRUE)) {
-  app <- cyclind_app("en")
+  app <- cyclind_app()
   class(app)
 }
 }

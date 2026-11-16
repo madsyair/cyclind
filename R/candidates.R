@@ -38,8 +38,8 @@ oecd_rationales <- c(
 #'   before aggregation) or `NA` (decided from the data by
 #'   [cli_assess()]), and `unit`: `"level"` (default) or `"percent"` for a
 #'   series that is already a rate, a percentage or a balance (an interest
-#'   rate, an unemployment rate), whose growth rate and acceleration forms
-#'   ([growth_form()]) are differences in percentage points. `meta` may hold a
+#'   rate, an unemployment rate), whose growth rate form
+#'   ([growth_form()]) is a difference in percentage points. `meta` may hold a
 #'   row for the reference; only its `unit` is used. When `data` comes from
 #'   [cli_align()], the types,
 #'   source frequencies and conversion steps recorded there are kept as

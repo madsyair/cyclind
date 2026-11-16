@@ -446,6 +446,29 @@ test_that("R14/R16/R18: limits, malformed text inputs and cut-offs", {
                class = "cyclind_error_argument")
 })
 
+test_that("AC-FR-016.5: the cycle forms are named by their kind of cycle", {
+  skip_if_not_installed("shiny")
+  tx <- cyclind:::app_text
+  expect_identical(tx$id$form_level, "Growth cycle: deviasi dari tren")
+  expect_identical(tx$id$form_growth, "Growth rate cycle: laju pertumbuhan")
+  expect_identical(tx$en$form_level, "Growth cycle: deviation from trend")
+  expect_identical(tx$en$form_growth, "Growth rate cycle: growth rate")
+  for (lang in c("id", "en")) {
+    html <- as.character(cyclind:::app_ui(lang))
+    # the choices keep their values and show the new labels
+    expect_match(html, paste0('<option value="level" selected>',
+                              tx[[lang]]$form_level, "</option>"),
+                 fixed = TRUE)
+    expect_match(html, paste0('<option value="growth">',
+                              tx[[lang]]$form_growth, "</option>"),
+                 fixed = TRUE)
+    expect_match(html, tx[[lang]]$form_cycle_help, fixed = TRUE)
+    expect_no_match(html, "acceleration", fixed = TRUE)
+  }
+  expect_match(tx$id$form_cycle_help, "di atas atau di bawah tren")
+  expect_match(tx$en$form_cycle_help, "speeding up or slowing")
+})
+
 test_that("AC-FR-013.7: cycle form, growth lag and HP smoother in step 3", {
   skip_if_not_installed("shiny")
   html <- as.character(cyclind:::app_ui("id"))
@@ -465,14 +488,13 @@ test_that("AC-FR-013.7: cycle form, growth lag and HP smoother in step 3", {
     expect_match(rv$spec_call, "filter = hp_smoother()", fixed = TRUE)
     expect_script_spec(rv)
   })
-  with_step3(list(form = "acceleration", growth_lag = "period",
+  with_step3(list(form = "growth", growth_lag = "period",
                   filter = "hp_smoother", hp_smooth_period = 6),
              function(rv, session) {
-    expect_s4_class(rv$spec@form, "AccelerationForm")
+    expect_s4_class(rv$spec@form, "GrowthForm")
     expect_identical(rv$spec@form@lag, 1)
     expect_identical(rv$spec@filter@period, 6)
-    expect_match(rv$spec_call, "form = acceleration_form(lag = 1)",
-                 fixed = TRUE)
+    expect_match(rv$spec_call, "form = growth_form(lag = 1)", fixed = TRUE)
     expect_script_spec(rv)
   })
   # the level form writes nothing new into the script
@@ -522,8 +544,8 @@ test_that("the form switches only a default filter (review R-13.7)", {
   shiny::testServer(cyclind:::app_server("en"), {
     session$setInputs(form = "level", filter = "hp_double")
     session$setInputs(form = "growth")
-    # within the rate forms a hand-picked filter is kept
-    session$setInputs(filter = "hp_double", form = "acceleration")
+    # a filter picked by hand is kept while the form stays a rate
+    session$setInputs(filter = "hp_double")
     session$setInputs(filter = "cf", form = "level")
     session$setInputs(filter = "hp_double", form = "growth")
     session$setInputs(filter = "hp_smoother", form = "level")

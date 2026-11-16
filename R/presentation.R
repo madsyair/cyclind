@@ -23,14 +23,14 @@
 #' in the amplitude of the composite, and the trend is restored by adding
 #' them to the trend rather than by multiplying.
 #'
-#' With a growth rate or acceleration form ([growth_form()],
-#' [acceleration_form()]), the reference is its rate and the amplitude of
+#' With the growth rate form ([growth_form()]), the reference is its
+#' rate and the amplitude of
 #' the composite is in percentage points (the units of the rate):
 #' `amplitude_adjusted` and `reference_amplitude_adjusted` are 100 plus the
 #' deviation in percentage points, `trend_restored` and `reference_trend`
 #' are the mean rate of the reference plus that deviation and the mean rate
 #' itself, and the two rate-of-change columns are `NA`. The data frame then
-#' has an attribute `units` (`"growth"` or `"acceleration"`).
+#' has an attribute `units` (`"growth"`).
 #'
 #' The reference series in the output is the transformed one: seasonally
 #' adjusted and cleaned of outliers as in the specification, in the units
@@ -109,7 +109,7 @@ cli_presentation <- function(x, composite = NULL) {
   )
 }
 
-# Growth rate and acceleration forms: the composite amplitude is in the
+# Growth rate form: the composite amplitude is in the
 # units of the reference rate (percentage points), so the composite is
 # shown around the mean rate of the reference; a rate of change of a rate
 # is not defined.

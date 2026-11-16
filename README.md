@@ -18,9 +18,8 @@ composite, following the OECD system of composite leading indicators:
    adjustment, one year of AR forecasts appended to stabilise the end of the
    series, and one of five filters: Hodrick-Prescott, OECD double HP,
    Christiano-Fitzgerald, Baxter-King or Hamilton (`cli_cycles()`).
-   Cycles can also be taken from growth rates or accelerations, smoothed
-   with an HP smoother (`growth_form()`, `acceleration_form()`,
-   experimental).
+   Cycles can also be taken from growth rates, smoothed with an HP
+   smoother (`growth_form()`, experimental).
 4. **Turning points** – Bry-Boschan and Harding-Pagan BBQ rules
    (`cli_turning_points()`).
 5. **Classification** – leading, coincident, lagging or rejected, from the
@@ -56,7 +55,7 @@ moving holidays such as Idulfitri are removed during seasonal adjustment with
 `holiday_effect()`.
 
 A Shiny interface runs the same steps with plots for each of them:
-`run_app()` (Indonesian) or `run_app(language = "en")`.
+`run_app()` (English) or `run_app(language = "id")` (Indonesian).
 
 ## Installation
 

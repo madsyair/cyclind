@@ -13,9 +13,6 @@ test_that("AC-FR-015.1: growth_form() uses the BPS formula by default", {
   q <- apply_form(growth_form(1), z, logged = TRUE)
   expect_equal(as.numeric(q)[-1], 100 * (y[-1] / y[-8] - 1),
                tolerance = 1e-12)
-  a <- apply_form(acceleration_form(), z, logged = TRUE)
-  expect_equal(as.numeric(a)[-(1:5)], diff(100 * (y[5:8] / y[1:4] - 1)),
-               tolerance = 1e-12)
   # the log rates of 0.7.0-0.8.0 remain available
   expect_equal(as.numeric(apply_form(growth_form(rate = "log"), z,
                                      TRUE))[-(1:4)],
@@ -28,9 +25,9 @@ test_that("AC-FR-015.1: growth_form() uses the BPS formula by default", {
                  r[5:8] - r[1:4], tolerance = 1e-12)
   }
   expect_identical(growth_form()@rate, "percent")
-  expect_identical(acceleration_form(rate = "log")@rate, "log")
+  expect_identical(growth_form(rate = "log")@rate, "log")
   expect_error(growth_form(rate = "ratio"), class = "cyclind_error_argument")
-  expect_error(acceleration_form(rate = c("percent", "log", "x")),
+  expect_error(growth_form(rate = c("percent", "log", "x")),
                class = "cyclind_error_argument")
   # a form saved before INC-17 has no rate and behaves as the log rate
   old <- growth_form()
@@ -94,10 +91,6 @@ test_that("AC-FR-015.3: series in percent are differenced in points", {
   # without the unit: percent growth of the rate
   expect_equal(as.numeric(cy$rate2@transformed)[-(1:4)],
                100 * (rate[5:n] / rate[1:(n - 4)] - 1), tolerance = 1e-10)
-  # acceleration of a series in percent: change of the difference
-  ca <- cli_cycles(cand, update(spec, form = acceleration_form()))
-  expect_equal(as.numeric(ca$rate@transformed)[-(1:5)],
-               diff(rate[5:n] - rate[1:(n - 4)]), tolerance = 1e-10)
   # the level form ignores the unit
   c0 <- cli_cycles(cand, cli_spec(freq = 4, outlier_threshold = Inf))
   expect_equal(c0$rate@normalised, c0$rate2@normalised)

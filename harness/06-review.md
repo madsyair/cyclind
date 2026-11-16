@@ -1,5 +1,7 @@
 # Review INC-13 (0.7.0), putaran 2
 
+> **Catatan 0.1.0.9000.** Bentuk percepatan (`acceleration_form()`) yang dibahas di catatan review ini dihapus (FR-016): bentuk itu bukan salah satu dari tiga jenis siklus baku; *acceleration cycle* di literatur (kerangka ABCD, Anas dan Ferrara 2004) berarti siklus laju pertumbuhan, yang sudah dicakup `growth_form()`; dan selisih laju adalah turunan kedua sehingga bising, dengan ambang yang belum dikalibrasi. Temuan di bawah dibiarkan sebagai catatan sejarah.
+
 - Increment: versi pengembangan 0.7.0 (FR-013; F-08, F-09; ADR-003)
 - Reviewer: A6 (konteks bersih: ya)
 - Basis: komit 9d52d14 di cabang `cyclind-0.7.0` (PR #8), dibandingkan dengan

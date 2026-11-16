@@ -77,7 +77,7 @@ lags (default 3 years); the first and last \code{k} values are missing.
 \item \code{hp_smoother()}: the HP trend at a short cut-off of \code{period}
 observations (default one year). It smooths without removing a trend,
 as the second step of the OECD double filter does, and is the default
-filter of the growth rate and acceleration forms (\linkS4class{CycleForm}).
+filter of the growth rate form (\linkS4class{CycleForm}).
 Formula F-09 in the package harness.
 \item \code{hamilton_filter()}: Hamilton (2018) regression filter; the cycle is the
 residual of a regression of \eqn{y_{t+h}} on \eqn{y_t, \dots,

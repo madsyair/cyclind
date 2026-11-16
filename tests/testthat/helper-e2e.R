@@ -14,11 +14,17 @@ skip_if_no_browser <- function() {
           "Chrome is not available")
 }
 
-# Start the installed application in headless Chrome.
-start_app <- function(name, language = "en") {
-  old <- Sys.getenv("CYCLIND_LANGUAGE")
-  Sys.setenv(CYCLIND_LANGUAGE = language)
-  on.exit(Sys.setenv(CYCLIND_LANGUAGE = old))
+# Start the installed application in headless Chrome. `language = NULL`
+# leaves CYCLIND_LANGUAGE unset, so the entry point uses its default.
+start_app <- function(name, language = NULL) {
+  old <- Sys.getenv("CYCLIND_LANGUAGE", NA)
+  if (is.null(language)) {
+    Sys.unsetenv("CYCLIND_LANGUAGE")
+  } else {
+    Sys.setenv(CYCLIND_LANGUAGE = language)
+  }
+  on.exit(if (is.na(old)) Sys.unsetenv("CYCLIND_LANGUAGE") else
+    Sys.setenv(CYCLIND_LANGUAGE = old))
   shinytest2::AppDriver$new(
     system.file("app", package = "cyclind"), name = name,
     width = 1400, height = 1100, load_timeout = 60000, timeout = 60000,
@@ -31,7 +37,10 @@ start_app <- function(name, language = "en") {
 shot <- function(app, file) {
   dir <- Sys.getenv("CYCLIND_SCREENSHOT_DIR", tempdir())
   dir.create(dir, showWarnings = FALSE, recursive = TRUE)
-  app$get_screenshot(file.path(dir, paste0(file, ".png")))
+  path <- file.path(dir, paste0(file, ".png"))
+  # a screenshot left by an earlier run is replaced
+  unlink(path)
+  app$get_screenshot(path)
 }
 
 go_to <- function(app, k) {

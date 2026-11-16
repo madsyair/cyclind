@@ -3,14 +3,14 @@
 # The classification thresholds were calibrated for level (growth) cycles.
 # This script measures how the same default rules classify simulated
 # candidates with known class when the cycles are taken as annual growth
-# rates or as accelerations (with the HP smoother as default filter).
-# Run from the package root (about 10 minutes for 60 replications):
+# rates (with the HP smoother as default filter). The acceleration form was
+# removed in 0.1.0.9000, and with it its rows.
+# Run from the package root (about 7 minutes for 60 replications):
 #   Rscript data-raw/calibrate_forms.R
 # Output: inst/calibration/forms.csv
 devtools::load_all(quiet = TRUE)
 reps <- as.integer(Sys.getenv("CYCLIND_REPS", "60"))
-forms <- list(level = level_form(), growth = growth_form(),
-              acceleration = acceleration_form())
+forms <- list(level = level_form(), growth = growth_form())
 collect <- function(freq, noise_sd, form) {
   do.call(rbind, lapply(seq_len(reps), function(s) {
     sim <- simulate_cycles(freq = freq, noise_sd = noise_sd, seed = s)

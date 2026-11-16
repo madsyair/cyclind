@@ -4,8 +4,8 @@
 #' internal gaps, optional seasonal adjustment of the original series with
 #' X-13ARIMA-SEATS, the transformation (`"auto"` takes logarithms of strictly
 #' positive series), outlier replacement, the cycle form of the
-#' specification (the level by default, or the growth rate or acceleration,
-#' see [growth_form()]), the extension of the series end with forecasts
+#' specification (the level by default, or the growth rate, see
+#' [growth_form()]), the extension of the series end with forecasts
 #' ([ar_extension()] by default), the cycle filter and the OECD
 #' normalisation (subtract the mean, divide by the mean absolute deviation).
 #' Every step is recorded in the `steps` slot.

@@ -3,16 +3,52 @@
 # coincident index the reference series of a new analysis
 # (cci_as_reference()); the exported script reproduces the whole chain.
 
-test_that("the title names both indices and the package version", {
+test_that("the title names the three indices and the package version", {
   skip_if_not_installed("shiny")
   v <- as.character(utils::packageVersion("cyclind"))
   html <- as.character(cyclind:::app_ui("id"))
-  expect_match(html, paste0("cyclind ", v, ": Indikator Komposit Pendahulu ",
-                            "dan Sejalan"), fixed = TRUE)
+  expect_match(html, paste0("cyclind ", v, ": Indikator Komposit Siklus: ",
+                            "Pendahulu, Sejalan, dan Tertinggal"),
+               fixed = TRUE)
   html <- as.character(cyclind:::app_ui("en"))
-  expect_match(html, paste0("cyclind ", v, ": Composite Leading and ",
-                            "Coincident Indicators"), fixed = TRUE)
+  expect_match(html, paste0("cyclind ", v, ": Cyclical Composite ",
+                            "Indicators: Leading, Coincident and Lagging"),
+               fixed = TRUE)
   expect_match(html, cyclind:::app_text$en$cci_ref, fixed = TRUE)
+})
+
+test_that("English is the default language, Indonesian stays available", {
+  skip_if_not_installed("shiny")
+  expect_identical(eval(formals(run_app)$language), c("en", "id"))
+  expect_identical(eval(formals(cyclind_app)$language), c("en", "id"))
+  expect_identical(formals(cyclind:::app_ui)$language, "en")
+  expect_identical(formals(cyclind:::app_server)$language, "en")
+  expect_match(as.character(cyclind:::app_ui()), cyclind:::app_text$en$title,
+               fixed = TRUE)
+  # cyclind_app() passes the chosen language to the UI and the server
+  seen <- character(0)
+  testthat::local_mocked_bindings(
+    app_ui = function(language) {
+      seen <<- c(seen, language)
+      shiny::div()
+    },
+    app_server = function(language) {
+      seen <<- c(seen, language)
+      function(input, output, session) NULL
+    }
+  )
+  expect_s3_class(cyclind_app(), "shiny.appobj")
+  expect_identical(seen, c("en", "en"))
+  cyclind_app("id")
+  expect_identical(seen[3:4], c("id", "id"))
+  expect_error(cyclind_app("fr"))
+  # the deployment entry point follows CYCLIND_LANGUAGE, English by default
+  entry <- readLines(system.file("app", "app.R", package = "cyclind"))
+  expect_true(any(grepl('Sys.getenv("CYCLIND_LANGUAGE", "en")', entry,
+                        fixed = TRUE)))
+  # every key exists in both languages
+  expect_setequal(names(cyclind:::app_text$en),
+                  names(cyclind:::app_text$id))
 })
 
 test_that("the coincident index becomes the reference of a new analysis", {
