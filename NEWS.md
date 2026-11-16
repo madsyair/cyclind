@@ -37,6 +37,58 @@
   Composite Indicators: Leading, Coincident and Lagging" ("Indikator
   Komposit Siklus: Pendahulu, Sejalan, dan Tertinggal").
 
+## Fixes from the comparison with the OECD package CIF
+
+* Outliers are transparent. Every outlier treatment reports the dates and
+  types of the outliers it found; `CycleSeries` keeps them in the new slot
+  `outliers`, with the warnings raised during cycle extraction in the new
+  slot `notes`. The new `outlier_report()` tabulates them by series, and
+  `show()` and step 4 of the interface display them. A share of replaced
+  outliers above `max_share` (new argument of `robust_outliers()` and
+  `tramo_outliers()`, default 0.05) gives a warning
+  (`cyclind_warning_outlier_share`).
+* `tramo_outliers()` removes additive outliers only by default, and
+  `oecd_spec()` gains `outlier_types = "AO"`, following the 2017 OECD
+  documentation (Gyomai, Ahmad and Astolfi 2017, p. 283; ADR-010).
+  Transitory changes and level shifts are detected and reported but kept.
+  `outlier_types = c("AO", "TC")` restores the earlier default.
+* Switching the outliers of a specification off
+  (`update(oecd_spec(), outlier_threshold = Inf)`) no longer switches the
+  end extension off: the new `regarima_extension()` keeps the forecasts
+  with the same horizon and engine.
+* A failed X-13 or TRAMO model gives an explicit warning
+  (`cyclind_warning_x13`) that names the series and the program error, and
+  is recorded in `notes`; a failed log/level test keeps the series in
+  levels with a warning. System errors (a full disk, a missing binary, a
+  file that cannot be written) stop with `cyclind_error_system`, and a
+  failed seasonal adjustment stops with `cyclind_error_x13`.
+* `transform = "auto"` (and `"test"`) no longer logs series declared with
+  `unit = "percent"`, such as interest rates; `"log"` still logs every
+  series.
+* New `cycle_agreement()`: Pearson and Spearman correlations and the RMSE
+  against the reference outside excluded crisis periods, with paired
+  moving-block bootstrap intervals from an explicit `seed` (the package
+  does not touch the session RNG).
+* New `cli_spec(matching = c("nearest", "maximum"))`: a reference turning
+  point is paired with the closest candidate turning point in the window
+  (default, as in CIF) or with the most pronounced one.
+* A composite chosen by the selection loop with fewer than three
+  components gives a warning (`cyclind_warning_few_components`).
+* Twin candidates, whose cycles correlate at least `twin_threshold`
+  (new, default 0.99) in absolute value, are reduced to the one with the
+  higher cross-correlation before the selection loop; the dropped twins
+  are listed in a warning and in the audit log.
+* New `cyclind_provenance()`: versions of cyclind, R, seasonal, the X-13
+  binary and RJDemetra, and MD5 checksums of the input. The script
+  exported by the interface prints it.
+* The length of the end extension is documented (`?Extension`, vignette):
+  one year of AR forecasts in cyclind, 0 to 2 months of TRAMO forecasts at
+  the OECD and six months of ARIMA forecasts in CIF.
+* Tests pin the inclusive bounds of the dater: phases of exactly
+  `min_phase` and cycles of exactly `min_cycle` are kept.
+* New warnings are shown in the interface with an Indonesian or English
+  sentence.
+
 # cyclind 0.1.0
 
 First release. The package builds cyclical composite indicators following

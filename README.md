@@ -154,7 +154,7 @@ Shiny Server or Posit Connect (`system.file("app", package = "cyclind")`).
   tuned on the same simulation design, so these rates are optimistic.
 * `oecd_spec()` reproduces the published OECD CLI of Indonesia from the
   OECD's own component cycles (correlation 0.9998); from the public
-  original series the whole method gives 0.88 (`vignette("cyclind")`,
+  original series the whole method gives 0.89 (`vignette("cyclind")`,
   section 8).
 * `R CMD check --as-cran` runs on Windows, macOS and Linux in GitHub Actions.
 

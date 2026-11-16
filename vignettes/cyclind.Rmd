@@ -464,11 +464,13 @@ cmp_idn[, c("component", "A_class_oecd_rule", "A_class_oecd_median_rule",
 ```
 
 From quarterly GDP (Denton-Cholette to months) and the original series,
-`oecd_spec()` gives cycles that correlate 0.90 to 0.99 with the OECD
+`oecd_spec()` gives cycles that correlate 0.92 to 0.99 with the OECD
 cycles; the GDP cycle matches all 19 reference turning points. The
-composite of the four (B1) correlates 0.88 with the published CLI and
-finds 18 of its 24 turning points; it leads GDP by three months at the
-cross-correlation peak, the OECD cycles of the same four (A5) by four.
+composite of the four (B1) correlates 0.89 with the published CLI and
+finds 21 of its 24 turning points; it leads GDP by four months at the
+cross-correlation peak, as do the OECD cycles of the same four (A5).
+(Before 0.1.0.9000, when `oecd_spec()` also removed transitory changes,
+the figures were 0.88 and 18.)
 Classification differs most. By the median lead alone, five of the seven
 OECD components are leading and two coincident; with the conformity
 criteria of the OECD rule only the interest rate passes, mainly because

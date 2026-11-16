@@ -476,8 +476,8 @@ setMethod("update", "CliSpec", function(object, ...) {
 #' hundredths of a point; `data-raw/oecd_idn_validate.R`). This checks the
 #' aggregation and presentation steps on the data the choices were made
 #' with. From the four component series that are public, the whole method
-#' gives a composite that correlates 0.88 with the published CLI and finds
-#' 18 of its 24 turning points (row B1 of
+#' gives a composite that correlates 0.89 with the published CLI and finds
+#' 21 of its 24 turning points (row B1 of
 #' `inst/calibration/oecd-idn-composite.csv`); the classification step
 #' uses the stricter operationalisation of [oecd_classifier()]. An
 #' alternative with a longer forecast, a robust amplitude and arithmetic
