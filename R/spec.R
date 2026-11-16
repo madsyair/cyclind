@@ -103,8 +103,12 @@
 #'   does (default `FALSE`). Values moved past the last date of the data are
 #'   dropped.
 #' @param extension An [Extension-class]; default [ar_extension()]: each
-#'   series is extended by one year of AR forecasts before the cycle filter.
-#'   Use [no_extension()] for no extension.
+#'   series is extended by one year of AR forecasts before the cycle filter
+#'   (`ar_extension(h = 6)` for the six months of ARIMA forecasts of CIF;
+#'   the OECD uses TRAMO forecasts of 0 to 2 months, see
+#'   [Extension-class]). Use [no_extension()] for no extension. The
+#'   extension is separate from the outlier treatment: switching outliers
+#'   off with [update()] keeps it.
 #' @param form A [CycleForm-class]: [level_form()] (default, the growth
 #'   cycle) or [growth_form()] (growth rate cycle).
 #'   Without `filter`, the growth form uses [hp_smoother()].

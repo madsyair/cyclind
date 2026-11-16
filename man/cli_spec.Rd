@@ -135,8 +135,12 @@ does (default \code{FALSE}). Values moved past the last date of the data are
 dropped.}
 
 \item{extension}{An \linkS4class{Extension}; default \code{\link[=ar_extension]{ar_extension()}}: each
-series is extended by one year of AR forecasts before the cycle filter.
-Use \code{\link[=no_extension]{no_extension()}} for no extension.}
+series is extended by one year of AR forecasts before the cycle filter
+(\code{ar_extension(h = 6)} for the six months of ARIMA forecasts of CIF;
+the OECD uses TRAMO forecasts of 0 to 2 months, see
+\linkS4class{Extension}). Use \code{\link[=no_extension]{no_extension()}} for no extension. The
+extension is separate from the outlier treatment: switching outliers
+off with \code{\link[=update]{update()}} keeps it.}
 
 \item{form}{A \linkS4class{CycleForm}: \code{\link[=level_form]{level_form()}} (default, the growth
 cycle) or \code{\link[=growth_form]{growth_form()}} (growth rate cycle).

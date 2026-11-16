@@ -370,6 +370,28 @@ cli_spec(aggregator = equal_weight(ragged_edge = "level"),
          extension = no_extension())
 ```
 
+The length of the extension differs between programs. cyclind appends one
+year of AR forecasts of the changes (12 months or 4 quarters,
+`ar_extension(h = )` changes it); the OECD appends TRAMO forecasts of 0
+to 2 months (`oecd_spec()` uses 2); the OECD Python package CIF appends six
+months of ARIMA forecasts. A longer extension moves more of the end-point
+revision of the two-sided filter into the forecast error, so the end of
+the cycle leans more on the model. `ar_extension(h = 6)` is the CIF
+choice. Switching the outliers of `oecd_spec()` off
+(`update(spec, outlier_threshold = Inf)`) keeps its forecasts through
+`regarima_extension()`, so the two options stay separate.
+
+Every outlier treatment reports what it found. `outlier_report()` lists,
+series by series, the outliers replaced and those detected but kept, with
+their dates and types, and the warnings recorded on the way (a failed
+X-13 model, more than `max_share` of the observations replaced).
+`oecd_spec()` replaces additive outliers only (`outlier_types = "AO"`, as
+in the 2017 OECD documentation); transitory changes and level shifts are
+reported but kept. `cycle_agreement()` compares a composite with the
+reference by Pearson and Spearman correlations outside crisis periods
+(`exclude = `), with paired block-bootstrap intervals from an explicit
+`seed`.
+
 TRAMO-type outliers and the robust default classify the candidates
 equally well when spikes and a level shift are injected:
 

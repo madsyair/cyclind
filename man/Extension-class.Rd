@@ -100,9 +100,8 @@ The OECD appends TRAMO forecasts of 0 to 2 months (Nilsson and Gyomai
 2011, para. 65; \code{\link[=oecd_spec]{oecd_spec()}} uses 2 months), and the OECD Python
 package CIF extends each series with six months of ARIMA forecasts
 before its filter. A longer extension moves more of the end-point
-revision of the two-sided filter into the forecast error: one year
-halves the weight of the last observation in the HP trend, at the cost
-of a cycle end that leans on the AR model. Shorter extensions
+revision of the two-sided filter into the forecast error, at the cost
+of a cycle end that leans more on the AR model. Shorter extensions
 (\code{ar_extension(h = 6)} as in CIF, or \code{h = 2} as at the OECD) are
 closer to the published practice; the real-time simulations behind the
 default are in \code{data-raw/realtime_defaults.R}.
