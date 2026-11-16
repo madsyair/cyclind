@@ -3,10 +3,10 @@
 #' Applies, series by series on its own non-missing span: interpolation of
 #' internal gaps, optional seasonal adjustment of the original series with
 #' X-13ARIMA-SEATS, the transformation (`"auto"` takes logarithms of strictly
-#' positive series), outlier replacement, the cycle form of the
-#' specification (the level by default, or the growth rate, see
-#' [growth_form()]), the extension of the series end with forecasts
-#' ([ar_extension()] by default), the cycle filter and the OECD
+#' positive series that are not declared in percent), outlier replacement,
+#' the cycle form of the specification (the level by default, or the growth
+#' rate, see [growth_form()]), the extension of the series end with
+#' forecasts ([ar_extension()] by default), the cycle filter and the OECD
 #' normalisation (subtract the mean, divide by the mean absolute deviation).
 #' Every step is recorded in the `steps` slot.
 #'
@@ -71,7 +71,7 @@ cycle_one <- function(x, name, spec, unit = "level") {
   outliers <- spec_outliers(spec)
   engine <- if (methods::.hasSlot(outliers, "engine")) outliers@engine else
     "auto"
-  core <- apply_transform(core, spec@transform, name, engine)
+  core <- apply_transform(core, spec@transform, name, engine, unit)
   steps <- c(steps, attr(core, "step"))
   attr(core, "step") <- NULL
   out <- treat_outliers(outliers, core)
@@ -145,7 +145,10 @@ spec_extension <- function(spec) {
     no_extension()
 }
 
-apply_transform <- function(x, transform, name, engine = "auto") {
+# "auto" takes no logarithm of a series declared in percent (a rate, such as
+# an interest rate, is not multiplicative; audit P11).
+apply_transform <- function(x, transform, name, engine = "auto",
+                            unit = "level") {
   positive <- all(x > 0)
   if (transform == "test") {
     use_log <- positive && log_test(x, engine)
@@ -158,7 +161,8 @@ apply_transform <- function(x, transform, name, engine = "auto") {
     cyclind_abort(sprintf("Series '%s' has non-positive values; cannot log.",
                           name), "cyclind_error_transform")
   }
-  if (transform == "log" || (transform == "auto" && positive)) {
+  auto_log <- transform == "auto" && positive && !identical(unit, "percent")
+  if (transform == "log" || auto_log) {
     out <- log(x)
     attr(out, "step") <- "log"
   } else {

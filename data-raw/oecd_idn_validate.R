@@ -138,7 +138,7 @@ composite_row <- function(label, ci) {
              vs_reference(tp, cc@normalised))
 }
 # against the OECD reference series: turning points matched within the
-# lead window of oecd_spec() (12 months after, 24 before) and the lead of
+# lead window of oecd_spec() (9 months after, 24 before) and the lead of
 # the cross-correlation peak
 vs_reference <- function(tp, x) {
   m <- match_turning_points(rs_tp, tp, spec_a@lead_window, 0L)
@@ -239,6 +239,19 @@ ref_row <- {
 }
 tab_comp <- rbind(ref_row, tab_comp)
 
+# the composite chosen by cli_build(); a row of NA when no candidate leads
+b2_row <- function(res) {
+  ci <- composite(res)
+  if (!is.null(ci)) {
+    return(composite_row(paste0("B2 cli_build(): ",
+                                paste(ci@components, collapse = "+")), ci))
+  }
+  row <- composite_row("B2", cli_composite(cyc_a4, four, spec_a, ref_rt))
+  row[] <- lapply(row, function(v) v[NA_integer_])
+  row$composite <- "B2 cli_build(): no leading component"
+  row$n_components <- 0
+  row
+}
 # composites from original series: four components, OECD signs; and the
 # composite chosen by cli_build()
 four <- names(orig)[-1]
@@ -253,9 +266,7 @@ tab_compo <- rbind(
                 cli_composite(cyc_a4, four, spec_a, ref_rt)),
   composite_row("B1 four original series, oecd_spec(), OECD signs",
                 cli_composite(cyc_b4, four, spec_b, cyc_b4$gdp)),
-  composite_row(paste0("B2 cli_build(): ",
-                       paste(composite(res_b)@components, collapse = "+")),
-                composite(res_b))
+  b2_row(res_b)
 )
 
 # turning points of the published CLI, the reference and composite A1

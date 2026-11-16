@@ -120,7 +120,9 @@ test_that("a user completes the ten steps in the browser", {
   expect_equal(app$get_value(input = "cci_components"), "coincident")
   app$click("run9")
   app$wait_for_idle(timeout = 120000)
-  expect_text_soon(app, "#cci_verdict", "ACCEPTABLE")
+  # GOOD since the symmetric phase rule (ADR-004): the turning points of
+  # the index now give the out-of-sample criteria, which all pass
+  expect_text_soon(app, "#cci_verdict", "GOOD")
   expect_match(app$get_value(output = "cci_scorecard"), "median lead")
   expect_match(app$get_value(output = "cci_audit"), "initial index")
   for (id in c("cci_plot", "cci_weights_plot", "cci_components_plot")) {

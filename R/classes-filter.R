@@ -18,6 +18,8 @@
 #'   filter with a cut-off of `trend_period` removes the trend; a second one
 #'   with a cut-off of `smooth_period` removes high-frequency noise. Defaults:
 #'   10 and 1 year (120 and 12 months), as in Gyomai and Guidetti (2012).
+#'   The OECD filters monthly series only; for quarterly data the same
+#'   cut-offs in years (40 and 4 quarters) are an extension of cyclind.
 #' * `cf_filter()`: Christiano-Fitzgerald asymmetric band-pass filter for a
 #'   random walk (Christiano and Fitzgerald 2003), keeping periods between `pl`
 #'   and `pu` (defaults 1.5 and 8 years).

@@ -36,8 +36,10 @@ plus the average change of the components; default) or \code{"level"}
 (plain mean, without chaining).}
 
 \item{growth}{Growth rates chained by \code{oecd_aggregate()}: \code{"log"} (log
-differences, reciprocal inversion) or \code{"ratio"} (arithmetic growth
-rates of the normalised cycles plus 100, sign inversion).}
+differences, reciprocal inversion; the choice of cyclind that is
+closest to the published CLI) or \code{"ratio"} (arithmetic growth rates of
+the normalised cycles plus 100, sign inversion; the formula written by
+the OECD).}
 }
 \value{
 An \code{Aggregator} object.
@@ -68,24 +70,39 @@ changes of the normalised cycles rather than growth rates of cycle plus
 value equals the plain mean of a panel in which every missing component
 is assumed to move like the average of the available ones. With
 \code{ragged_edge = "level"} the plain mean is used everywhere.
-\item \code{oecd_aggregate()}: the OECD procedure (Gyomai and Guidetti 2012,
-p. 9). Each component is the normalised cycle plus 100; at each date
-the growth rates of the available components are averaged with equal
-weights and the average growth is chained into the index, which starts
-at the mean level of the components. A date is computed only when at
-least \code{min_coverage} of the components are available; after a gap the
-chain restarts at the mean level of the available components. When
-all components are observed, the result moves almost exactly like
-the equal-weight mean; it differs at the ragged edge, where a missing
-component changes the average growth instead of the average level.
-With \code{growth = "log"} (the default since INC-15) the growth rates are
-log differences and a counter-cyclical component enters as the
-reciprocal of its original index, \eqn{100^2 / (100 + z)}, so that its
-log growth is minus that of the original series. The OECD documents do
-not give the formula; on the CLI of Indonesia this form reproduces the
-published CLI with a correlation of 0.9998, against 0.998 for
-\code{growth = "ratio"}, arithmetic growth rates
-(\code{data-raw/oecd_idn_validate.R}, \code{vignette("cyclind")}).
+\item \code{oecd_aggregate()}: the OECD chain (Gyomai and Guidetti 2012, p. 9;
+Gyomai, Ahmad and Astolfi 2017, p. 286, note 8). Each component is the
+normalised cycle plus 100; at each date the growth rates of the
+available components are averaged with equal weights and the average
+growth is chained into the index, which starts at the mean level of
+the components. A date is chained only when at least \code{min_coverage}
+of the components are available at that date and the date before;
+after a gap the chain restarts at the mean level of the components
+available (at least \code{min_coverage} of them). When all components are
+observed, the result moves almost exactly like the equal-weight mean;
+it differs at the ragged edge, where a missing component changes the
+average growth instead of the average level.
+With \code{growth = "ratio"} the growth rates are arithmetic,
+\eqn{c_{i,t}/c_{i,t-1} - 1}, and a counter-cyclical component enters as
+\eqn{200 - c}: this is the formula written by Gyomai, Ahmad and Astolfi
+(2017, note 8), \eqn{CLI_t = CLI_{t-1} \sum_i w_i \delta_{i,t,t-1}
+  c_{i,t}/c_{i,t-1} / \sum_i w_i \delta_{i,t,t-1}}, which does not say
+how components are inverted. With \code{growth = "log"} (the default since
+INC-15) the growth rates are log differences and a counter-cyclical
+component enters as the reciprocal of its original index,
+\eqn{100^2 / (100 + z)}, so that its log growth is minus that of the
+original series. This is a choice of cyclind, not a written OECD rule:
+from the seven component cycles of the published CLI of Indonesia it
+reproduces the CLI with a correlation of 0.99985 (largest difference
+0.086), against 0.99839 (0.605) for the written formula; both find all
+27 turning points of the CLI, and most of the gain comes from the
+reciprocal inversion (\code{data-raw/oecd_idn_validate.R},
+\code{vignette("oecd-indonesia")}). In both variants the 60 percent rule is
+checked, as in the written formula, on the components available at
+\eqn{t} and \eqn{t-1}; one difference remains: the chain starts (and
+restarts after a gap) at the mean level of the components available at
+that date rather than at 100, so that the index stays on the scale of
+the normalised cycles.
 \item \code{principal_component()} and \code{dynamic_factor()} fall back to
 \code{equal_weight()} (chained at the ragged edge) when there
 are fewer than three complete rows per component.
@@ -127,6 +144,10 @@ predictors. \emph{Journal of Econometrics}, 146(2), 304--317.
 Doz, C., Giannone, D. and Reichlin, L. (2011). A two-step estimator for
 large approximate dynamic factor models based on Kalman filtering.
 \emph{Journal of Econometrics}, 164(1), 188--205.
+
+Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+leading indicators. In \emph{Handbook on Cyclical Composite Indicators},
+chapter 10, 271--291. Eurostat, Luxembourg.
 
 Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
 Indicators}. OECD Publishing, Paris.

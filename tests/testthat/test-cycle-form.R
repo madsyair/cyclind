@@ -148,6 +148,9 @@ test_that("AC-FR-013.5: units of growth forms downstream", {
   expect_equal(pr$trend_restored - pr$reference_trend,
                pr$amplitude_adjusted - 100)
   expect_equal(pr$reference_amplitude_adjusted - 100, g - mean(g, na.rm = TRUE))
+  # P9: the smoothed rate around the same centre
+  expect_equal(pr$reference_smoothed - 100,
+               as.numeric(res@cycles$reference@cycle) - mean(g, na.rm = TRUE))
   expect_true(all(is.na(pr$rate_of_change)))
   expect_true(all(is.na(pr$reference_rate_of_change)))
   # composite and reference deviations on the same scale

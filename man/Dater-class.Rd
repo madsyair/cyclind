@@ -6,13 +6,35 @@
 \alias{Dater}
 \alias{BryBoschan-class}
 \alias{BBQ-class}
+\alias{OecdDater-class}
 \alias{bry_boschan}
+\alias{oecd_dater}
 \alias{bbq}
 \title{Turning-point dating rules}
 \usage{
-bry_boschan(window = NA, min_phase = NA, min_cycle = NA, end_exclusion = NA)
+bry_boschan(
+  window = NA,
+  min_phase = NA,
+  min_cycle = NA,
+  end_exclusion = NA,
+  phase_rule = c("symmetric", "bbq")
+)
 
-bbq(window = NA, min_phase = NA, min_cycle = NA, end_exclusion = NA)
+oecd_dater(
+  window = NA,
+  min_phase = NA,
+  min_cycle = NA,
+  end_exclusion = NA,
+  phase_rule = c("symmetric", "bbq")
+)
+
+bbq(
+  window = NA,
+  min_phase = NA,
+  min_cycle = NA,
+  end_exclusion = NA,
+  phase_rule = c("symmetric", "bbq")
+)
 }
 \arguments{
 \item{window}{Half-width of the local extremum window.}
@@ -23,14 +45,19 @@ bbq(window = NA, min_phase = NA, min_cycle = NA, end_exclusion = NA)
 
 \item{end_exclusion}{Number of observations at each end in which no turning
 point is accepted.}
+
+\item{phase_rule}{How a phase shorter than \code{min_phase} is removed:
+\code{"symmetric"} (default; keeps the most extreme turning points) or
+\code{"bbq"} (drops the later turning point, as cyclind 0.1.0).}
 }
 \value{
 A \code{Dater} object.
 }
 \description{
-A \code{Dater} holds the censoring rules of a turning-point algorithm. Both
+A \code{Dater} holds the censoring rules of a turning-point algorithm. The
 built-in daters implement the Bry and Boschan (1971) logic as simplified by
-Harding and Pagan (2002) and the OECD:
+Harding and Pagan (2002) and the OECD (Gyomai, Ahmad and Astolfi 2017,
+p. 285):
 }
 \details{
 \enumerate{
@@ -45,19 +72,55 @@ end values;
 observations and a phase at least \code{min_phase} observations.
 }
 
-\code{bry_boschan()} uses the monthly defaults (window 5, phase 5, cycle 15,
-end exclusion 6); \code{bbq()} uses the quarterly defaults of Harding and Pagan
-(window 2, phase 2, cycle 5, end exclusion 2). Parameters left at \code{NA}
-are resolved from the series frequency, so either dater can be applied to
-monthly or quarterly data.
+The defaults (window / phase / cycle / end exclusion) differ by dater:
+\itemize{
+\item \code{oecd_dater()}: 5 / 9 / 24 / 6 months, 2 / 3 / 8 / 2 quarters; the
+phase and cycle lengths of the OECD (Gyomai, Ahmad and Astolfi 2017,
+p. 285);
+\item \code{bry_boschan()}: 5 / 5 / 15 / 6 months, 2 / 2 / 5 / 2 quarters; the
+original routine (Bry and Boschan 1971), used by the OECD before 2008
+(Gyomai and Guidetti 2012, annex B);
+\item \code{bbq()}: the same values, after Harding and Pagan (2002).
+}
+
+The OECD gives the phase and cycle lengths in months only; the quarterly
+values of \code{oecd_dater()} (3 and 8 quarters) are their translation by
+cyclind, not an OECD rule. The window and the end exclusion are not
+given by the OECD and keep the Bry-Boschan values. Parameters left at
+\code{NA} are resolved from the series frequency, so every dater can be
+applied to monthly or quarterly data.
+
+\strong{Phase rule.} When a phase is shorter than \code{min_phase}, a peak and a
+trough have to go. With \code{phase_rule = "symmetric"} (the default) every
+admissible removal (one turning point of a short phase together with
+the less extreme of its two neighbours of the other type) is tried, and
+the one that keeps the largest total amplitude of the turning-point path
+(sum of absolute differences between consecutive turning points) is
+applied, one at a time until no short phase is left. The rule keeps the
+most extreme peaks and troughs and does not depend on the direction of
+time: dating the reversed series gives the same turning points, reversed
+(apart from exact ties). With \code{phase_rule = "bbq"} the later turning point
+of a short phase is dropped, the rule of cyclind 0.1.0, which reproduces
+the BBQ program of Harding and Pagan as implemented in the archived
+'BCDating' package more closely but can lose the deepest trough of a
+crisis (see \verb{harness/adr/ADR-004.md} in the source package). The OECD
+does not say which turning point of a short phase it drops.
 }
 \examples{
+oecd_dater()
 bry_boschan()
-bbq(min_cycle = 6)
+bbq(min_cycle = 6, phase_rule = "bbq")
 }
 \references{
 Bry, G. and Boschan, C. (1971). \emph{Cyclical Analysis of Time Series: Selected
 Procedures and Computer Programs}. NBER, New York.
+
+Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+leading indicators. In \emph{Handbook on Cyclical Composite Indicators},
+chapter 10, 271--291. Eurostat, Luxembourg.
+
+Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
+Indicators}. OECD Publishing, Paris.
 
 Harding, D. and Pagan, A. (2002). Dissecting the cycle: a methodological
 investigation. \emph{Journal of Monetary Economics}, 49(2), 365--381.

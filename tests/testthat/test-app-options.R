@@ -169,7 +169,8 @@ test_that("AC-FR-010.2: the three OECD forms in step 7 and the script", {
       expect_named(pres, c("time", "amplitude_adjusted", "trend_restored",
                            "rate_of_change", "reference",
                            "reference_amplitude_adjusted", "reference_trend",
-                           "reference_rate_of_change"))
+                           "reference_rate_of_change",
+                           "reference_smoothed", "trend_extrapolated"))
       for (form in c("amplitude_adjusted", "trend_restored",
                      "rate_of_change")) {
         session$setInputs(pres_form = form)

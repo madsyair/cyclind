@@ -41,11 +41,17 @@ composite, following the OECD system of composite leading indicators:
     `cci_validate()`); `cci_as_reference()` makes the index the monthly
     reference series.
 
-`oecd_spec()` follows the OECD method step by step instead: TRAMO
-outliers with forecasts, the log/level test, the median-lead
-classification, lag-shifting and the chained average growth of the
-components; `cli_presentation()` gives the three OECD forms of the
-composite. The vignette explains, with simulations, where and why the
+`oecd_spec()` follows the OECD documents (Gyomai and Guidetti 2012;
+Gyomai, Ahmad and Astolfi 2017) where they state a rule: TRAMO outliers
+with two months of forecasts, the log/level test, the double
+Hodrick-Prescott filter, Bry-Boschan turning points with phases of at
+least 9 and cycles of at least 24 months, the median-lead classification,
+no lag-shifting and the chained average growth of the components. Where
+the documents give no formula (the inversion of counter-cyclical
+components, the amplitude measure), it takes the choice that comes closest
+to the published CLI of Indonesia; `?oecd_spec` lists the source of each
+step. `cli_presentation()` gives the three OECD forms of the composite.
+The vignette explains, with simulations, where and why the package
 defaults differ.
 
 Series of mixed frequencies (daily, weekly, monthly, quarterly) and types
@@ -145,11 +151,12 @@ Shiny Server or Posit Connect (`system.file("app", package = "cyclind")`).
   tolerance of 1e-8.
 * Bry-Boschan dates agree with `Coinprofile` on a monthly test series; BBQ
   dates agree with a golden file of `BCDating` 0.9.8 results (archived
-  from CRAN in May 2026) on 46 of 50 series; on the other four cyclind keeps
+  from CRAN in May 2026) on 46 of 50 series with `phase_rule = "bbq"` and
+  on 45 with the default symmetric phase rule; on the others cyclind keeps
   the more extreme of two close turning points.
 * Default classification thresholds are calibrated by Monte Carlo
   simulation (`data-raw/`): at most 1.3 percent of simulated non-leading
-  series are labelled leading by `cli_spec()`, 2.5 to 7.5 percent by the
+  series are labelled leading by `cli_spec()`, 2.5 to 7.8 percent by the
   OECD rule of `oecd_spec()` (`inst/calibration/`). The thresholds were
   tuned on the same simulation design, so these rates are optimistic.
 * `oecd_spec()` reproduces the published OECD CLI of Indonesia from the

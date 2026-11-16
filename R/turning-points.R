@@ -65,6 +65,42 @@ tp_enforce_cycle <- function(tp, y, min_cycle) {
   tp
 }
 
+# Cycles shorter than `min_cycle`, rule "symmetric" (ADR-004): of each
+# short cycle the less extreme of its two peaks (troughs) is the candidate
+# for removal, as in tp_enforce_cycle(); of all candidates, peaks and
+# troughs alike, the removal that keeps the largest total amplitude is
+# applied first. tp_enforce_cycle() takes the first short cycle in time,
+# peaks before troughs, so its result can depend on the direction of time.
+tp_cycle_symmetric <- function(tp, y, min_cycle) {
+  repeat {
+    cand <- integer(0)
+    for (is_peak in c(TRUE, FALSE)) {
+      same <- which(tp$peak == is_peak)
+      bad <- which(diff(tp$i[same]) < min_cycle)
+      for (b in bad) {
+        a <- same[b]
+        c2 <- same[b + 1L]
+        va <- y[tp$i[a]]
+        vb <- y[tp$i[c2]]
+        cand <- c(cand, if ((va >= vb) == is_peak) c2 else a)
+      }
+    }
+    if (length(cand) == 0L) break
+    best <- NULL
+    best_amp <- -Inf
+    for (k in unique(cand)) {
+      trial <- tp_alternate(tp[-k, , drop = FALSE], y)
+      amp <- tp_amplitude(trial, y)
+      if (amp > best_amp + 1e-12) {
+        best <- trial
+        best_amp <- amp
+      }
+    }
+    tp <- best
+  }
+  tp
+}
+
 # No turning point within `e` observations of the ends.
 tp_enforce_ends <- function(tp, n, e) {
   keep <- tp$i > e & tp$i <= n - e
@@ -97,8 +133,9 @@ tp_enforce_extremes <- function(tp, y) {
   tp
 }
 
-# Phases shorter than `min_phase`: drop the later turning point of the pair.
-tp_enforce_phase <- function(tp, y, min_phase) {
+# Phases shorter than `min_phase`, rule "bbq" (cyclind 0.1.0): drop the
+# later turning point of the pair. Depends on the direction of time.
+tp_phase_later <- function(tp, y, min_phase) {
   j <- 1L
   while (j < nrow(tp)) {
     if (tp$i[j + 1L] - tp$i[j] < min_phase) {
@@ -110,15 +147,59 @@ tp_enforce_phase <- function(tp, y, min_phase) {
   tp
 }
 
-tp_core <- function(y, window, min_phase, min_cycle, end_exclusion) {
+# Total amplitude of the turning-point path: the sum of the absolute
+# differences between consecutive turning points.
+tp_amplitude <- function(tp, y) sum(abs(diff(y[tp$i])))
+
+# Phases shorter than `min_phase`, rule "symmetric" (ADR-004): for every
+# short phase both of its turning points are candidates for removal (the
+# alternation then drops the less extreme of the two neighbours of the
+# other type); of all candidates, the removal that keeps the largest total
+# amplitude is applied, and the search repeats until no phase is short.
+# Every step depends only on the values and the set of short phases, not on
+# the direction of time.
+tp_phase_symmetric <- function(tp, y, min_phase) {
+  repeat {
+    short <- which(diff(tp$i) < min_phase)
+    if (length(short) == 0L) break
+    cand <- unique(c(short, short + 1L))
+    best <- NULL
+    best_amp <- -Inf
+    for (k in cand) {
+      trial <- tp_alternate(tp[-k, , drop = FALSE], y)
+      amp <- tp_amplitude(trial, y)
+      if (amp > best_amp + 1e-12) {
+        best <- trial
+        best_amp <- amp
+      }
+    }
+    tp <- best
+  }
+  tp
+}
+
+tp_enforce_phase <- function(tp, y, min_phase, rule = "symmetric") {
+  if (identical(rule, "bbq")) {
+    tp_phase_later(tp, y, min_phase)
+  } else {
+    tp_phase_symmetric(tp, y, min_phase)
+  }
+}
+
+tp_core <- function(y, window, min_phase, min_cycle, end_exclusion,
+                    phase_rule = "symmetric") {
   n <- length(y)
   tp <- tp_alternate(tp_candidates(y, window), y)
   for (iter in seq_len(100L)) {
     before <- tp
-    tp <- tp_enforce_cycle(tp, y, min_cycle)
+    tp <- if (identical(phase_rule, "bbq")) {
+      tp_enforce_cycle(tp, y, min_cycle)
+    } else {
+      tp_cycle_symmetric(tp, y, min_cycle)
+    }
     tp <- tp_alternate(tp_enforce_ends(tp, n, end_exclusion), y)
     tp <- tp_alternate(tp_enforce_extremes(tp, y), y)
-    tp <- tp_enforce_phase(tp, y, min_phase)
+    tp <- tp_enforce_phase(tp, y, min_phase, phase_rule)
     tp <- tp_alternate(tp_enforce_extremes(tp, y), y)
     if (identical(before, tp)) break
   }
