@@ -262,3 +262,12 @@ test_that("the exported script prints the provenance", {
   script <- cyclind:::app_script(state)
   expect_match(script, "cyclind_provenance(cand)", fixed = TRUE)
 })
+
+test_that("the provenance record does not load optional packages", {
+  pkgs <- c("RJDemetra", "x13binary", "seasonal")
+  before <- pkgs[pkgs %in% loadedNamespaces()]
+  cyclind_provenance()
+  expect_setequal(pkgs[pkgs %in% loadedNamespaces()], before)
+  expect_equal(cyclind:::package_version_or("no.such.package"),
+               "not installed")
+})

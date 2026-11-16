@@ -46,8 +46,11 @@ cyclind_provenance <- function(data = NULL, files = NULL) {
   out
 }
 
+# The version from the installed DESCRIPTION, without loading the package:
+# loading RJDemetra starts a Java virtual machine, which must not happen as
+# a side effect of a provenance record.
 package_version_or <- function(pkg) {
-  if (requireNamespace(pkg, quietly = TRUE)) {
+  if (nzchar(system.file(package = pkg))) {
     as.character(utils::packageVersion(pkg))
   } else {
     "not installed"
