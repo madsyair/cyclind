@@ -152,3 +152,21 @@ test_that("quarterly bounds are inclusive too (BBQ 2/5)", {
   expect_equal(tp@index, as.integer(at))
   expect_equal(unique(diff(tp@index[tp@type == "peak"])), 5L)
 })
+
+test_that("the OECD 9/24 bounds are inclusive too", {
+  # phases of exactly 9 and 15 months: cycles of exactly 24 months
+  at <- c(12, 21, 36, 45, 60, 69, 84, 93)
+  y <- path_through(at, rep(c(-1, 1), 4), 110)
+  x <- ts(y, frequency = 12, start = 2000)
+  oecd <- bry_boschan(min_phase = 9, min_cycle = 24)
+  tp <- date_turning_points(oecd, x)
+  expect_equal(tp@index, as.integer(at))
+  expect_equal(min(diff(tp@index)), 9L)
+  expect_equal(unique(diff(tp@index[tp@type == "peak"])), 24L)
+  expect_lt(length(date_turning_points(bry_boschan(min_phase = 10,
+                                                   min_cycle = 24),
+                                       x)@index), length(at))
+  expect_lt(length(date_turning_points(bry_boschan(min_phase = 9,
+                                                   min_cycle = 25),
+                                       x)@index), length(at))
+})
