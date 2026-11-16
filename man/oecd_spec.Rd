@@ -46,8 +46,8 @@ are already growth rates (FR-014.8). \code{NULL} keeps the OECD filter (or
 the default filter of the cycle form).}
 
 \item{...}{Further arguments of \code{\link[=cli_spec]{cli_spec()}}. With \verb{form =}
-\code{\link[=growth_form]{growth_form()}} or \code{\link[=acceleration_form]{acceleration_form()}} (experimental, not part of the
-OECD method) the filter is \code{\link[=hp_smoother]{hp_smoother()}}, as in \code{\link[=cli_spec]{cli_spec()}}.}
+\code{\link[=growth_form]{growth_form()}} (experimental, not part of the OECD method) the
+filter is \code{\link[=hp_smoother]{hp_smoother()}}, as in \code{\link[=cli_spec]{cli_spec()}}.}
 }
 \value{
 A \linkS4class{CliSpec}.

@@ -6,15 +6,12 @@
 \alias{CycleForm}
 \alias{LevelForm-class}
 \alias{GrowthForm-class}
-\alias{AccelerationForm-class}
 \alias{level_form}
 \alias{growth_form}
-\alias{acceleration_form}
 \alias{apply_form}
 \alias{default_filter}
 \alias{apply_form,LevelForm-method}
 \alias{apply_form,GrowthForm-method}
-\alias{apply_form,AccelerationForm-method}
 \alias{default_filter,CycleForm-method}
 \alias{default_filter,LevelForm-method}
 \title{Cycle forms}
@@ -23,8 +20,6 @@ level_form()
 
 growth_form(lag = NA, rate = c("percent", "log"))
 
-acceleration_form(lag = NA, rate = c("percent", "log"))
-
 apply_form(form, x, logged)
 
 default_filter(form)
@@ -32,8 +27,6 @@ default_filter(form)
 \S4method{apply_form}{LevelForm}(form, x, logged)
 
 \S4method{apply_form}{GrowthForm}(form, x, logged)
-
-\S4method{apply_form}{AccelerationForm}(form, x, logged)
 
 \S4method{default_filter}{CycleForm}(form)
 
@@ -53,14 +46,14 @@ only used for logged series.}
 \item{logged}{Logical: is \code{x} the logarithm of the series?}
 }
 \value{
-\code{level_form()}, \code{growth_form()} and \code{acceleration_form()} return
-a \code{CycleForm}; \code{apply_form()} a \code{ts} like \code{x}; \code{default_filter()} a
+\code{level_form()} and \code{growth_form()} return a \code{CycleForm};
+\code{apply_form()} a \code{ts} like \code{x}; \code{default_filter()} a
 \linkS4class{CycleFilter}.
 }
 \description{
 A \code{CycleForm} decides what the cycle is extracted from: the level of the
-series (the OECD growth cycle), its growth rate (growth rate cycle) or its
-acceleration. The form is applied in \code{\link[=cli_cycles]{cli_cycles()}} after seasonal
+series (the OECD growth cycle) or its growth rate (the growth rate
+cycle). The form is applied in \code{\link[=cli_cycles]{cli_cycles()}} after seasonal
 adjustment, the transformation and the outlier treatment, and before the
 end-of-series extension and the cycle filter, so that growth rates are
 computed from seasonally adjusted series and calendar effects do not
@@ -81,20 +74,21 @@ candidate whose \code{unit} in the metadata of \code{\link[=cli_candidates]{cli_
 \code{"percent"}, even when it was logged. \code{lag = NA} (default) means one
 year (12 months or 4 quarters), the year-on-year rate; \code{lag = 1} gives
 the period-on-period (q-to-q or m-to-m) rate.
-\item \code{acceleration_form(lag, rate)}: the change of that growth rate from the
-previous period, \eqn{g_t - g_{t-1}}, in percentage points for a
-logged series (in the units of the series otherwise).
 }
 
-The first \code{lag} (growth) or \code{lag + 1} (acceleration) observations are
-missing. Without a \code{filter}, \code{\link[=cli_spec]{cli_spec()}} pairs the growth and
-acceleration forms with \code{\link[=hp_smoother]{hp_smoother()}}, which smooths without removing a
-trend, and the level form with \code{\link[=hp_double_filter]{hp_double_filter()}}. New forms are added
-by a subclass of \code{CycleForm} with methods for \code{apply_form()} and
-\code{default_filter()}.
+The first \code{lag} observations of a growth rate are missing. Without a
+\code{filter}, \code{\link[=cli_spec]{cli_spec()}} pairs the growth form with \code{\link[=hp_smoother]{hp_smoother()}}, which
+smooths without removing a trend, and the level form with
+\code{\link[=hp_double_filter]{hp_double_filter()}}. New forms are added by a subclass of \code{CycleForm}
+with methods for \code{apply_form()} and \code{default_filter()}.
+
+The two forms date different turning points (Gyomai and Guidetti 2012,
+pp. 9-11). In a growth cycle a turning point marks output moving from
+above to below its trend or back; in a growth rate cycle it marks growth
+starting to speed up or to slow down.
 
 \strong{Experimental.} The thresholds of the classifiers were calibrated on
-growth cycles (the level form). Growth rate and acceleration cycles have
+growth cycles (the level form). Growth rate cycles have
 more turning points, so the share of extra turning points and the other
 criteria have not been calibrated for them; simulation results are in
 \code{inst/calibration/forms.csv}.

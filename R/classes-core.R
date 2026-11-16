@@ -45,8 +45,8 @@
 #'   align before aggregation (OECD lag-shifting)?
 #' @slot extension An [Extension-class]: forecasts appended to each series
 #'   before the cycle filter.
-#' @slot form A [CycleForm-class]: the cycle of the level, the growth rate
-#'   or the acceleration of each series.
+#' @slot form A [CycleForm-class]: the cycle of the level or of the growth
+#'   rate of each series.
 #' @slot amplitude Measure that matches the amplitude of the composite index
 #'   to that of the reference cycle: `"mad"` (mean absolute deviation) or
 #'   `"sd"` (standard deviation).
@@ -99,9 +99,8 @@ setClass("CandidateSet", representation(
 #' @slot name Series name.
 #' @slot original Original series (`ts`).
 #' @slot transformed Series after transformation, outlier treatment and
-#'   seasonal adjustment (`ts`); with a growth rate or acceleration form
-#'   ([growth_form()], [acceleration_form()]), that rate, missing for the
-#'   first periods.
+#'   seasonal adjustment (`ts`); with the growth rate form
+#'   ([growth_form()]), that rate, missing for the first periods.
 #' @slot cycle Filtered cycle (`ts`).
 #' @slot normalised Normalised cycle (mean 0, mean absolute deviation 1).
 #' @slot steps Character log of the transformations applied.

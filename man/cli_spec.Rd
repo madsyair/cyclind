@@ -132,9 +132,9 @@ series is extended by one year of AR forecasts before the cycle filter.
 Use \code{\link[=no_extension]{no_extension()}} for no extension.}
 
 \item{form}{A \linkS4class{CycleForm}: \code{\link[=level_form]{level_form()}} (default, the growth
-cycle), \code{\link[=growth_form]{growth_form()}} (growth rate cycle) or \code{\link[=acceleration_form]{acceleration_form()}}.
-Without \code{filter}, the growth and acceleration forms use \code{\link[=hp_smoother]{hp_smoother()}}.
-The two new forms are experimental: the thresholds were calibrated for
+cycle) or \code{\link[=growth_form]{growth_form()}} (growth rate cycle).
+Without \code{filter}, the growth form uses \code{\link[=hp_smoother]{hp_smoother()}}.
+The growth form is experimental: the thresholds were calibrated for
 the level form. \code{\link[=update]{update()}} changes a filter left at the default of the
 old form to the default of the new one; a filter chosen by hand is
 kept. The level form with \code{\link[=hp_smoother]{hp_smoother()}} gives a warning, since that
@@ -164,7 +164,7 @@ cell, \code{inst/calibration/accuracy.csv}). The thresholds were tuned and
 evaluated on the same simulation design, so these rates are optimistic.
 With \code{\link[=oecd_classifier]{oecd_classifier()}} the share is 2.5 to 7.5 percent
 (\code{inst/calibration/oecd-classification.csv}), and with the experimental
-acceleration form up to 2.1 percent (\code{inst/calibration/forms.csv}).
+growth rate form up to 1.3 percent (\code{inst/calibration/forms.csv}).
 }
 \details{
 The defaults chain the composite at the ragged edge (\code{equal_weight()})

@@ -199,27 +199,28 @@ csv_choice <- function(value, kind) {
 #' deployment on Shiny Server or Posit Connect (see
 #' `system.file("app", package = "cyclind")`) and for automated tests.
 #'
-#' @param language Interface language: `"id"` (Indonesian) or `"en"`.
+#' @param language Interface language: `"en"` (English, the default) or
+#'   `"id"` (Indonesian).
 #' @param ... Passed to [shiny::runApp()], e.g. `launch.browser`.
 #' @return `run_app()` is called for its side effect and returns the value of
 #'   [shiny::runApp()]; `cyclind_app()` returns a `shiny.appobj`.
 #' @examples
 #' if (interactive()) {
 #'   run_app()
-#'   run_app(language = "en")
+#'   run_app(language = "id")
 #' }
 #' if (requireNamespace("shiny", quietly = TRUE)) {
-#'   app <- cyclind_app("en")
+#'   app <- cyclind_app()
 #'   class(app)
 #' }
 #' @export
-run_app <- function(language = c("id", "en"), ...) {
+run_app <- function(language = c("en", "id"), ...) {
   shiny::runApp(cyclind_app(match.arg(language)), ...)
 }
 
 #' @rdname run_app
 #' @export
-cyclind_app <- function(language = c("id", "en")) {
+cyclind_app <- function(language = c("en", "id")) {
   language <- match.arg(language)
   if (!requireNamespace("shiny", quietly = TRUE)) {
     cyclind_abort("The graphical interface needs the 'shiny' package.",
@@ -256,7 +257,7 @@ step_panel <- function(t, k, ...) {
   )
 }
 
-app_ui <- function(language = "id") {
+app_ui <- function(language = "en") {
   t <- app_translator(language)
   has_seasonal <- requireNamespace("seasonal", quietly = TRUE)
   shiny::fluidPage(
@@ -346,9 +347,9 @@ app_ui <- function(language = "id") {
                                      t("engine_x13"))))),
             # the cycle form applies to both methods (FR-014.6)
             shiny::selectInput("form", t("form"), stats::setNames(
-              c("level", "growth", "acceleration"),
-              c(t("form_level"), t("form_growth"),
-                t("form_acceleration")))),
+              c("level", "growth"),
+              c(t("form_level"), t("form_growth")))),
+            shiny::helpText(t("form_cycle_help")),
             shiny::conditionalPanel(
               "input.form != 'level'",
               shiny::selectInput("growth_lag", t("growth_lag"),
@@ -789,7 +790,7 @@ analysis_lines <- function(state) {
 
 # ---- server -------------------------------------------------------------
 
-app_server <- function(language = "id") {
+app_server <- function(language = "en") {
   t <- app_translator(language)
   p <- phrase_translator(language)
   function(input, output, session) {
@@ -1194,7 +1195,7 @@ app_server <- function(language = "id") {
     })
 
     # 3. Specification -------------------------------------------------------
-    # growth rate and acceleration forms go with the HP smoother
+    # the growth rate form goes with the HP smoother
     # (only when the form moves between the level and a rate, and only the
     # default filter of the old form is switched; a filter chosen by hand
     # is kept)

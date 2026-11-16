@@ -147,7 +147,7 @@ setMethod("extract_cycle", "HPDoubleFilter", function(filter, x, ...) {
 })
 
 # Does a filter remove the trend? Filters that only smooth (the HP smoother)
-# are meant for growth rate and acceleration forms, whose series have no
+# are meant for the growth rate form, whose series have no
 # trend; with the level form their "cycle" would be the trend itself.
 setGeneric("removes_trend", function(filter) standardGeneric("removes_trend"))
 setMethod("removes_trend", "CycleFilter", function(filter) TRUE)

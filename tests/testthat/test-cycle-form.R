@@ -1,6 +1,6 @@
-# FR-013 (development version 0.7.0): cycle forms (level, growth rate,
-# acceleration) and the
-# HP smoother. Formulas F-08 and F-09 (harness/02-math).
+# FR-013 (development version 0.7.0): cycle forms (level, growth rate) and
+# the HP smoother. The acceleration form was removed in 0.1.0.9000.
+# Formulas F-08 and F-09 (harness/02-math).
 
 test_that("AC-FR-013.1: hp_smoother() is the HP trend at a short cut-off", {
   set.seed(11)
@@ -30,7 +30,7 @@ test_that("AC-FR-013.1: hp_smoother() is the HP trend at a short cut-off", {
   expect_error(hp_smoother("a"), class = "cyclind_error_argument")
 })
 
-test_that("AC-FR-013.2: apply_form() computes growth rates and accelerations", {
+test_that("AC-FR-013.2: apply_form() computes growth rates", {
   set.seed(12)
   y <- ts(exp(cumsum(rnorm(40, 0.01, 0.02)) + 5), frequency = 4,
           start = 2010)
@@ -41,10 +41,6 @@ test_that("AC-FR-013.2: apply_form() computes growth rates and accelerations", {
     expect_true(all(is.na(g[seq_len(k)])))
     expect_equal(as.numeric(g)[-seq_len(k)], 100 * diff(as.numeric(z), k),
                  tolerance = 1e-10)
-    a <- apply_form(acceleration_form(k, rate = "log"), z, logged = TRUE)
-    expect_true(all(is.na(a[seq_len(k + 1)])))
-    expect_equal(as.numeric(a)[-seq_len(k + 1)],
-                 diff(100 * diff(as.numeric(z), k)), tolerance = 1e-10)
   }
   # unlogged series: simple differences in their own units
   r <- ts(5 + cumsum(rnorm(40, 0, 0.3)), frequency = 4, start = 2010)
@@ -62,12 +58,12 @@ test_that("AC-FR-013.2: apply_form() computes growth rates and accelerations", {
   expect_equal(apply_form(lg, z + p, logged = TRUE),
                apply_form(lg, z, logged = TRUE) + apply_form(lg, p, logged = TRUE),
                tolerance = 1e-10)
-  for (f in list(level_form(), growth_form(), acceleration_form())) {
+  for (f in list(level_form(), growth_form())) {
     expect_s4_class(f, "CycleForm")
   }
   expect_error(growth_form(0), class = "cyclind_error_argument")
   expect_error(growth_form(1.5), class = "cyclind_error_argument")
-  expect_error(acceleration_form(-1), class = "cyclind_error_argument")
+  expect_error(growth_form(-1), class = "cyclind_error_argument")
 })
 
 test_that("AC-FR-013.3: cli_spec(form = ) and the default filter", {
@@ -77,7 +73,7 @@ test_that("AC-FR-013.3: cli_spec(form = ) and the default filter", {
   s1 <- cli_spec(freq = 4, form = growth_form())
   expect_s4_class(s1@form, "GrowthForm")
   expect_s4_class(s1@filter, "HPSmoother")
-  s2 <- cli_spec(freq = 4, form = acceleration_form(1))
+  s2 <- cli_spec(freq = 4, form = growth_form(1))
   expect_s4_class(s2@filter, "HPSmoother")
   s3 <- cli_spec(freq = 4, form = growth_form(), filter = hp_filter())
   expect_s4_class(s3@filter, "HPFilter")
@@ -115,17 +111,13 @@ test_that("AC-FR-013.4: cli_cycles() applies the form after seasonal steps", {
   expect_true(all(is.na(ref@normalised[1:4])))
   expect_true(any(grepl("^form: annual growth rate", ref@steps)))
   expect_true(any(grepl("HP smoother", ref@steps)))
-  # acceleration loses one more observation
-  acc <- cli_cycles(cand, update(spec, form = acceleration_form()))$reference
-  expect_true(all(is.na(acc@transformed[1:5])))
-  expect_false(is.na(acc@transformed[6]))
   # q-to-q growth
   q <- cli_cycles(cand, update(spec, form = growth_form(1)))$reference
   expect_true(any(grepl("^form: growth rate over 1 period", q@steps)))
   # too short after differencing
   short <- sim_candidates(seed = 5, freq = 4, n_years = 8)
   expect_error(cli_cycles(short, cli_spec(freq = 4,
-                                          form = acceleration_form(24))),
+                                          form = growth_form(24))),
                class = "cyclind_error_short_series")
 })
 
@@ -213,7 +205,7 @@ test_that("form and filter stay coherent (review R-13.2, R-13.4)", {
   expect_s4_class(update(cli_spec(freq = 4), form = growth_form())@filter,
                   "HPSmoother")
   s2 <- cli_spec(freq = 4, form = growth_form(), filter = cf_filter())
-  expect_s4_class(update(s2, form = acceleration_form())@filter, "CFFilter")
+  expect_s4_class(update(s2, form = level_form())@filter, "CFFilter")
   # the level form with a filter that keeps the trend warns
   expect_warning(cli_spec(freq = 4, filter = hp_smoother()),
                  class = "cyclind_warning_form_filter")
@@ -225,10 +217,8 @@ test_that("form and filter stay coherent (review R-13.2, R-13.4)", {
   out <- capture.output(show(s1))
   expect_true(any(grepl("form: +annual growth rate \\(experimental\\)", out)))
   expect_false(any(grepl("form:", capture.output(show(cli_spec(freq = 4))))))
-  out <- capture.output(show(cli_spec(freq = 12,
-                                      form = acceleration_form(1))))
-  expect_true(any(grepl("acceleration of the growth rate over 1 period",
-                        out)))
+  out <- capture.output(show(cli_spec(freq = 12, form = growth_form(1))))
+  expect_true(any(grepl("growth rate over 1 period", out)))
 })
 
 test_that("levels-only aggregators refuse growth cycles (review R-13.5)", {
@@ -255,10 +245,9 @@ test_that("series that are not logged are differenced (review R-13.10)", {
                                   outlier_threshold = Inf))$reference
   expect_equal(as.numeric(ref@transformed)[-(1:4)],
                diff(as.numeric(lv@transformed), 4), tolerance = 1e-10)
-  acc <- cli_cycles(cand, update(spec, form = acceleration_form(1)))
-  expect_true(any(grepl("^form: acceleration of the difference over 1",
-                        acc$reference@steps)))
-  expect_identical(form_units(acc$reference), "acceleration")
+  q <- cli_cycles(cand, update(spec, form = growth_form(1)))
+  expect_true(any(grepl("^form: difference over 1 period$",
+                        q$reference@steps)))
 })
 
 test_that("the form survives the TRAMO forecasts and the 3-year limit", {
@@ -359,4 +348,17 @@ test_that("AC-FR-013.6 (monthly): a true leader still leads", {
     isTRUE(abs(tab$median_lead[tab$name == "lead_6"] - 6) <= 2)
   }, logical(1))
   expect_gte(mean(hits), 0.8)
+})
+
+test_that("the acceleration form was removed (0.1.0.9000)", {
+  ns <- asNamespace("cyclind")
+  expect_false(exists("acceleration_form", envir = ns, inherits = FALSE))
+  expect_false("acceleration_form" %in% getNamespaceExports(ns))
+  expect_false(methods::isClass("AccelerationForm", where = ns))
+  # only the level and growth rate forms are offered and accepted by the GUI
+  expect_null(form_text(list(form = "level")))
+  expect_identical(form_text(list(form = "growth")), "growth_form()")
+  expect_error(form_text(list(form = "acceleration")),
+               class = "cyclind_error_argument")
+  expect_false("acceleration_form" %in% spec_functions)
 })

@@ -32,8 +32,8 @@ economic rationale: 1 (procyclical), -1 (countercyclical, inverted
 before aggregation) or \code{NA} (decided from the data by
 \code{\link[=cli_assess]{cli_assess()}}), and \code{unit}: \code{"level"} (default) or \code{"percent"} for a
 series that is already a rate, a percentage or a balance (an interest
-rate, an unemployment rate), whose growth rate and acceleration forms
-(\code{\link[=growth_form]{growth_form()}}) are differences in percentage points. \code{meta} may hold a
+rate, an unemployment rate), whose growth rate form
+(\code{\link[=growth_form]{growth_form()}}) is a difference in percentage points. \code{meta} may hold a
 row for the reference; only its \code{unit} is used. When \code{data} comes from
 \code{\link[=cli_align]{cli_align()}}, the types,
 source frequencies and conversion steps recorded there are kept as

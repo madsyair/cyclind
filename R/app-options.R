@@ -152,7 +152,7 @@ code_names <- c("<-", "(", "c", "::", "stats", "setNames", "[", "!=",
                 "names", "-")
 spec_functions <- c(
   "cli_spec", "oecd_spec", "hp_double_filter", "hp_filter", "hp_smoother",
-  "growth_form", "acceleration_form", "cf_filter",
+  "growth_form", "cf_filter",
   "bk_filter", "hamilton_filter", "bry_boschan", "bbq", "equal_weight",
   "oecd_aggregate", "principal_component", "conference_board",
   "dynamic_factor", "ar_extension", "no_extension", "tramo_outliers",
@@ -263,7 +263,7 @@ dater_text <- function(input, freq) {
 # The cycle form (AC-FR-013.7); NULL for the level form (the default).
 form_text <- function(input) {
   if (is.null(input$form)) return(NULL)
-  key <- choice_key(input$form, c("level", "growth", "acceleration"), "form")
+  key <- choice_key(input$form, c("level", "growth"), "form")
   if (key == "level") return(NULL)
   lag <- choice_key(if (is.null(input$growth_lag)) "annual" else
     input$growth_lag, c("annual", "period"), "growth_lag")

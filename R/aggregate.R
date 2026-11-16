@@ -365,8 +365,8 @@ lag_shifts <- function(components, assessment) {
   stats::setNames(round(lead - min(lead)), components)
 }
 
-# Reference cycle in percent deviation from trend; for the growth rate and
-# acceleration forms, in percentage points (AC-FR-013.5).
+# Reference cycle in percent deviation from trend; for the growth rate
+# form, in percentage points (AC-FR-013.5).
 reference_percent <- function(reference) {
   cyc <- as.numeric(reference@cycle)
   if (!identical(form_units(reference), "level")) return(cyc)

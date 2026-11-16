@@ -257,20 +257,19 @@ spec_sa <- cli_spec(seasonal_adjust = TRUE, holidays = eid)
 which can differ from the official Indonesian dates by a day or two; use
 the official dates when you have them.
 
-### Growth rate and acceleration cycles (experimental)
+### Growth rate cycles (experimental)
 
 The OECD cycle is a growth cycle: the deviation of the level from its
-trend. Some studies use another reference, such as the year-on-year growth
-of GDP or the change of that growth. `form` in
-`cli_spec()` takes the cycle from growth rates (`growth_form()`) or
-accelerations (`acceleration_form()`). The rate of a logged series is the
+trend. Some studies use another reference, the growth rate cycle, such as
+the year-on-year growth of GDP. `form` in `cli_spec()` takes the cycle
+from growth rates (`growth_form()`). The rate of a logged series is the
 growth rate as BPS-Statistics Indonesia publishes it,
 `100 * (Y_t / Y_{t-k} - 1)` (`rate = "log"` gives the log rate);
 series in levels, and candidates whose `unit` in the metadata is
 `"percent"` (interest rates, balances), are differenced in their own
 units. The form is applied after seasonal
 adjustment and outlier treatment, so rates are computed from seasonally
-adjusted series. Growth rates have little trend, so these forms are paired
+adjusted series. Growth rates have little trend, so this form is paired
 with `hp_smoother()`, which only smooths:
 
 ```{r forms}
@@ -280,8 +279,8 @@ tail(cli_cycles(cand, spec_g)$reference@steps, 4)
 ```
 
 The thresholds of the classifiers were calibrated on level cycles, so the
-two new forms are experimental. `data-raw/calibrate_forms.R` measures the
-default rules on them:
+growth rate form is experimental. `data-raw/calibrate_forms.R` measures the
+default rules on both forms:
 
 ```{r forms-calibration}
 fm <- read.csv(system.file("calibration", "forms.csv", package = "cyclind"))
@@ -521,8 +520,8 @@ the scorecards, the coincident index, the `CliResult` object and an R
 script that reproduces the analysis.
 
 ```{r app, eval = FALSE}
-run_app()               # Indonesian interface
-run_app(language = "en")
+run_app()                # English interface (the default)
+run_app(language = "id") # Indonesian interface
 ```
 
 ## 11. Extending cyclind

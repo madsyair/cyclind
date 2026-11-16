@@ -1,8 +1,8 @@
 #' Cycle forms
 #'
 #' A `CycleForm` decides what the cycle is extracted from: the level of the
-#' series (the OECD growth cycle), its growth rate (growth rate cycle) or its
-#' acceleration. The form is applied in [cli_cycles()] after seasonal
+#' series (the OECD growth cycle) or its growth rate (the growth rate
+#' cycle). The form is applied in [cli_cycles()] after seasonal
 #' adjustment, the transformation and the outlier treatment, and before the
 #' end-of-series extension and the cycle filter, so that growth rates are
 #' computed from seasonally adjusted series and calendar effects do not
@@ -21,19 +21,20 @@
 #'   `"percent"`, even when it was logged. `lag = NA` (default) means one
 #'   year (12 months or 4 quarters), the year-on-year rate; `lag = 1` gives
 #'   the period-on-period (q-to-q or m-to-m) rate.
-#' * `acceleration_form(lag, rate)`: the change of that growth rate from the
-#'   previous period, \eqn{g_t - g_{t-1}}, in percentage points for a
-#'   logged series (in the units of the series otherwise).
 #'
-#' The first `lag` (growth) or `lag + 1` (acceleration) observations are
-#' missing. Without a `filter`, [cli_spec()] pairs the growth and
-#' acceleration forms with [hp_smoother()], which smooths without removing a
-#' trend, and the level form with [hp_double_filter()]. New forms are added
-#' by a subclass of `CycleForm` with methods for `apply_form()` and
-#' `default_filter()`.
+#' The first `lag` observations of a growth rate are missing. Without a
+#' `filter`, [cli_spec()] pairs the growth form with [hp_smoother()], which
+#' smooths without removing a trend, and the level form with
+#' [hp_double_filter()]. New forms are added by a subclass of `CycleForm`
+#' with methods for `apply_form()` and `default_filter()`.
+#'
+#' The two forms date different turning points (Gyomai and Guidetti 2012,
+#' pp. 9-11). In a growth cycle a turning point marks output moving from
+#' above to below its trend or back; in a growth rate cycle it marks growth
+#' starting to speed up or to slow down.
 #'
 #' **Experimental.** The thresholds of the classifiers were calibrated on
-#' growth cycles (the level form). Growth rate and acceleration cycles have
+#' growth cycles (the level form). Growth rate cycles have
 #' more turning points, so the share of extra turning points and the other
 #' criteria have not been calibrated for them; simulation results are in
 #' `inst/calibration/forms.csv`.
@@ -45,8 +46,8 @@
 #' @param form A `CycleForm`.
 #' @param x A `ts`: the seasonally adjusted, transformed series.
 #' @param logged Logical: is `x` the logarithm of the series?
-#' @return `level_form()`, `growth_form()` and `acceleration_form()` return
-#'   a `CycleForm`; `apply_form()` a `ts` like `x`; `default_filter()` a
+#' @return `level_form()` and `growth_form()` return a `CycleForm`;
+#'   `apply_form()` a `ts` like `x`; `default_filter()` a
 #'   [CycleFilter-class].
 #' @references
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
@@ -70,10 +71,6 @@ setClass("LevelForm", contains = "CycleForm")
 
 #' @rdname CycleForm-class
 setClass("GrowthForm", contains = "CycleForm",
-         representation(lag = "numeric", rate = "character"))
-
-#' @rdname CycleForm-class
-setClass("AccelerationForm", contains = "CycleForm",
          representation(lag = "numeric", rate = "character"))
 
 check_rate <- function(rate) {
@@ -112,13 +109,6 @@ level_form <- function() new("LevelForm", label = "level")
 #' @export
 growth_form <- function(lag = NA, rate = c("percent", "log")) {
   new("GrowthForm", label = "growth rate", lag = check_lag(lag),
-      rate = check_rate(rate))
-}
-
-#' @rdname CycleForm-class
-#' @export
-acceleration_form <- function(lag = NA, rate = c("percent", "log")) {
-  new("AccelerationForm", label = "acceleration", lag = check_lag(lag),
       rate = check_rate(rate))
 }
 
@@ -167,25 +157,18 @@ setMethod("apply_form", "GrowthForm", function(form, x, logged) {
 })
 
 #' @rdname CycleForm-class
-setMethod("apply_form", "AccelerationForm", function(form, x, logged) {
-  g <- growth_rate(x, form_lag(form, x), logged, form_rate(form))
-  growth_rate(g, 1, FALSE)
-})
-
-#' @rdname CycleForm-class
 setMethod("default_filter", "CycleForm", function(form) hp_smoother())
 
 #' @rdname CycleForm-class
 setMethod("default_filter", "LevelForm", function(form) hp_double_filter())
 
-# Kind of a form: "level", "growth" or "acceleration" (used instead of
-# class tests wherever the units of a cycle matter).
+# Kind of a form: "level" or "growth" (used instead of class tests
+# wherever the units of a cycle matter).
 setGeneric("form_kind", function(form) standardGeneric("form_kind"))
 # a new form defined by the user is treated as a rate (not the level)
 setMethod("form_kind", "CycleForm", function(form) "growth")
 setMethod("form_kind", "LevelForm", function(form) "level")
 setMethod("form_kind", "GrowthForm", function(form) "growth")
-setMethod("form_kind", "AccelerationForm", function(form) "acceleration")
 
 # Text recorded in the `steps` of a CycleSeries; downstream functions read
 # the units of the series from it (see form_units()). Series that were not
@@ -201,11 +184,6 @@ setMethod("form_step", "LevelForm", function(form, freq, logged = TRUE) {
 })
 setMethod("form_step", "GrowthForm", function(form, freq, logged = TRUE) {
   paste0("form: ", growth_label(form@lag, freq, logged, form_rate(form)))
-})
-setMethod("form_step", "AccelerationForm",
-          function(form, freq, logged = TRUE) {
-  paste0("form: acceleration of the ",
-         growth_label(form@lag, freq, logged, form_rate(form)))
 })
 
 # `logged` is TRUE, FALSE or "percent" (a series in percent, differenced in
@@ -226,10 +204,9 @@ growth_label <- function(lag, freq, logged = TRUE, rate = "percent") {
           if (k == 1) "" else "s")
 }
 
-# Units of a CycleSeries: "level", "growth" or "acceleration".
+# Units of a CycleSeries: "level" or "growth" (any rate form).
 form_units <- function(cs) {
   st <- cs@steps
-  if (any(grepl("^form: acceleration", st))) return("acceleration")
   if (any(grepl("^form: ", st))) return("growth")
   "level"
 }

@@ -269,10 +269,9 @@ plot_presentation <- function(pres, form, tr = function(x) x) {
   rate <- !is.null(attr(pres, "units"))
   cli <- pres[[form]]
   if (all(is.na(cli))) {
-    # growth rate and acceleration forms: a rate of a rate is not defined
+    # growth rate form: a rate of a rate is not defined
     graphics::plot.new()
-    graphics::text(0.5, 0.5, tr(paste("not defined for growth rate or",
-                                      "acceleration forms")))
+    graphics::text(0.5, 0.5, tr("not defined for the growth rate form"))
     return(invisible(NULL))
   }
   ref <- switch(form,

@@ -26,7 +26,7 @@
 #' * `hp_smoother()`: the HP trend at a short cut-off of `period`
 #'   observations (default one year). It smooths without removing a trend,
 #'   as the second step of the OECD double filter does, and is the default
-#'   filter of the growth rate and acceleration forms ([CycleForm-class]).
+#'   filter of the growth rate form ([CycleForm-class]).
 #'   Formula F-09 in the package harness.
 #' * `hamilton_filter()`: Hamilton (2018) regression filter; the cycle is the
 #'   residual of a regression of \eqn{y_{t+h}} on \eqn{y_t, \dots,

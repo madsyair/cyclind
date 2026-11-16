@@ -4,12 +4,14 @@
 
 test_that("a user completes the ten steps in the browser", {
   skip_if_no_browser()
-  app <- start_app("workflow-en", "en")
+  # no language set: the interface is in English by default
+  app <- start_app("workflow-en")
   on.exit(app$stop(), add = TRUE)
 
   # 1. Data
   expect_match(app$get_html("h2"),
-               "cyclind [0-9.]+: Composite Leading and Coincident Indicators")
+               paste0("cyclind [0-9.]+: Cyclical Composite Indicators: ",
+                      "Leading, Coincident and Lagging"))
   app$set_inputs(source = "example_m", wait_ = FALSE)
   app$click("run1")
   app$wait_for_idle()
@@ -35,6 +37,17 @@ test_that("a user completes the ten steps in the browser", {
 
   # 3. Specification
   go_to(app, 3L)
+  # the cycle forms are named by their kind of cycle (selectize keeps only
+  # the selected option in the page, so each form is selected in turn)
+  expect_match(app$get_html("#form"), "Growth cycle: deviation from trend",
+               fixed = TRUE)
+  app$set_inputs(form = "growth")
+  expect_match(app$get_html("#form"), "Growth rate cycle: growth rate",
+               fixed = TRUE)
+  app$set_inputs(form = "level")
+  step3 <- app$get_html("div[data-value='s3']")
+  expect_no_match(step3, "acceleration", fixed = TRUE)
+  expect_match(step3, "speeding up or slowing", fixed = TRUE)
   app$set_inputs(oos_cutoffs = "2012, 2016", wait_ = FALSE)
   app$click("run3")
   expect_match(app$get_value(output = "spec_print"),
@@ -173,7 +186,8 @@ test_that("an uploaded quarterly CSV runs through the Indonesian interface", {
   app <- start_app("upload-id", "id")
   on.exit(app$stop(), add = TRUE)
   expect_match(app$get_html("h2"),
-               "cyclind [0-9.]+: Indikator Komposit Pendahulu dan Sejalan")
+               paste0("cyclind [0-9.]+: Indikator Komposit Siklus: ",
+                      "Pendahulu, Sejalan, dan Tertinggal"))
   app$set_inputs(source = "upload", wait_ = FALSE)
   app$upload_file(file = path)
   app$click("run1")

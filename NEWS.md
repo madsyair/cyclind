@@ -1,3 +1,42 @@
+# cyclind 0.1.0.9000
+
+## Breaking changes
+
+* The acceleration form is removed: `acceleration_form()`, the class
+  `AccelerationForm` and its choice in the graphical interface no longer
+  exist. Use `level_form()` (growth cycle) or `growth_form()` (growth rate
+  cycle). Reasons:
+  * it is not one of the three standard kinds of cycle (classical, growth
+    cycle, growth rate cycle);
+  * the "acceleration cycle" of the literature (the ABCD framework, Anas
+    and Ferrara 2004) means the growth rate cycle, which `growth_form()`
+    already covers;
+  * the change of a growth rate is a second difference, so it is noisy, and
+    the classification thresholds were never calibrated for it.
+* Specifications or cycles saved with `acceleration_form()` can no longer
+  be used; build them again with `growth_form()`.
+* `inst/calibration/forms.csv` now holds the level and growth rate forms
+  only (`data-raw/calibrate_forms.R` was run again).
+
+## Graphical interface
+
+* English is now the default language of the interface, in view of the
+  CRAN submission: `run_app()` and `cyclind_app()` take
+  `language = c("en", "id")`, and the deployment entry point
+  (`system.file("app", package = "cyclind")`) reads `CYCLIND_LANGUAGE`
+  with `"en"` as its default. The Indonesian interface stays available
+  with `run_app(language = "id")`.
+* The cycle forms in step 3 are named by their kind of cycle: "Growth
+  cycle: deviation from trend" and "Growth rate cycle: growth rate"
+  ("Growth cycle: deviasi dari tren" and "Growth rate cycle: laju
+  pertumbuhan" in Indonesian). A new help line says what a turning point
+  marks in each: output above or below its trend in a growth cycle, the
+  speeding up or slowing down of growth in a growth rate cycle.
+  `?CycleForm-class` cites Gyomai and Guidetti (2012, pp. 9-11).
+* The subtitle of the application names all three indices: "Cyclical
+  Composite Indicators: Leading, Coincident and Lagging" ("Indikator
+  Komposit Siklus: Pendahulu, Sejalan, dan Tertinggal").
+
 # cyclind 0.1.0
 
 First release. The package builds cyclical composite indicators following

@@ -15,9 +15,8 @@ Cyclical component of one series
 \item{\code{original}}{Original series (\code{ts}).}
 
 \item{\code{transformed}}{Series after transformation, outlier treatment and
-seasonal adjustment (\code{ts}); with a growth rate or acceleration form
-(\code{\link[=growth_form]{growth_form()}}, \code{\link[=acceleration_form]{acceleration_form()}}), that rate, missing for the
-first periods.}
+seasonal adjustment (\code{ts}); with the growth rate form
+(\code{\link[=growth_form]{growth_form()}}), that rate, missing for the first periods.}
 
 \item{\code{cycle}}{Filtered cycle (\code{ts}).}
 

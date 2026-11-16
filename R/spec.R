@@ -13,7 +13,7 @@
 #' evaluated on the same simulation design, so these rates are optimistic.
 #' With [oecd_classifier()] the share is 2.5 to 7.5 percent
 #' (`inst/calibration/oecd-classification.csv`), and with the experimental
-#' acceleration form up to 2.1 percent (`inst/calibration/forms.csv`).
+#' growth rate form up to 1.3 percent (`inst/calibration/forms.csv`).
 #'
 #' The defaults chain the composite at the ragged edge (`equal_weight()`)
 #' and extend each series with one year of AR forecasts before the filter
@@ -85,9 +85,9 @@
 #'   series is extended by one year of AR forecasts before the cycle filter.
 #'   Use [no_extension()] for no extension.
 #' @param form A [CycleForm-class]: [level_form()] (default, the growth
-#'   cycle), [growth_form()] (growth rate cycle) or [acceleration_form()].
-#'   Without `filter`, the growth and acceleration forms use [hp_smoother()].
-#'   The two new forms are experimental: the thresholds were calibrated for
+#'   cycle) or [growth_form()] (growth rate cycle).
+#'   Without `filter`, the growth form uses [hp_smoother()].
+#'   The growth form is experimental: the thresholds were calibrated for
 #'   the level form. [update()] changes a filter left at the default of the
 #'   old form to the default of the new one; a filter chosen by hand is
 #'   kept. The level form with [hp_smoother()] gives a warning, since that
@@ -216,8 +216,8 @@ check_form_filter <- function(spec) {
     cyclind_warn(paste0("The ", spec@filter@label, " does not remove the ",
                         "trend: with the level form the cycle is the smoothed ",
                         "series. That suits series that are already growth ",
-                        "rates; otherwise use growth_form() or ",
-                        "acceleration_form()."), "cyclind_warning_form_filter")
+                        "rates; otherwise use growth_form()."),
+                 "cyclind_warning_form_filter")
   }
   invisible(spec)
 }
@@ -467,8 +467,8 @@ setMethod("update", "CliSpec", function(object, ...) {
 #'   are already growth rates (FR-014.8). `NULL` keeps the OECD filter (or
 #'   the default filter of the cycle form).
 #' @param ... Further arguments of [cli_spec()]. With `form =`
-#'   [growth_form()] or [acceleration_form()] (experimental, not part of the
-#'   OECD method) the filter is [hp_smoother()], as in [cli_spec()].
+#'   [growth_form()] (experimental, not part of the OECD method) the
+#'   filter is [hp_smoother()], as in [cli_spec()].
 #' @return A [CliSpec-class].
 #' @references
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
