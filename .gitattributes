@@ -1,0 +1,3 @@
+# Keep the shipped data byte-identical on every OS: the stored vignette
+# results record their MD5 (test-vignette-results.R).
+inst/extdata/** -text

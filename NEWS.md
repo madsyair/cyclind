@@ -1,5 +1,47 @@
 # cyclind 0.1.0.9000
 
+## Vignettes
+
+* `vignette("cyclind")` has a new section on the kinds of cycle (Gyomai
+  and Guidetti 2012, pp. 9-11): the growth cycle (`level_form()` with the
+  double HP filter), the growth rate cycle (`growth_form()`, the rate
+  `100 * (Y_t / Y_{t-k} - 1)`, with the HP smoother) and the classical
+  cycle, which the OECD reaches through the trend-restored CLI. The
+  acceleration form removed below is no longer mentioned.
+* `vignette("cyclind")` shows the matching rule (`matching`), the
+  reporting of outliers (`outlier_report()`), the dropping of twin
+  candidates, `cycle_agreement()` and `cyclind_provenance()`, and the
+  quarterly translation of the dating rules of `oecd_spec()`.
+* Every number quoted in the text of the vignettes is computed inline
+  from the code or from `inst/calibration/`. Claims that the data did not
+  support were corrected: without the Granger test 2.0 percent of the
+  pure-noise series pass the other criteria (not "one in seventy"); the
+  comparison of the OECD rule with the median lead alone and with the
+  package rule now says which rule finds more leaders; the cut-offs of
+  the selection-bias example (2014 and 2017) both give a composite; the
+  OECD published its last month with 2 of 7 components. Statements that
+  could not be traced to the shipped results (the counts of the 5/15-month
+  rule and of the earlier outlier default) were removed; they stay in
+  this file.
+* The Python package CIF is credited to its author (Vraná 2020) instead
+  of being called an OECD package; its default of six months of ARIMA
+  forecasts was checked in its source (version 0.0.6).
+* The steps of `vignette("oecd-indonesia")` that need TRAMO (RJDemetra,
+  Java) print results computed in advance by the new
+  `data-raw/oecd_idn_vignette.R` and stored in
+  `inst/vignette-results/oecd-indonesia.rds`, so that the vignettes build
+  without Java or X-13 and in a few seconds; the vignette uses
+  `oecd_spec(engine = "tramo")` and shows the provenance of the stored
+  results. `test-vignette-results.R` checks the stored file against the
+  shipped data and, outside CRAN with RJDemetra, against a fresh run.
+* `vignette("oecd-indonesia")` names the two references the growth cycle
+  and the growth rate cycle of GDP, uses the current labels of the
+  interface and standardises each series of the growth rate plot on its
+  own (both were standardised together before, which cut the plot).
+* References give DOIs or URLs of primary sources only; the chapter of
+  Gyomai, Ahmad and Astolfi (2017) is cited with its editors, pages
+  273-291 and DOI.
+
 ## Acceleration form removed (breaking)
 
 * The acceleration form is removed: `acceleration_form()`, the class
@@ -91,7 +133,7 @@ Indicators*, "GAA17"; OECD CLI FAQ 2024).
 * Claims that `oecd_spec()` sets "every step as in the OECD system" and
   that `cli_spec()` defaults "follow the OECD" are replaced by a table of
   each step with its source (`?oecd_spec`, `vignette("cyclind")`,
-  section 8). The interface calls the method "OECD method, with notes"
+  section "The OECD method and the defaults"). The interface calls the method "OECD method, with notes"
   ("Metode OECD, dengan catatan") instead of "Exactly as the OECD".
 * The aggregation formula written by the OECD (GAA17 p. 286, note 8) is
   `oecd_aggregate(growth = "ratio")`. The default of `oecd_spec()`,

@@ -11,28 +11,50 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
                       fig.height = 4)
 library(cyclind)
+# Numbers quoted in the text are computed from these files.
+calib <- function(file) {
+  utils::read.csv(system.file("calibration", file, package = "cyclind"),
+                  stringsAsFactors = FALSE)
+}
+pct <- function(x, digits = 0) {
+  paste(formatC(100 * x, format = "f", digits = digits), "percent")
+}
+pct_range <- function(x, digits = 0) {
+  paste(formatC(100 * min(x), format = "f", digits = digits), "to",
+        pct(max(x), digits))
+}
+f2 <- function(x) formatC(x, format = "f", digits = 2)
+f3 <- function(x) formatC(x, format = "f", digits = 3)
+pp <- function(x) formatC(100 * x, format = "f", digits = 1)
 ```
 
 A composite leading indicator (CLI) combines series whose cycles turn before
-the business cycle. `cyclind` follows the OECD system of composite leading
-indicators (Gyomai and Guidetti 2012) from the choice of candidates to a
-tested composite, and adds the statistical checks recommended in the
-literature on leading indicators (Marcellino 2006).
+the business cycle. `cyclind` builds on the OECD system of composite
+leading indicators (Gyomai and Guidetti 2012; Gyomai, Ahmad and Astolfi
+2017), from the choice of candidates to a tested composite, and adds the
+statistical checks recommended in the literature on leading indicators
+(Marcellino 2006). Where its defaults depart from the OECD documents, the
+section "The OECD method and the defaults" says so and gives the evidence.
+
+All examples use simulated data from `simulate_cycles()`, in which the
+truth is known, and the calibration results shipped in
+`inst/calibration/`. `vignette("oecd-indonesia")` applies the OECD method
+to public OECD data for Indonesia.
 
 ## 1. Candidates and specification
 
 Every workflow starts with a reference series and candidate series at the
-same frequency. Here we simulate thirty years of monthly data in which the
-truth is known: two series lead by six and three months, one is coincident,
-one lags, one is counter-cyclical and two are noise.
+same frequency. Here we simulate thirty years of monthly data: two series
+lead by six and three months, one is coincident, one lags, one is
+counter-cyclical and two are noise.
 
 ```{r data}
 sim <- simulate_cycles(seed = 2026)
 attr(sim, "truth")
 ```
 
-The OECD asks for an economic rationale for every component; statistics do
-not replace it. `cyclind` records it and warns when it is missing.
+The OECD asks for an economic rationale for every component; statistics
+do not replace it. `cyclind` records it and warns when it is missing.
 
 ```{r candidates}
 meta <- data.frame(
@@ -59,8 +81,8 @@ res <- cli_build(cand, spec)
 res
 ```
 
-`cli_build()` extracts the cycles, dates the turning points, classifies every
-candidate, aggregates the leading ones and tests the composite. The
+`cli_build()` extracts the cycles, dates the turning points, classifies
+every candidate, aggregates the leading ones and tests the composite. The
 classification table shows why each series was kept or rejected:
 
 ```{r assessment}
@@ -69,24 +91,24 @@ assessment(res)
 
 The counter-cyclical series was inverted before it was assessed. Its
 direction was read from the cross-correlation within a quarter of the
-average reference cycle; a longer window would let the opposite phase of a
-regular cycle decide. Where the direction is known from the economic
-rationale, declare it in a `sign` column of `meta` (1 or -1), as the OECD
-does: leads beyond a quarter of the cycle cannot be told apart from
-inversion by the data. The audit log records each iteration of the
-selection loop:
+average reference cycle; a longer window would let the opposite phase of
+a regular cycle decide. Where the direction is known from the economic
+rationale, declare it in a `sign` column of `meta` (1 or -1): leads beyond
+a quarter of the cycle cannot be told apart from inversion by the data.
+The audit log records each iteration of the selection loop:
 
 ```{r audit}
-audit_log(res)[, c("iteration", "action", "components", "ccf_lag", "passed")]
+audit_log(res)[, c("iteration", "action", "components", "ccf_lag",
+                   "passed")]
 ```
 
-```{r plot, fig.alt = "Composite and reference cycles with reference contractions shaded"}
+```{r plot, fig.alt = "Composite and reference cycles, contractions shaded"}
 plot(res)
 ```
 
 ## 3. Step by step
 
-Every step is also available on its own, so a workflow can stop anywhere —
+Every step is also available on its own, so a workflow can stop anywhere,
 for example after the classification.
 
 ```{r steps}
@@ -98,70 +120,279 @@ cli <- cli_composite(cyc, c("lead_6", "lead_3"), spec, cyc$reference)
 cli_validate(cli, cyc$reference, spec)
 ```
 
-Filters, turning-point rules and aggregation methods are interchangeable
-objects:
+Filters (the double Hodrick-Prescott filter of Hodrick and Prescott 1997
+by default, or the band-pass filter of Christiano and Fitzgerald 2003),
+turning-point rules (Bry and Boschan 1971; Harding and Pagan 2002) and
+aggregation methods are interchangeable objects:
 
 ```{r alternatives}
 alt <- update(spec, filter = cf_filter(), aggregator = dynamic_factor())
 components(cli_build(cand, alt))
 ```
 
-## 4. How the classification rules were calibrated
+### Matching turning points
+
+A reference turning point is paired with a candidate turning point of the
+same type inside `lead_window` (`c(12, 24)` by default: up to 24 months
+lead and 12 months lag). When several candidate turning points fall in
+the window, `matching = "nearest"` (the default) takes the one closest in
+time and `matching = "maximum"` the most pronounced one:
+
+```{r matching}
+res_max <- cli_build(cand, update(spec, matching = "maximum"))
+med <- function(r) {
+  a <- as.data.frame(assessment(r))
+  stats::setNames(a$median_lead, a$name)
+}
+rbind(nearest = med(res), maximum = med(res_max))
+```
+
+```{r matching-numbers, include = FALSE}
+d_match <- med(res_max) - med(res)
+n_match <- sum(d_match != 0, na.rm = TRUE)
+```
+
+Here the rule changes the median lead of `r n_match` of the
+`r length(d_match)` candidates; the leading components are the same
+(`r paste(components(res_max), collapse = ", ")`).
+
+### Outliers, twins and agreement
+
+Every outlier treatment reports what it found. The simulated series have
+no outliers, so we add a spike of 30 percent to one month of `lead_3`;
+`outlier_report()` lists, series by series, the outliers replaced and
+(in brackets in the column `periods`) those detected but kept:
+
+```{r outliers}
+sim_o <- sim
+k <- which(abs(stats::time(sim) - (2010 + 5 / 12)) < 1e-6)
+sim_o[k, "lead_3"] <- sim_o[k, "lead_3"] * 1.3
+cyc_o <- cli_cycles(cli_candidates(sim_o, "reference", meta = meta), spec)
+rep_o <- outlier_report(cyc_o)
+rep_o[rep_o$name %in% c("reference", "lead_3"),
+      c("name", "n_removed", "periods", "types")]
+```
+
+A share of replaced outliers above `max_share` (5 percent by default)
+gives a warning. Two candidates that carry the same information, such as
+a series and a copy of it in other units, would double its weight in the
+composite. Before the selection loop, candidates whose cycles correlate
+at least `twin_threshold` (0.99 by default) in absolute value are reduced
+to the one with the higher cross-correlation with the reference, with a
+warning and a line in the audit log. Here `twin` is `lead_6` in other
+units with a small disturbance:
+
+```{r twins}
+wiggle <- 1 + 0.002 * sin(seq_len(nrow(sim)))
+sim_t <- cbind(sim, twin = 2 * sim[, "lead_6"] * wiggle)
+colnames(sim_t) <- c(colnames(sim), "twin")
+meta_t <- rbind(meta, data.frame(name = "twin", rationale = "early_stage"))
+res_t <- cli_build(cli_candidates(sim_t, "reference", meta = meta_t), spec)
+audit_log(res_t)[1, c("iteration", "action")]
+```
+
+`cycle_agreement()` compares a cycle with the reference by the Pearson
+and Spearman correlations and the root mean squared error of the
+normalised cycles, outside excluded periods such as a crisis. With
+`reps > 0` it adds paired moving-block bootstrap intervals; the draws
+start from an explicit `seed` and leave the random numbers of the session
+untouched. Here the composite is compared with the reference without
+2008 and the first half of 2009:
+
+```{r agreement}
+cycle_agreement(composite(res), cyc$reference, exclude = c(2008, 2009.5),
+                reps = 199, seed = 1)
+```
+
+The correlation at lag 0 understates the agreement of a leading
+composite, whose cycle is shifted by its lead.
+
+## 4. Growth cycles, growth rate cycles and classical cycles
+
+The OECD presents a CLI in three forms, each read against its own kind of
+cycle (Gyomai and Guidetti 2012, pp. 9–11):
+
+* the **growth cycle**: the deviation of the level from its long-term
+  trend, an output-gap reading. The OECD dates its turning points on this
+  form. A peak marks output starting to fall back towards its trend.
+* the **classical cycle** (business cycle) of the level itself. The OECD
+  reaches it by restoring the trend: the trend-restored CLI is the
+  amplitude-adjusted CLI times the trend of the reference series. Its
+  peaks come later and its troughs earlier than those of the growth
+  cycle.
+* the **growth rate cycle**: the 12-month rate of change of the
+  trend-restored CLI, compared with the growth rate of GDP. A peak marks
+  growth starting to slow down; it usually marks an inflection point of
+  the growth cycle, and its lead is not stable (Gyomai and Guidetti
+  2012, p. 12).
+
+In cyclind the kind of cycle is set by the `form` of the specification.
+`level_form()`, the default, gives the growth cycle. It is paired with
+`hp_double_filter()`, the double Hodrick-Prescott filter of the OECD: a
+first filter removes the trend (cycles longer than 120 months, or 40
+quarters) and a second one smooths away movements shorter than 12 months
+(4 quarters). `growth_form()` gives the growth rate cycle. A logged
+series becomes its growth rate over `lag` periods (one year by default),
+
+$$g_t = 100 \left(\frac{Y_t}{Y_{t-k}} - 1\right),$$
+
+the rate as statistical offices publish it (`rate = "log"` gives the log
+rate $100 (\log Y_t - \log Y_{t-k})$). A series in levels, or a candidate
+whose `unit` in the metadata is `"percent"` (an interest rate, a balance
+of opinion), is differenced in its own units, $Y_t - Y_{t-k}$. Rates are
+computed after seasonal adjustment and the treatment of outliers. Growth
+rates have little trend, so `growth_form()` is paired with
+`hp_smoother()`, which only smooths.
+
+```{r forms}
+spec_g <- cli_spec(freq = 12, form = growth_form())
+spec_g@filter
+cyc_g <- cli_cycles(cand, spec_g)
+tail(cyc_g$reference@steps, 3)
+tp_g <- cli_turning_points(cyc_g, spec_g)
+c(growth_cycle = nrow(as.data.frame(tp$reference)),
+  growth_rate_cycle = nrow(as.data.frame(tp_g$reference)))
+```
+
+The growth rate cycle of the simulated reference has
+`r nrow(as.data.frame(tp_g$reference))` turning points against
+`r nrow(as.data.frame(tp$reference))` in its growth cycle:
+
+```{r forms-plot, fig.height = 5}
+#| fig.alt: >
+#|   Growth cycle and growth rate cycle of the simulated reference series
+#|   with their turning points
+show_cycle <- function(cs, tps, main) {
+  plot(cs@normalised, ylab = "Normalised", xlab = NULL, main = main)
+  abline(h = 0, lty = 2)
+  d <- as.data.frame(tps)
+  points(d$time, d$value, pch = ifelse(d$type == "peak", 25, 24),
+         bg = "grey50")
+}
+op <- par(mfrow = c(2, 1), mar = c(2, 4, 2, 1))
+show_cycle(cyc$reference, tp$reference, "Growth cycle (level_form())")
+legend("topleft", c("peak", "trough"), pch = c(25, 24), pt.bg = "grey50",
+       horiz = TRUE, bty = "n")
+show_cycle(cyc_g$reference, tp_g$reference,
+           "Growth rate cycle (growth_form())")
+par(op)
+```
+
+The classical cycle is not a form of the specification: cyclind
+classifies candidates on growth cycles or growth rate cycles, and
+`cli_presentation()` turns a growth-cycle composite into the
+trend-restored CLI and its 12-month rate of change, as the OECD does:
+
+```{r presentation}
+pres <- cli_presentation(res)
+tail(pres[, c("time", "amplitude_adjusted", "trend_restored",
+              "rate_of_change", "reference")], 3)
+```
+
+The thresholds of the classifiers were calibrated on growth cycles, so the
+growth rate form is experimental. `data-raw/calibrate_forms.R` measures
+the default rules on both forms:
+
+```{r forms-calibration}
+fm <- calib("forms.csv")
+fm[, c("form", "freq", "noise_sd", "correct.leading", "false_leading",
+       "overall")]
+```
+
+```{r forms-numbers, include = FALSE}
+fm_g <- fm[fm$form == "growth", ]
+fm_l <- fm[fm$form == "level", ]
+```
+
+On these simulations the rules find leaders in growth rate cycles about as
+often as in growth cycles and label at most
+`r pct(max(fm_g$false_leading), 1)` of the others leading, but the overall
+share of correct classes is lower with strong noise
+(`r f3(min(fm_g$overall))` against `r f3(min(fm_l$overall))`).
+
+## 5. How the classification rules were calibrated
 
 The thresholds were not guessed. The script `data-raw/calibrate_collect.R`
 simulates 100 samples for each frequency and three noise levels, classifies
-every candidate and compares the class with the truth. Two lessons shaped
-the defaults:
-
-* the median lead at turning points shrinks towards zero as noise grows,
-  whereas the lead of the cross-correlation peak stays unbiased, so the
-  cross-correlation lead is the primary lead measure;
-* concordance alone lets about one noise series in seventy through; adding
-  the Toda-Yamamoto Granger test removes almost all of them at nearly no
-  loss of power.
+every candidate and compares the class with the truth.
 
 ```{r calibration}
-acc <- read.csv(system.file("calibration", "accuracy.csv",
-                            package = "cyclind"))
+acc <- calib("accuracy.csv")
 acc[, c("freq", "noise_sd", "correct.leading", "correct.rejected",
         "false_leading", "overall")]
 ```
 
-With low or moderate noise most candidates are classified correctly, and
-non-leading series are almost never labelled leading. With quarterly data and
-strong noise the power to detect leaders falls: thirty years give only 120
-observations. Pure-noise series are then also called coincident or lagging
-more often (up to about 15 percent), which does no harm to the composite.
-The rules were tuned and then evaluated on the same simulation design
-(cycles of four years, thirty years of data), so these rates are
-optimistic for other designs; with 100 samples per cell and 400
-non-leading series, a rate of 1.25 percent (5 series) has a Monte Carlo
-standard error of about 0.6 percentage points.
-
-The tests behind the criteria allow for the persistence of cycles. Phases
-last years, so the usual Newey-West variance made the concordance test reject
-independent cycles 11 to 37 percent of the time at the 5 percent level; with
-the fixed-b variance of Kiefer and Vogelsang (2005) it rejects 6 to 18
-percent (`inst/calibration/test-size.csv`, which also records the size of
-the Pesaran-Timmermann test and of the prediction criteria).
-
-## 5. Is the in-sample lead real?
-
-Components are chosen because they led in the sample, so the in-sample lead
-overstates the lead to expect later. `cli_selection_bias()` chooses the
-components with data up to a cut-off date and measures the lead of that
-composite only at later turning points.
-
-```{r bias}
-cli_selection_bias(cand, spec, cutoffs = c(2012, 2016))
+```{r calibration-numbers, include = FALSE}
+st <- calib("assessment-stats.csv")
+noise <- st[st$truth == "rejected", ]
+lead <- st[st$truth == "leading", ]
+no_granger <- function(d) mean(d$reasons %in% c("", "granger"))
+with_granger <- function(d) mean(d$reasons == "")
+cell <- interaction(noise$freq, noise$noise_sd)
+other_class <- tapply(noise$class %in% c("coincident", "lagging"), cell,
+                      mean)
+nonlead <- st[st$truth != "leading", ]
+n_cell <- max(table(interaction(nonlead$freq, nonlead$noise_sd)))
+p_max <- max(acc$false_leading)
+ts_conc <- calib("test-size.csv")
+ts_conc <- ts_conc[ts_conc$study == "concordance" &
+                     ts_conc$series == "independent", ]
+nw <- ts_conc$value[grepl("^reject_nw", ts_conc$statistic)]
+fb <- ts_conc$value[grepl("^reject_fixedb_(median|fixed)$",
+                          ts_conc$statistic)]
 ```
 
-In this simulation the leaders are genuine, so the lead after the cut-off is
-as long as before it. With real data a large positive `lead_gap` means the
+Two lessons shaped the defaults:
+
+* the median lead at turning points shrinks towards zero as noise grows,
+  whereas the lead of the cross-correlation peak stays unbiased, so the
+  cross-correlation lead is the primary lead measure;
+* without the Granger causality test of Toda and Yamamoto (1995), the
+  other criteria label
+  `r pct(no_granger(noise), 1)` of the pure-noise series leading; with it,
+  `r pct(with_granger(noise), 2)`, while the share of true leaders found
+  falls only from `r pct(no_granger(lead), 1)` to
+  `r pct(with_granger(lead), 1)` (`inst/calibration/assessment-stats.csv`).
+
+With low or moderate noise most candidates are classified correctly, and
+non-leading series are almost never labelled leading. With quarterly data
+and strong noise the power to detect leaders falls: thirty years give only
+120 observations. Pure-noise series are then also called coincident or
+lagging more often (up to `r pct(max(other_class))`), which does no harm
+to the composite. The rules were tuned and then evaluated on the same
+simulation design (cycles of four years, thirty years of data), so these
+rates are optimistic for other designs. With 100 samples per cell and
+`r n_cell` non-leading series, the largest rate of false leaders,
+`r pct(p_max, 1)`, has a Monte Carlo standard error of about
+`r f2(100 * sqrt(p_max * (1 - p_max) / n_cell))` percentage points.
+
+The tests behind the criteria allow for the persistence of cycles. Phases
+last years, so the usual Newey-West variance made the concordance test
+reject independent cycles `r pct_range(nw)` of the time at the 5 percent
+level; with the fixed-b variance of Kiefer and Vogelsang (2005) it rejects
+`r pct_range(fb)` (`inst/calibration/test-size.csv`, which also records
+the size of the Pesaran-Timmermann test and of the prediction criteria).
+
+## 6. Is the in-sample lead real?
+
+Components are chosen because they led in the sample, so the in-sample
+lead overstates the lead to expect later. `cli_selection_bias()` chooses
+the components with data up to a cut-off date and measures the lead of
+that composite only at later turning points.
+
+```{r bias}
+sb <- cli_selection_bias(cand, spec, cutoffs = c(2014, 2017))
+sb[, c("cutoff", "components", "median_lead_in", "median_lead_out",
+       "n_tp_out", "lead_gap")]
+```
+
+In this simulation the leaders are genuine, so the lead after each cut-off
+is at least as long as before it (`lead_gap` of `r paste(sb$lead_gap, collapse =
+" and ")` months). With real data a large positive `lead_gap` means the
 in-sample lead is mostly a selection effect. Set `oos_cutoffs` in the
 specification to run this check inside `cli_build()`.
 
-## 6. Is the composite good enough?
+## 7. Is the composite good enough?
 
 `cli_quality()` turns the validation into a scorecard with a verdict. It
 checks three groups of criteria:
@@ -171,7 +402,8 @@ checks three groups of criteria:
 * **prediction**: out-of-sample probabilities of contraction, each from a
   logit fitted to earlier periods only, have an area under the ROC curve of
   at least 0.7 and a quadratic probability score below that of the naive
-  forecast from the same past data, and the Pesaran-Timmermann test finds
+  forecast from the same past data, and the Pesaran and Timmermann (2009)
+  test finds
   that the composite's direction predicts the later direction of the
   reference. The horizon is fixed in advance (the lower end of
   `target_lead`, 6 months by default), not taken from the composite;
@@ -183,29 +415,32 @@ first two groups pass but the out-of-sample check was not run, and *weak*
 otherwise.
 
 ```{r quality}
-res_oos <- cli_build(cand, update(spec, oos_cutoffs = c(2012, 2016)))
+res_oos <- cli_build(cand, update(spec, oos_cutoffs = c(2014, 2017)))
 cli_quality(res_oos)
 ```
 
-## 7. Mixed frequencies and variable types
+## 8. Mixed frequencies and variable types
 
-`cyclind` works at one frequency, but the data rarely arrive that way: GDP is
-quarterly, credit is a monthly stock, exchange rates are daily, some sales
-are weekly. `cli_align()` brings them to one frequency with the rule set by
-the type of each series (`series_types`): flows are summed, stocks are taken
-at the end of the period, averages are averaged. Weekly data are spread over
-their days before they are summed into months, so that months of five weeks
-do not look larger than months of four. A quarterly reference series is
-disaggregated to months with the Denton-Cholette method (or Chow-Lin with a
-monthly indicator that is not a candidate); quarterly candidates are
+`cyclind` works at one frequency, but the data rarely arrive that way: GDP
+is quarterly, credit is a monthly stock, exchange rates are daily, some
+sales are weekly. `cli_align()` brings them to one frequency with the rule
+set by the type of each series (`series_types`): flows are summed, stocks
+are taken at the end of the period, averages are averaged. Weekly data are
+spread over their days before they are summed into months, so that months
+of five weeks do not look larger than months of four. A quarterly
+reference series is disaggregated to months with the Denton-Cholette
+method (Denton 1971) or the Chow-Lin method (Chow and Lin 1971) with a
+monthly indicator that is not a candidate; quarterly candidates are
 interpolated at the month the OECD uses (central month, or last month for
-stocks).
+stocks; Gyomai and Guidetti 2012, p. 6).
 
 ```{r align}
 gdp_q <- aggregate(sim[, "reference"], nfrequency = 4, FUN = sum)
 weeks <- seq(as.Date("1995-01-02"), as.Date("2024-12-23"), by = "week")
+set.seed(1)
 sales <- data.frame(date = weeks,
-                    value = 700 * exp(cumsum(rnorm(length(weeks), 0, 0.01))))
+                    value = 700 * exp(cumsum(rnorm(length(weeks), 0,
+                                                   0.01))))
 x <- cli_align(list(gdp = gdp_q, sim[, -1], sales = sales),
                type = c(gdp = "flow", sales = "flow"), reference = "gdp")
 attr(x, "alignment")[c(1, 9), ]
@@ -222,8 +457,8 @@ about one month: the monthly path inside each quarter is an estimate.
 
 Data published as one file per indicator, at different frequencies, are
 read with `read_cli_series()`: each file has a date column (`2001-01-15`,
-`15/01/2001`, `2001-01`, `2001Q1`, `2001S1` or `2001`) and one or more value
-columns, and the result goes straight into `cli_align()`.
+`15/01/2001`, `2001-01`, `2001Q1`, `2001S1` or `2001`) and one or more
+value columns, and the result goes straight into `cli_align()`.
 
 The source frequency of every series (`series_frequencies`) is detected
 from its dates and recorded with the candidates (`cand_mf@meta$frequency`);
@@ -244,9 +479,10 @@ all.equal(as.numeric(aggregate(x_a[, "gdp"], nfrequency = 1, FUN = sum)),
           as.numeric(gdp_a))
 ```
 
-Moving holidays such as Idulfitri shift through the calendar, so fixed
-seasonal factors miss them. `holiday_effect()` turns their dates into
-regressors for X-13ARIMA-SEATS (package **seasonal**):
+Moving holidays, such as the Eid al-Fitr holiday (Idulfitri) in
+Indonesia, shift through the calendar, so fixed seasonal factors miss
+them. `holiday_effect()` turns their dates into regressors for
+X-13ARIMA-SEATS (package **seasonal**):
 
 ```{r holidays, eval = FALSE}
 eid <- holiday_effect(idulfitri_dates(1990, 2030), name = "idulfitri")
@@ -254,52 +490,22 @@ spec_sa <- cli_spec(seasonal_adjust = TRUE, holidays = eid)
 ```
 
 `idulfitri_dates()` gives the dates of the arithmetic Islamic calendar,
-which can differ from the official Indonesian dates by a day or two; use
-the official dates when you have them.
+which can differ from the official dates by a day or two; use the official
+dates when you have them.
 
-### Growth rate cycles (experimental)
-
-The OECD cycle is a growth cycle: the deviation of the level from its
-trend. Some studies use another reference, the growth rate cycle, such as
-the year-on-year growth of GDP. `form` in `cli_spec()` takes the cycle
-from growth rates (`growth_form()`). The rate of a logged series is the
-growth rate as BPS-Statistics Indonesia publishes it,
-`100 * (Y_t / Y_{t-k} - 1)` (`rate = "log"` gives the log rate);
-series in levels, and candidates whose `unit` in the metadata is
-`"percent"` (interest rates, balances), are differenced in their own
-units. The form is applied after seasonal
-adjustment and outlier treatment, so rates are computed from seasonally
-adjusted series. Growth rates have little trend, so this form is paired
-with `hp_smoother()`, which only smooths:
-
-```{r forms}
-spec_g <- cli_spec(freq = 12, form = growth_form())
-spec_g@filter
-tail(cli_cycles(cand, spec_g)$reference@steps, 4)
-```
-
-The thresholds of the classifiers were calibrated on level cycles, so the
-growth rate form is experimental. `data-raw/calibrate_forms.R` measures the
-default rules on both forms:
-
-```{r forms-calibration}
-fm <- read.csv(system.file("calibration", "forms.csv", package = "cyclind"))
-fm[, c("form", "freq", "noise_sd", "correct.leading", "false_leading",
-       "overall")]
-```
-
-## 8. The OECD method and the defaults
+## 9. The OECD method and the defaults
 
 `oecd_spec()` follows the OECD documents (Gyomai and Guidetti 2012,
-"GG12"; Gyomai, Ahmad and Astolfi 2017, "GAA17") where they state a rule,
-with the source of each step:
+"GG12"; Gyomai, Ahmad and Astolfi 2017, "GAA17") where they state a rule.
+The table gives the source of each step and marks the choices of cyclind
+where the documents give no formula:
 
 | Step | OECD rule (source) | `oecd_spec()` | `cli_spec()` |
 | --- | --- | --- | --- |
 | Outliers | TRAMO, additive outliers removed (GAA17 p. 283) | `tramo_outliers()`, `outlier_types = "AO"` | robust z-score |
 | Log or levels | TRAMO test (GAA17 p. 284) | `transform = "test"` | `"auto"` |
 | End of series | 2--6 months of TRAMO forecasts (GAA17 p. 284) | 2 months | 12 months, AR |
-| Cycle | double HP, 12--120 months (GG12 p. 7, 15) | same | same |
+| Cycle | double HP, 12--120 months (GG12 pp. 7, 15) | same | same |
 | Normalisation | mean, mean absolute deviation (GG12 p. 7) | same | same |
 | Turning points | Bry-Boschan, phase 9, cycle 24 months (GAA17 p. 285) | `oecd_dater()` | `bry_boschan()`, 5/15 |
 | Matching window | 24 months lead, 9 lag (GAA17 p. 285) | `c(9, 24)` | `c(12, 24)` |
@@ -307,60 +513,88 @@ with the source of each step:
 | Lag-shifting | not used in practice (GAA17 p. 287) | off | off |
 | Aggregation | chained mean of ratios, 60 percent rule (GAA17 p. 286, note 8) | chained mean log ratio (cyclind) | `equal_weight()` |
 | Amplitude | rescaled to the reference, measure not given (GAA17 p. 288) | standard deviation (cyclind) | mean absolute deviation |
-| Trend restored | not computed before GDP is available (OECD 2024, FAQ 6) | same | same |
+| Trend restored | not computed while GDP is missing (OECD 2024, question 6) | same | same |
 
-The TRAMO steps run through RJDemetra or, without Java, the regARIMA part
-of X-13. Which turning point of a phase that is too short the OECD drops
-is not documented; both daters keep the most extreme ones
-(`phase_rule = "symmetric"`, see `?Dater`), so that dating the reversed
-series gives the same turning points. The original 5/15-month rule, which
-the OECD used before 2008 (GG12, annex B), is `oecd_spec(dater =
-bry_boschan())`. `cli_presentation()` returns the three OECD forms of a
-level composite: amplitude adjusted, trend restored and its 12-month rate
-of change. Where the OECD documents name a criterion without a threshold
-or a formula, the choice is cyclind's: the thresholds of the conformity
-criteria (at most 40 percent missed or extra turning points, concordance
-significant at 5 percent, a positive cross-correlation peak), the
-inversion of counter-cyclical components and the amplitude measure. The
-rest of this section compares them with the published CLI of Indonesia.
+For quarterly data `oecd_spec()` uses phases of 3 and cycles of 8
+quarters and a matching window of 3 quarters lag and 8 lead; these are
+cyclind's translation of the monthly rules. The TRAMO steps run through
+RJDemetra or, without Java, the regARIMA part of X-13. Which turning point
+of a phase that is too short the OECD drops is not documented; both
+daters keep the most extreme ones (`phase_rule = "symmetric"`, see
+`?Dater`), so that dating the reversed series gives the same turning
+points. The original 5/15-month rule, which the OECD used before 2008
+(GG12, annex B), is `oecd_spec(dater = bry_boschan())`. Where the OECD
+documents name a criterion without a threshold or a formula, the choice
+is cyclind's: the thresholds of the conformity criteria (at most 40
+percent missed or extra turning points, concordance significant at 5
+percent, a positive cross-correlation peak), the inversion of
+counter-cyclical components and the amplitude measure.
 
 ```{r oecd, eval = FALSE}
 res_oecd <- cli_build(cand, oecd_spec())
+outlier_report(res_oecd)
 tail(cli_presentation(res_oecd))
 ```
 
+### Evidence from simulations
+
 The package defaults differ where the simulations in
-`data-raw/compare_oecd.R` showed a gain. Classified with the OECD rule, the
-calibration candidates give these rates:
+`data-raw/compare_oecd.R` showed a gain. Classified with the OECD rule,
+the calibration candidates give these rates:
 
 ```{r oecd-classification}
-cmp <- read.csv(system.file("calibration", "oecd-classification.csv",
-                            package = "cyclind"))
+cmp <- calib("oecd-classification.csv")
 cmp[cmp$rule != "OECD (min 1 matched)", ]
 ```
 
-The median lead alone (`oecd_classifier(conformity = FALSE)`) labels a fifth of the non-leading candidates (and up to almost
-half of the pure-noise series) leading. With the conformity criteria, the
-default, the OECD rule labels only 2 to 8 percent of the others
-leading; it finds as many true leaders with little noise, but 2 to 10
-percentage points fewer in noisy data. The default rule of the package
-stays at about 1 percent or less, but finds fewer leaders in very noisy
-data. The aggregation experiment points the other way at the end of the
-sample:
+```{r oecd-numbers, include = FALSE}
+by_rule <- function(rule) cmp[cmp$rule == rule, ]
+med_only <- by_rule("OECD (median lead only)")
+oecd3 <- by_rule("OECD (min 3 matched)")
+own <- by_rule("cyclind")
+key <- function(d) paste(d$freq, d$noise_sd)
+oecd3 <- oecd3[match(key(med_only), key(oecd3)), ]
+own <- own[match(key(med_only), key(own)), ]
+loss <- med_only$leading_found - oecd3$leading_found
+gain <- oecd3$leading_found - own$leading_found
+noisy <- med_only$noise_sd == max(med_only$noise_sd)
+```
+
+The median lead alone (`oecd_classifier(conformity = FALSE)`) labels
+`r pct_range(med_only$false_leading)` of the non-leading candidates
+leading, and up to `r pct(max(med_only$noise_called_leading))` of the
+pure-noise series. With the conformity criteria, the default, the OECD
+rule labels `r pct_range(oecd3$false_leading, 1)` of them leading; it finds
+at most `r pp(max(loss[!noisy]))` percentage points fewer true leaders
+than the median lead alone with low or moderate noise, and
+`r pp(min(loss[noisy]))` to `r pp(max(loss[noisy]))` fewer with strong
+noise. The default rule of the package labels at most
+`r pct(max(own$false_leading), 1)` of the others leading, but finds up to
+`r pp(max(gain))` percentage points fewer leaders than the OECD rule in
+noisy data.
 
 ```{r oecd-aggregation}
-read.csv(system.file("calibration", "oecd-aggregation.csv",
-                     package = "cyclind"))
+agg <- calib("oecd-aggregation.csv")
+agg
+```
+
+```{r aggregation-numbers, include = FALSE}
+re <- agg[!agg$lag_shift, ]
+re_err <- function(a) re$ragged_edge_error[re$aggregation == a]
+shift_loss <- agg$ccf_lag[!agg$lag_shift] - agg$ccf_lag[agg$lag_shift]
 ```
 
 The plain mean (`level`), the mean chained at the ragged edge (`chain`, the
-default) and the full OECD chain (`oecd`) are identical in
-sample, but when the longest-lead component misses its last two values both
-chained forms stay much closer to the full-information composite.
-Lag-shifting makes the leads slightly more consistent and the composite
-misses fewer turning points, but it shortens the lead of the composite by
-about three months, to the shortest lead of the components; it is
-therefore off by default.
+default) and the full OECD chain (`oecd`) give nearly the same composite in
+sample, but when the longest-lead component misses its last two values
+both chained forms stay closer to the full-information composite (an
+error of `r f3(min(re_err("chain")))` to `r f3(max(re_err("chain")))`
+against `r f3(min(re_err("level")))` to `r f3(max(re_err("level")))` for
+the plain mean). Lag-shifting makes the leads more consistent and the
+composite misses fewer turning points, but it shortens the
+cross-correlation lead of the composite by `r f2(min(shift_loss))` to
+`r f2(max(shift_loss))` months, towards the shortest lead of the
+components; it is therefore off by default, as in OECD practice.
 
 Two OECD ideas are defaults because of a real-time study
 (`data-raw/realtime_defaults.R`): chaining at the ragged edge
@@ -368,20 +602,28 @@ Two OECD ideas are defaults because of a real-time study
 components are observed, so that a component that starts late changes
 nothing) and extending each series with one year of forecasts before the
 filter (`ar_extension()`, an autoregression of the changes instead of
-TRAMO, which needs no other software and did as well). The table compares
-the last value of pseudo real-time composites with the full-sample
-composite:
+TRAMO, which needs no other software). The table compares the last value
+of pseudo real-time composites with the full-sample composite:
 
 ```{r realtime-defaults}
-read.csv(system.file("calibration", "realtime-defaults.csv",
-                     package = "cyclind"))
+rt <- calib("realtime-defaults.csv")
+rt
 ```
 
-Chaining makes the direction of the last change right more often; the
-extension makes the revision of the last value smaller; the defaults have both. The
-classification is hardly affected (section 4 shows the thresholds
-recalibrated with the extension), so the thresholds were kept. To use
-neither:
+```{r realtime-numbers, include = FALSE}
+rt_v <- function(v, col) rt[rt$variant == v, col]
+dir_gain <- rt_v("chain only", "direction_right") -
+  rt_v("neither", "direction_right")
+rev_cut <- rt_v("neither", "revision") - rt_v("AR only", "revision")
+```
+
+Chaining makes the direction of the last change right more often (by
+`r pp(min(dir_gain))` to `r pp(max(dir_gain))` percentage points); the
+extension makes the revision of the
+last value smaller (by `r f3(min(rev_cut))` to `r f3(max(rev_cut))`); the
+defaults have both. The classification is hardly affected (section 5 shows
+the thresholds recalibrated with the extension), so the thresholds were
+kept. To use neither:
 
 ```{r old-defaults, eval = FALSE}
 cli_spec(aggregator = equal_weight(ragged_edge = "level"),
@@ -389,32 +631,25 @@ cli_spec(aggregator = equal_weight(ragged_edge = "level"),
 ```
 
 The length of the extension differs between programs. cyclind appends one
-year of AR forecasts of the changes (12 months or 4 quarters,
+year of AR forecasts of the changes (12 months or 4 quarters;
 `ar_extension(h = )` changes it); the OECD appends 2 to 6 months of TRAMO
-forecasts (GAA17 p. 284; `oecd_spec()` uses 2); the OECD Python package
-CIF appends six months of ARIMA forecasts. A longer extension moves more of the end-point
-revision of the two-sided filter into the forecast error, so the end of
-the cycle leans more on the model. `ar_extension(h = 6)` is the CIF
-choice. Switching the outliers of `oecd_spec()` off
-(`update(spec, outlier_threshold = Inf)`) keeps its forecasts through
-`regarima_extension()`, so the two options stay separate.
+forecasts (GAA17 p. 284; `oecd_spec()` uses 2); the Python package CIF
+(Vraná 2020), which implements the OECD method, appends six months of
+ARIMA forecasts by default. A longer extension moves more of the
+end-point revision of the two-sided filter into the forecast error, so
+the end of the cycle leans more on the model. Switching the outliers of
+`oecd_spec()` off (`update(spec, outlier_threshold = Inf)`) keeps its
+forecasts through `regarima_extension()`, so the two options stay
+separate.
 
-Every outlier treatment reports what it found. `outlier_report()` lists,
-series by series, the outliers replaced and those detected but kept, with
-their dates and types, and the warnings recorded on the way (a failed
-X-13 model, more than `max_share` of the observations replaced).
-`oecd_spec()` replaces additive outliers only (`outlier_types = "AO"`, as
-in the 2017 OECD documentation); transitory changes and level shifts are
-reported but kept. `cycle_agreement()` compares a composite with the
-reference by Pearson and Spearman correlations outside crisis periods
-(`exclude = `), with paired block-bootstrap intervals from an explicit
-`seed`.
-
-TRAMO-type outliers and the robust default classify the candidates
-equally well when spikes and a level shift are injected:
+`oecd_spec()` replaces additive outliers only (`outlier_types = "AO"`,
+GAA17 p. 283); transitory changes and level shifts are reported by
+`outlier_report()` but kept. TRAMO-type outliers and the robust default
+classify the candidates about equally well when spikes and a level shift
+are injected:
 
 ```{r oecd-outliers}
-read.csv(system.file("calibration", "oecd-outliers.csv", package = "cyclind"))
+calib("oecd-outliers.csv")
 ```
 
 ### Replication: the OECD CLI of Indonesia
@@ -430,83 +665,117 @@ runs two experiments. In the first, the OECD cycles go into cyclind as they
 are; in the second, the original series go through `oecd_spec()`.
 
 ```{r oecd-idn-composite}
-idn <- read.csv(system.file("calibration", "oecd-idn-composite.csv",
-                            package = "cyclind"))
+idn <- calib("oecd-idn-composite.csv")
 idn[, c("composite", "corr_lag0", "aa_gap", "matched", "ref_tp",
         "ref_ccf_lag")]
 ```
 
-With the OECD signs (the exchange rate, the interest rate and producer
-prices inverted), `oecd_spec()` reproduces the published CLI (A1): the
-correlation with the normalised CLI is 0.9998 (the table rounds it to
-1.000), all 14 turning points that `oecd_dater()` finds in it fall on the
-same month (all 27 with the 5/15-month rule), and the amplitude-adjusted
-index (`aa_gap`, scaled to the OECD ratio-to-trend reference) is on
-average 0.04 points from the published one. Arithmetic growth rates (A0),
-the formula written in GAA17 (p. 286, note 8), give the same turning
-points but a correlation of 0.998 and an index 0.34 points away; a plain
-average is further off (A4). From the data alone, with the 9/24-month
-dating, cyclind inverts the exchange rate and producer prices but not the
-interest rate (A2); with the 5/15-month rule it inverted the exchange
-rate and the interest rate but not producer prices. The cycle of
-producer prices barely moves with GDP (correlation below 0.1), and the
-window in which the sign is read grows with the length of the reference
-cycle, so that with the longer cycles of the 9/24-month rule it takes in
-the opposite phase of the interest rate; given as `meta$sign`, the OECD
-signs give back A1 (A3). The sign of a weak component should
-therefore come from its economic rationale. This first experiment starts
-from the component cycles the OECD publishes, and the aggregation formula
-and the amplitude measure were chosen on these same data: it checks the
-aggregation and presentation steps in sample, not the whole method. The
-second experiment, below, runs the whole method from original series.
+```{r idn-numbers, include = FALSE}
+row <- function(prefix) idn[startsWith(idn$composite, prefix), ]
+gaps <- calib("oecd-idn-gaps.csv")
+gap <- function(pattern) {
+  gaps$value[grepl(pattern, gaps$variant, fixed = TRUE)]
+}
+comp <- calib("oecd-idn-components.csv")
+lab <- c(LOCOCI = "consumer confidence", LOCOEX = "the exchange rate",
+         LOCOPM = "production of non-metallic products",
+         LOCOPP = "producer prices", LOCOSP = "share prices",
+         LOCOST = "the interest rate", LOCOTA = "tourism activity")
+words <- function(x) {
+  x <- unname(lab[x])
+  if (length(x) < 2) return(x)
+  paste(paste(x[-length(x)], collapse = ", "), "and", x[length(x)])
+}
+cmp_c <- comp[comp$component != "RS", ]
+inv_oecd <- cmp_c$component[cmp_c$oecd_sign == "inverted"]
+inv_own <- cmp_c$component[cmp_c$cyclind_sign == "inverted"]
+missed_sign <- setdiff(inv_oecd, inv_own)
+pp_r <- cmp_c$A_ccf_r[cmp_c$component == "LOCOPP"]
+b_corr <- comp$B_corr_with_oecd_cycle[!is.na(comp$B_corr_with_oecd_cycle)]
+rs <- comp[comp$component == "RS", ]
+bench <- row("OECD published")
+n_med <- table(cmp_c$A_class_oecd_median_rule)
+last <- gaps[grepl("components available", gaps$variant), ]
+```
 
-Part C of the script shows where A0 and A1 differ:
+With the OECD signs (`r words(inv_oecd)` inverted), `oecd_spec()` comes
+very close to the published CLI (A1): the correlation with the normalised
+CLI is `r formatC(gap("(growth = \"log\")"), format = "f", digits = 5)`
+(the table rounds it), `r row("A1")$matched` of the
+`r row("A1")$ref_tp` turning points that `oecd_dater()` finds in the
+published CLI fall on the same month, and the amplitude-adjusted index
+(`aa_gap`, scaled to the OECD ratio-to-trend reference) is on average
+`r f2(row("A1")$aa_gap)` points from the published one. Arithmetic growth
+rates (A0), the formula written in GAA17 (p. 286, note 8), give the same
+turning points but a correlation of `r f3(row("A0")$corr_lag0)` and an
+index `r f2(row("A0")$aa_gap)` points away; a plain average (A4)
+correlates `r f3(row("A4")$corr_lag0)`. From the data alone, cyclind
+inverts `r words(inv_own)` but not `r words(missed_sign)` (A2). The cycle
+of producer prices barely moves with GDP (peak cross-correlation
+`r f3(pp_r)`), and the window in which the sign is read grows with the
+length of the reference cycle, so that it takes in the opposite phase of
+the interest rate; given as `meta$sign`, the OECD signs give back A1
+(A3). The sign of a weak component should therefore come from its
+economic rationale.
+
+This first experiment starts from the component cycles the OECD
+publishes, and the aggregation formula and the amplitude measure were
+chosen on these same data: it checks the aggregation and presentation
+steps in sample, not the whole method. Part C of the script shows where A0
+and A1 differ:
 
 ```{r oecd-idn-gaps}
-read.csv(system.file("calibration", "oecd-idn-gaps.csv", package = "cyclind"))
+gaps
 ```
 
 The OECD documents say that the growth rates of the components are
 averaged and chained and that the CLI is rescaled "to match the
-amplitudes" of the reference series, without the formulas. Chained log
-growth with counter-cyclical components entering as reciprocals
-(`oecd_aggregate(growth = "log")`) fits the published CLI best, and the
-published amplitude-adjusted CLI is the normalised CLI times 1.71, the
-ratio of standard deviations (1.70; the mean absolute deviations give
-1.43). `oecd_spec()` therefore uses both, with `amplitude = "sd"`, and two
-months of TRAMO forecasts, within the 2 to 6 months of GAA17 (p. 284).
-One difference remains: the OECD published the last month
-with 2 of the 6 live components, below its own 60 percent rule, while
-cyclind leaves that month missing.
+amplitudes" of the reference series (GG12 p. 9), without giving the
+amplitude measure. Chained log growth with counter-cyclical components
+entering as reciprocals (`oecd_aggregate(growth = "log")`) fits the
+published CLI best, and the published amplitude-adjusted CLI is the
+normalised CLI times `r f2(gap("OECD factor"))`, close to the ratio of
+standard deviations (`r f2(gap("amplitude = \"sd\""))`; the mean absolute
+deviations give `r f2(gap("amplitude = \"mad\""))`). `oecd_spec()`
+therefore uses both, with `amplitude = "sd"`, and two months of TRAMO
+forecasts, within the 2 to 6 months of GAA17 (p. 284). One difference
+remains: the OECD published `r substr(last$variant[nrow(last)], 1, 7)`
+with `r last$value[nrow(last)]` of the 7 components
+(`r last$value[nrow(last) - 1]` the month before), below its own 60
+percent rule, while cyclind leaves that month missing.
+
+The second experiment runs the whole method from the original series:
 
 ```{r oecd-idn-components}
-cmp_idn <- read.csv(system.file("calibration", "oecd-idn-components.csv",
-                                package = "cyclind"))
-cmp_idn[, c("component", "A_class_oecd_rule", "A_class_oecd_median_rule",
-            "A_median_lead", "B_corr_with_oecd_cycle", "B_tp_matched",
-            "B_tp_oecd")]
+comp[, c("component", "A_class_oecd_rule", "A_class_oecd_median_rule",
+         "A_median_lead", "B_corr_with_oecd_cycle", "B_tp_matched",
+         "B_tp_oecd")]
 ```
 
 From quarterly GDP (Denton-Cholette to months) and the original series,
-`oecd_spec()` gives cycles that correlate 0.92 to 0.99 with the OECD
-cycles; the GDP cycle matches all 10 reference turning points. The
-composite of the four (B1) correlates 0.89 with the published CLI and
-finds 10 of its 12 turning points in the common span; it leads GDP by
-four months at the cross-correlation peak, as do the OECD cycles of the
-same four (A5). (With transitory changes also removed, the default of
-`tramo_outliers()` before 0.1.0.9000, the figures were 0.88 and 9 of 12.)
-Classification differs most. By the median lead alone,
-six of the seven OECD components are leading and one coincident; with the
-conformity criteria of the OECD rule none passes, mainly because the
-dating finds more cycles in the components than in GDP and several fail
-the concordance test. The published CLI itself has 6 extra turning points
-against 8 of the reference, a share above the `max_extra` of 0.4 that the
-conformity criteria use. `cli_build()` then finds no leading component
-(B2). The OECD chose the components with economic rationale and on an
-earlier sample, so the stricter rule is a warning about the Indonesian
-components, not a contradiction.
+`oecd_spec()` gives cycles that correlate `r f2(min(b_corr))` to
+`r f2(max(b_corr))` with the OECD cycles; the GDP cycle matches
+`r rs$B_tp_matched` of the `r rs$B_tp_oecd` turning points of the OECD
+reference. The composite of the four (B1) correlates
+`r f2(row("B1")$corr_lag0)` with the published CLI and finds
+`r row("B1")$matched` of its `r row("B1")$ref_tp` turning points in the
+common span; it leads GDP by `r row("B1")$ref_ccf_lag` months at the
+cross-correlation peak, against `r row("A5")$ref_ccf_lag` for the OECD
+cycles of the same four (A5). Classification differs most. By the median
+lead alone, `r n_med[["leading"]]` of the seven OECD components are
+leading and `r n_med[["coincident"]]` coincident; with the conformity
+criteria of the OECD rule none passes, mainly because the dating finds
+more turning points in the components than in GDP and several fail the
+concordance test. The published CLI itself has `r bench$ref_extra` extra
+turning points against `r bench$ref_tp_rs` of the reference, a share
+above the `max_extra` of 0.4 that the conformity criteria use.
+`cli_build()` then finds no leading component (B2). The OECD chose the
+components with economic rationale and on an earlier sample, so the
+stricter rule is a warning about the Indonesian components, not a
+contradiction. `vignette("oecd-indonesia")` runs the second experiment
+step by step.
 
-## 9. A coincident index
+## 10. A coincident index
 
 A coincident index summarises where the cycle is now. The Conference Board
 publishes one next to its leading index, and it is the natural monthly
@@ -521,28 +790,41 @@ sim_c <- simulate_cycles(
   leads = c(lead_6 = 6, lead_3 = 3, coin_a = 0, coin_b = 0, lag_3 = -3),
   seed = 2026
 )
-meta_c <- data.frame(name = colnames(sim_c)[-1], rationale = "rapid_response")
+meta_c <- data.frame(name = colnames(sim_c)[-1],
+                     rationale = "rapid_response")
 res_c <- cli_build(cli_candidates(sim_c, "reference", meta = meta_c))
 cci <- cci_build(res_c)
 cci
 cli_quality(cci)
 ```
 
-The criteria mirror the leading ones: a cross-correlation peak within
-`coincident_band` of lag 0, a median lead at turning points within
-+/- 2 months (one quarter for quarterly data), few missed and extra turning
-points and significant concordance (`coincident_criteria()`). Granger
-causality is not required, and the prediction group scores the current
-contraction state. In the simulations the default rule passes 96 to 99
-percent of composites of coincident series and at most 1 percent of those
-that lead or lag by 3 months at the default noise level; with twice the
-noise it errs more often, above all for quarterly data:
+The warning is deliberate: an index of fewer than three components is
+little more than the cycle of its components. The criteria mirror the
+leading ones: a cross-correlation peak within `coincident_band` of lag 0,
+a median lead at turning points within +/- 2 months (one quarter for
+quarterly data), few missed and extra turning points and significant
+concordance (`coincident_criteria()`). Granger causality is not required,
+and the prediction group scores the current contraction state.
 
 ```{r cci-calibration}
-read.csv(system.file("calibration", "coincident.csv", package = "cyclind"))
+cc <- calib("coincident.csv")
+cc
 ```
 
-```{r cci-plot}
+```{r cci-numbers, include = FALSE}
+cc4 <- cc[cc$noise_sd == min(cc$noise_sd), ]
+coin_pass <- cc4$pass_rate[cc4$truth == "coincident"]
+shift_pass <- cc4$pass_rate[cc4$truth %in% c("leading", "lagging")]
+lead2_pass <- cc4$pass_rate[cc4$truth == "leading_2m"]
+```
+
+In the simulations the default rule passes `r pct_range(coin_pass)` of
+the composites of coincident series and at most `r pct(max(shift_pass))`
+of those that lead or lag by 3 months at the default noise level; a lead
+of 2 months passes `r pct(max(lead2_pass))` of the time. With twice the
+noise it errs more often, above all for quarterly data.
+
+```{r cci-plot, fig.alt = "Coincident index and reference cycle"}
 plot(cci)
 ```
 
@@ -555,24 +837,35 @@ cand_c <- cci_as_reference(cci)
 leaders(cli_build(cand_c))
 ```
 
-## 10. Graphical interface
+## 11. Graphical interface and provenance
 
 `run_app()` opens a Shiny application (package **shiny**) that walks
-through the same ten steps — data, candidate metadata, specification,
+through the same ten steps: data, candidate metadata, specification,
 cycles, turning points, classification, composite, validation with the
 scorecard, coincident index, and export. Each step unlocks the next;
 re-running a step clears the results that depend on it. The coincident
 index needs only the classification, so rebuilding the composite keeps it.
 The export step offers the composite, the classification, the audit log,
 the scorecards, the coincident index, the `CliResult` object and an R
-script that reproduces the analysis.
+script that reproduces the analysis. The interface is in English by
+default and is also available in Indonesian.
 
 ```{r app, eval = FALSE}
 run_app()                # English interface (the default)
 run_app(language = "id") # Indonesian interface
 ```
 
-## 11. Extending cyclind
+The exported script prints `cyclind_provenance()`: the versions of
+cyclind, R, **seasonal**, the X-13 binary and **RJDemetra**, and MD5
+checksums of the input files and of the input data; the checksum of the
+data is computed from its values, so it does not depend on the platform:
+
+```{r provenance}
+prov <- cyclind_provenance(cand)
+prov[prov$item %in% c("cyclind", "md5 of data"), ]
+```
+
+## 12. Extending cyclind
 
 A new filter is a subclass of `CycleFilter` with a method for
 `extract_cycle()`:
@@ -580,39 +873,78 @@ A new filter is a subclass of `CycleFilter` with a method for
 ```{r extend}
 setClass("FirstDifference", contains = "CycleFilter")
 setMethod("extract_cycle", "FirstDifference", function(filter, x, ...) {
-  ts(c(NA, diff(as.numeric(x))), start = start(x), frequency = frequency(x))
+  ts(c(NA, diff(as.numeric(x))), start = start(x),
+     frequency = frequency(x))
 })
 fd <- new("FirstDifference", label = "first difference")
 head(extract_cycle(fd, sim[, "lead_6"]))
 ```
 
 New aggregation methods work the same way with `Aggregator` and
-`aggregate_components()`.
+`aggregate_components()`, and new turning-point rules with `Dater` and
+`date_turning_points()`.
 
 ## References
 
-Estrella, A. and Mishkin, F. S. (1998). Predicting U.S. recessions:
-financial variables as leading indicators. *Review of Economics and
-Statistics*, 80(1), 45–61.
+Bry, G. and Boschan, C. (1971). *Cyclical Analysis of Time Series:
+Selected Procedures and Computer Programs*. NBER, New York.
+<https://www.nber.org/books-and-chapters/cyclical-analysis-time-series-selected-procedures-and-computer-programs>
+
+Chow, G. C. and Lin, A. (1971). Best linear unbiased interpolation,
+distribution, and extrapolation of time series by related series.
+*Review of Economics and Statistics*, 53(4), 372–375.
+<https://doi.org/10.2307/1928739>
+
+Christiano, L. J. and Fitzgerald, T. J. (2003). The band pass filter.
+*International Economic Review*, 44(2), 435–465.
+<https://doi.org/10.1111/1468-2354.t01-1-00076>
+
+Denton, F. T. (1971). Adjustment of monthly or quarterly series to annual
+totals: an approach based on quadratic minimization. *Journal of the
+American Statistical Association*, 66(333), 99–102.
+<https://doi.org/10.1080/01621459.1971.10482227>
 
 Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
-leading indicators. In *Handbook on Cyclical Composite Indicators*,
-chapter 10, 271–291. Eurostat, Luxembourg.
+leading indicators. In G. L. Mazzi and A. Ozyildirim (eds.), *Handbook on
+Cyclical Composite Indicators for Business Cycle Analysis*, chapter 10,
+273–291. Publications Office of the European Union, Luxembourg.
+<https://doi.org/10.2785/962890>
 
 Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
-Indicators*. OECD Publishing, Paris.
+Indicators*. OECD, Paris.
+<https://www.oecd.org/content/dam/oecd/en/data/methods/OECD-System-of-Composite-Leading-Indicators.pdf>
+
+Harding, D. and Pagan, A. (2002). Dissecting the cycle: a methodological
+investigation. *Journal of Monetary Economics*, 49(2), 365–381.
+<https://doi.org/10.1016/S0304-3932(01)00108-8>
+
+Hodrick, R. J. and Prescott, E. C. (1997). Postwar U.S. business cycles:
+an empirical investigation. *Journal of Money, Credit and Banking*, 29(1),
+1–16. <https://doi.org/10.2307/2953682>
 
 Kiefer, N. M. and Vogelsang, T. J. (2005). A new asymptotic theory for
 heteroskedasticity-autocorrelation robust tests. *Econometric Theory*,
-21(6), 1130–1164.
+21(6), 1130–1164. <https://doi.org/10.1017/S0266466605050565>
 
-Marcellino, M. (2006). Leading indicators. In G. Elliott, C. W. J. Granger and
-A. Timmermann (eds.), *Handbook of Economic Forecasting*, Vol. 1, 879–960.
-Elsevier.
+Marcellino, M. (2006). Leading indicators. In G. Elliott, C. W. J. Granger
+and A. Timmermann (eds.), *Handbook of Economic Forecasting*, Vol. 1,
+879–960. Elsevier, Amsterdam.
+<https://doi.org/10.1016/S1574-0706(05)01016-5>
 
 OECD (2024). *Composite Leading Indicators: Frequently Asked Questions*.
-OECD, Paris.
+OECD, Paris. Web page (data explainer, April 2024; the OECD server
+refuses automated link checks):
+`https://www.oecd.org/en/data/insights/data-explainers/2024/04/composite-leading-indicators-frequently-asked-questions.html`
 
-Pesaran, M. H. and Timmermann, A. (2009). Testing dependence among serially
-correlated multicategory variables. *Journal of the American Statistical
-Association*, 104(485), 325–337.
+Pesaran, M. H. and Timmermann, A. (2009). Testing dependence among
+serially correlated multicategory variables. *Journal of the American
+Statistical Association*, 104(485), 325–337.
+<https://doi.org/10.1198/jasa.2009.0113>
+
+Toda, H. Y. and Yamamoto, T. (1995). Statistical inference in vector
+autoregressions with possibly integrated processes. *Journal of
+Econometrics*, 66(1–2), 225–250.
+<https://doi.org/10.1016/0304-4076(94)01616-8>
+
+Vraná, L. (2020). *cif: Composite Indicators Framework for Business Cycle
+Analysis*. Python package version 0.0.6. <https://pypi.org/project/cif/>
