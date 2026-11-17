@@ -17,3 +17,4 @@
 ^Meta$
 ^tests/testthat/_problems$
 ^\.git$
+^\.gitattributes$
