@@ -37,8 +37,9 @@
 #' **Length of the extension.** The default of [cli_spec()] is one year of
 #' AR forecasts (12 months or 4 quarters; `h` and `order_max` change it).
 #' The OECD appends 2 to 6 months of TRAMO forecasts (Gyomai, Ahmad and
-#' Astolfi 2017, p. 284; [oecd_spec()] uses 2 months), and the OECD Python
-#' package CIF extends each series with six months of ARIMA forecasts
+#' Astolfi 2017, p. 284; [oecd_spec()] uses 2 months), and the Python
+#' package CIF (Vraná, 2020), which implements the OECD method, extends
+#' each series with six months of ARIMA forecasts
 #' before its filter. A longer extension moves more of the end-point
 #' revision of the two-sided filter into the forecast error, at the cost
 #' of a cycle end that leans more on the AR model. Shorter extensions

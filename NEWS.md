@@ -1,5 +1,57 @@
 # cyclind 0.1.0.9000
 
+## X-13 and TRAMO: outliers, logarithms and failed adjustments
+
+* An additive outlier (AO) and a transitory change (TC) found on the same
+  date are rewritten, without changing the fitted effect, as an AO equal
+  to the whole deviation at that date and a TC that starts one period
+  later (ADR-012). Their regressors correlate 0.96 after first
+  differencing for quarterly X-13 (0.85 at the TRAMO rate), so the model
+  cannot split the deviation; the estimates were large with opposite
+  signs, and removing the AO alone (the default `outlier_types = "AO"`)
+  left a deviation in the series that the data never showed and dated
+  false turning points. On synthetic quarterly series with such a pair
+  X-13 now dates the same turning points as TRAMO. A warning of class
+  `cyclind_warning_outlier_collinear` gives the date and the correlation;
+  the outlier table of each cycle and `outlier_report()` have a new
+  column `collinear`.
+* The transformation decided by cyclind (`transform`) is passed to the
+  X-13 seasonal adjustment (`transform.function = "log"` or `"none"`), so
+  that X-13 no longer runs a log/level test of its own; with
+  `transform = "test"` the test of the outlier engine is run once, on the
+  unadjusted series, and serves both steps (ADR-013). The step reads
+  "seasonally adjusted (X-13ARIMA-SEATS, log)". Results with
+  `seasonal_adjust = TRUE` can change.
+* A seasonal adjustment that X-13 cannot estimate no longer stops
+  `cli_cycles()`, `cli_build()` or `cci_build()` (ADR-013). A warning of
+  class `cyclind_warning_seasonal_failed` names the series and the error;
+  the series is then used unadjusted when the QS test finds no
+  seasonality, adjusted again without the holiday regressors otherwise,
+  and, when that fails too, left out of the candidates: the new
+  `excluded_series()` and the audit log give the reason. A reference
+  series that cannot be adjusted stops with
+  `cyclind_error_seasonal_failed`; errors of the system still stop with
+  `cyclind_error_system`.
+* Error messages of X-13 that wrap over several lines are kept whole,
+  without the names of temporary files.
+* The graphical interface translates the two new warnings.
+
+## Documentation of the OECD rules and the choices of cyclind
+
+* `?oecd_spec`, `?oecd_classifier`, `vignette("cyclind")` and the README
+  separate the rules written in the OECD documents, with their pages,
+  from the choices of cyclind: `min_matched = 3`, the 40 percent limits
+  of missed and extra turning points, the fixed-b test of concordance, the
+  aggregation by mean log ratios, the quarterly translation (3/8
+  quarters) and `outlier_types = "AO"` (Gyomai, Ahmad and Astolfi 2017,
+  p. 283: additive outliers filtered, level shifts on expert judgement,
+  transitory changes not mentioned).
+* `?growth_form` states that the OECD selects components on the growth
+  cycle and only presents CLIs for the growth rate cycle (Gyomai, Ahmad
+  and Astolfi 2017, pp. 276-277), and gives the BPS growth rate formula
+  and the gap to the log rate exactly.
+* The Python package CIF is cited as CIF (Vraná, 2020) throughout.
+
 ## Vignettes
 
 * `vignette("cyclind")` has a new section on the kinds of cycle (Gyomai

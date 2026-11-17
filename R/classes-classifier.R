@@ -11,36 +11,42 @@
 #'   consistency, few missed and extra turning points, significant
 #'   concordance and Granger causality. The thresholds are the fields of the
 #'   [CliSpec-class] and were calibrated by Monte Carlo simulation.
-#' * `oecd_classifier()`: the OECD rule (Gyomai and Guidetti 2012, p. 9),
-#'   which uses only the median lead at turning points: coincident within
-#'   +/- `coincident` months, leading from `coincident` months on ("shorter
-#'   or medium" up to `long` months, "longer" beyond) and lagging at
-#'   `-coincident` months or less. Thresholds are given in months and
-#'   converted to quarters for quarterly data. The OECD sets no minimum
-#'   number of turning points; `min_matched` (default 3) is the smallest
-#'   number of matched turning points from which a median lead is computed,
-#'   set it to 1 to follow the OECD table literally. With `conformity =
-#'   TRUE` (the default) the OECD evaluation criteria of cyclical
-#'   conformity and missing or extra cycles (Gyomai and Guidetti 2012, p. 8)
-#'   are required as well: a positive cross-correlation peak, at most
-#'   `max_missed` missed and `max_extra` extra turning points, and a
-#'   concordance significantly above its value under independence. The OECD
-#'   names these criteria without thresholds; the four tests and their
-#'   thresholds (40 percent missed or extra, concordance at the 5 percent
-#'   level, positive peak) are the operationalisation of cyclind, stricter
-#'   than OECD practice: dated with [oecd_dater()], the published CLI of
-#'   Indonesia has 6 extra turning points against 8 of its reference
-#'   (0.75), and the rule accepts none of the four original component
-#'   series of that CLI that are public
+#' * `oecd_classifier()`: the OECD rule, with the operational choices of
+#'   cyclind listed separately below.
+#'
+#'   *OECD rule.* The class follows only the median lead at turning points
+#'   (Gyomai and Guidetti 2012, p. 9): coincident within +/- `coincident`
+#'   months, leading from `coincident` months on ("shorter or medium" up to
+#'   `long` months, "longer" beyond) and lagging at `-coincident` months or
+#'   less. The OECD also evaluates candidates by cyclical conformity and by
+#'   missing or extra cycles (Gyomai and Guidetti 2012, p. 8), but names
+#'   these criteria without thresholds or tests.
+#'
+#'   *Choices of cyclind.* (1) `min_matched` (default 3) is the smallest
+#'   number of matched turning points from which a median lead is computed;
+#'   the OECD sets no minimum, so `min_matched = 1` follows the OECD table
+#'   literally. (2) With `conformity = TRUE` (the default) the two OECD
+#'   evaluation criteria are made operational: a positive cross-correlation
+#'   peak, at most `max_missed` and `max_extra` (40 percent) missed and
+#'   extra turning points, and a concordance significantly above its value
+#'   under independence at level `alpha`, tested with a fixed-b HAC test
+#'   (Kiefer and Vogelsang 2005; see [cli_assess()]). (3) Thresholds are
+#'   given in months and converted to quarters for quarterly data (the OECD
+#'   system is monthly).
+#'
+#'   These choices are stricter than OECD practice: dated with
+#'   [oecd_dater()], the published CLI of Indonesia has 6 extra turning
+#'   points against 8 of its reference (0.75), and the rule accepts none of
+#'   the four original component series of that CLI that are public
 #'   (`inst/calibration/oecd-idn-composite.csv`, rows "OECD published CLI"
-#'   and B2). Without
-#'   them the median lead alone labels about half of all independent cycles
-#'   as leading; with them about one in ten (monthly) to one in five
-#'   (quarterly) in the simulations of `inst/calibration/lead-window.csv`,
-#'   since the OECD rule has no test of predictive content such as the
-#'   Granger test of [cyclind_classifier()] (0 to 3 percent). `conformity =
-#'   FALSE` gives the OECD median-lead table taken literally; the other
-#'   statistics are then reported for judgement only.
+#'   and B2). Without them the median lead alone labels about half of all
+#'   independent cycles as leading; with them about one in ten (monthly) to
+#'   one in five (quarterly) in the simulations of
+#'   `inst/calibration/lead-window.csv`, since the OECD rule has no test of
+#'   predictive content such as the Granger test of [cyclind_classifier()]
+#'   (0 to 3 percent). `conformity = FALSE` gives the OECD median-lead table
+#'   taken literally; the other statistics are then reported for judgement
+#'   only.
 #'
 #' New rules are added by defining a subclass of `Classifier` and methods
 #' for the generics `classify_candidate()` and `leading_criteria()`.
@@ -55,6 +61,10 @@
 #' @references
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
 #' Indicators*. OECD Publishing, Paris.
+#'
+#' Kiefer, N. M. and Vogelsang, T. J. (2005). A new asymptotic theory for
+#' heteroskedasticity-autocorrelation robust tests. *Econometric Theory*,
+#' 21(6), 1130--1164.
 #' @seealso [cli_spec()], [oecd_spec()], [cli_assess()]
 #' @examples
 #' cyclind_classifier()

@@ -17,6 +17,7 @@
 - Tafsiran: bentuk rantai diubah dari laju pertumbuhan ke rata-rata perubahan siklus (aditif) atas temuan A2c C1; dukungan empiris diulang dengan kode paket (selisih ≤ 0,001).
 
 - 2026-11-17: maintainer memutuskan menghapus bentuk percepatan (`acceleration_form()`) seluruhnya (FR-016; alasan di `01-requirements.md`) dan menyetujui label GUI bentuk siklus ("Growth cycle: …", "Growth rate cycle: …") serta subjudul "Indikator Komposit Siklus: Pendahulu, Sejalan, dan Tertinggal"; cabang `hapus-akselerasi`, lewat PR. Tambahan di PR yang sama: bahasa bawaan GUI menjadi Inggris (menjelang CRAN); vinyet hanya diubah bila terdampak, perbaikan menyeluruhnya di PR terpisah.
+- 2026-11-17: maintainer meminta perbaikan empat masalah X-13 yang ditemukan saat menerapkan paket pada sebuah analisis terapan (FR-017–FR-020, INC-20): pasangan AO–TC kolinear, keputusan log diteruskan ke X-13, penyesuaian musiman yang gagal tidak menghentikan proses, dan dokumentasi aturan OECD vs pilihan cyclind; cabang `perbaikan-x13`, lewat PR. Tafsiran: "dibuang bersama atau diestimasi ulang tanpa TC" disebut sebagai contoh; dipilih penulisan ulang pasangan (ADR-012) karena paling konsisten dengan TRAMO pada simulasi.
 - 2026-11-11 13:14: pengguna menyetujui penghalus di cyclind dan GUI ("Iya") atas usulan strategi `CycleForm` + `hp_smoother()`, status eksperimental, lewat PR; 13:21 "Kerjakan repo cyclind".
 
 ## Increment
@@ -35,6 +36,7 @@
 | INC-11 | Perbaikan cacat hasil tinjauan menyeluruh (0.5.1) | FR-011 | — | selesai (PR #6, digabung) |
 | INC-12 | Evaluasi kandidat dan validasi yang lebih jujur (0.6.0) | FR-012 | F-05, F-06, F-07 | selesai (PR #7, digabung) |
 | INC-13 | Bentuk siklus laju/percepatan dan `hp_smoother()` (0.7.0, eksperimental) | FR-013 | F-08, F-09 | G1–G8 lolos; PR #8 digabung (2026-11-11) |
+| INC-20 | Perbaikan X-13: pasangan AO–TC, transformasi ke X-13, kegagalan penyesuaian musiman, dokumentasi OECD vs cyclind (0.1.0.9000) | FR-017–FR-020 | F-12, F-13 | lihat log 2026-11-17 |
 | INC-18 | Penghapusan bentuk percepatan; label bentuk siklus, subjudul, dan bahasa bawaan Inggris di GUI (0.1.0.9000) | FR-016 | F-08 | lihat log 2026-11-17 |
 
 ## Log putaran
@@ -109,6 +111,7 @@
 | 2026-11-15 08:00 | REV-DSRM | A6 (3 peninjau), A5, A7, A0 | G5–G7 | tinjauan artikel DSRM dipilah (`review-dsrm-2026-11-15.md`): 9 perbaikan cyclind; toleransi berkas emas 1e-8 (CI macOS); klaim reproduksi CLI OECD 0,9998 dengan cakupannya; operasionalisasi kriteria kesesuaian; angka *leading* palsu; BBQ 46/50; `inst/CITATION`; FR-015 digabung ulang ke main; uji hijau, lint 0, cakupan 95,8%, check 0/0/3 catatan lingkungan | 1/3 | tinjauan maintainer |
 | 2026-11-17 | INC-18 | A1, A4, A5, A7, A0 | G1–G8 | audit *growth cycle* P1–P13: `oecd_dater()` 9/24 sebagai bawaan `oecd_spec()`, aturan fase simetris (ADR-004), `lag_shift = FALSE`, jendela 9/24, aturan 60 % pada t dan t−1, TR tidak diekstrapolasi, `reference_smoothed`, klaim dokumentasi diluruskan; digabung dengan main (PR #1, akselerasi dihapus); seluruh kalibrasi diulang (`calibrate_*`, `compare_oecd.R`, `oecd_idn_validate.R`, `lead_window_choice.R`); uji hijau (2952 + e2e 172), lint 0, cakupan 96,0%, check 0/0/3 catatan lingkungan | 1/3 | tinjauan maintainer di PR |
 | 2026-11-17 | INC-19 | A0, A5 | G4–G8 | `main` (PR #2, `oecd-2017`) di-merge ke `perbaikan-kajian-cif` (merge, bukan rebase): `oecd_spec()` memadukan `outlier_types = "AO"` dengan penanggal 9/24, `lag_shift = FALSE`, jendela `c(9, 24)`; `compare_oecd.R` dan `oecd_idn_validate.R` diulang (B1: 0,880 → 0,886, 9 → 10 dari 12 titik balik; A1 tetap); uji hijau (3139 + e2e 175), lint 0, cakupan 96,1 %, check 0/0/3 catatan lingkungan | 1/3 | tinjauan maintainer di PR #3 |
+| 2026-11-17 | INC-20 | A1, A2, A3, A4, A5, A6 (tanpa isolasi), A7, A0 | G1–G8 | perbaikan X-13 (FR-017–FR-020; ADR-012, ADR-013; F-12 PROVEN, F-13 CITED-VERIFIED): merah 23 gagal pada b0434f1 → hijau; uji 3198 + e2e (172 di peramban) lolos, lint 0, cakupan 97,15 %, `R CMD check --as-cran` dari `git archive` 0/0/3 catatan lingkungan; `compare_oecd.R`, `oecd_idn_validate.R`, `oecd_idn_vignette.R` diulang, angka tidak berubah (B1 0,886, 10 dari 12; A1 1,000); bukti baru `x13-collinear.csv` (= TRAMO 0,20 → 0,75) | 1/3 | tinjauan maintainer di PR |
 
 ## Eskalasi terbuka
 <!-- Masalah yang menunggu keputusan pengguna -->

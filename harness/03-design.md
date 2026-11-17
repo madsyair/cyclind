@@ -87,3 +87,13 @@ Keputusan FR-012 (bukti: simulasi 2 November 2026, diringkas di `inst/calibratio
 - Kesesuaian siklus OECD (G2): Gyomai dan Guidetti (2012, p. 8) menilai *lead*, kesesuaian siklus (korelasi silang), dan siklus terlewat atau ekstra; `oecd_classifier()` 0.5.1 hanya memakai median *lead*. Jendela simetris saja tidak menghilangkan bias median *lead* pada pasangan independen (pemasangan berurutan menghasilkan bias negatif), sehingga syarat kesesuaian yang menjadi perbaikan utamanya.
 - Peluang kontraksi (G5): logit rekursif luar sampel, sesuai Estrella dan Mishkin (1998); QPS dalam sampel selalu mengalahkan prakiraan konstan sehingga tidak informatif.
 
+
+## Increment INC-20 (perbaikan X-13, 0.1.0.9000)
+| FR | Elemen API | Berkas |
+|---|---|---|
+| FR-017 | Metode `treat_outliers()` untuk `TramoOutliers` (strategi `OutlierTreatment` yang ada; tanpa cabang kelas baru); internal `collinear_pairs()`, `collinear_shift()`, `pair_correlation()`, `warn_collinear()`; kolom `coef` di tabel kecocokan regARIMA, kolom `collinear` di slot `outliers` dan `outlier_report()`; kelas peringatan `cyclind_warning_outlier_collinear` | `R/outliers.R`, `R/cycles.R`, `R/outlier-report.R`, `R/classes-core.R` |
+| FR-018 | Internal `transform_decision()` (dipakai `apply_transform()` dan `cycle_one_body()`), argumen `log` dan `alpha` di `seasonal_adjust_x13()` | `R/cycles.R` |
+| FR-019 | Internal `seasonal_fallback()`, `qs_test()` (F-13), `drop_excluded()`, `exclusion_audit()`; ekspor `excluded_series()`; atribut `excluded` pada keluaran `cli_cycles()`; kelas `cyclind_warning_seasonal_failed`, `cyclind_error_seasonal_failed` | `R/cycles.R`, `R/build.R`, `R/assessment.R`, `R/coincident.R`, `R/selection-bias.R`, `R/app*.R` |
+| FR-020 | Dokumentasi | `R/spec.R`, `R/classes-classifier.R`, `R/classes-form.R`, `R/classes-extension.R`, `R/assessment.R`, vinyet, README |
+
+Keputusan: ADR-012 (pasangan AO–TC), ADR-013 (satu keputusan log/level; penyesuaian musiman yang gagal). Tidak ada Imports baru: uji QS ditulis dengan `stats`.

@@ -182,6 +182,32 @@ Sumber: keputusan maintainer (17 November 2026). Bentuk percepatan dari FR-013 d
 - AC-FR-016.5 (label GUI, disetujui pengguna 17 November 2026)  Pilihan bentuk siklus di langkah 3 diberi nama jenis siklusnya: ID "Growth cycle: deviasi dari tren" dan "Growth rate cycle: laju pertumbuhan"; EN "Growth cycle: deviation from trend" dan "Growth rate cycle: growth rate" (tanpa tanda bintang, karena `selectInput` tidak menampilkan huruf miring). Kunci baru `form_cycle_help` (ID dan EN) menjelaskan arti titik balik pada kedua bentuk; rujukan Gyomai dan Guidetti (2012, h. 9–11) ada di `?CycleForm-class`, tidak di GUI. Subjudul aplikasi menjadi "Indikator Komposit Siklus: Pendahulu, Sejalan, dan Tertinggal" / "Cyclical Composite Indicators: Leading, Coincident and Lagging". Uji: `test-app-options.R`, `test-app-reference.R`, `test-app-e2e.R`.
 - AC-FR-016.6 (bahasa bawaan, permintaan pengguna 17 November 2026, menjelang pengajuan ke CRAN)  `run_app()` dan `cyclind_app()` memakai `language = c("en", "id")`, sehingga bawaannya bahasa Inggris; `app_ui()` dan `app_server()` berbawaan `"en"`; `inst/app/app.R` membaca `CYCLIND_LANGUAGE` dengan bawaan `"en"`. Bahasa Indonesia tetap tersedia (`language = "id"`). Setiap kunci `app_text` ada dalam kedua bahasa. Roxygen, contoh, README, dan vinyet (hanya potongan `run_app()`) diperbarui. Uji: `test-app-reference.R` "English is the default language".
 
+### FR-017 — AO dan TC kolinear pada tanggal yang sama (increment INC-20, perbaikan X-13)
+Sumber: tinjauan sebuah analisis terapan (17 November 2026). Model regARIMA X-13 (ARIMA(1 2 0), seri level) menemukan AO dan TC pada triwulan yang sama dengan statistik *t* +16,8 dan −16,2; regresornya berkorelasi 0,96 sesudah selisih pertama. Dengan bawaan `outlier_types = "AO"`, hanya AO yang dibuang sehingga muncul lembah palsu; TRAMO tidak menemukan pencilan itu. Keputusan desain: ADR-012; formula: F-12.
+- AC-FR-017.1 (pemisahan ulang)  Untuk setiap pasangan AO (koefisien a) dan TC (koefisien c, laju r) bertanggal sama t₀ yang ditemukan `tramo_outliers()` (mesin TRAMO maupun X-13), efek gabungannya ditulis ulang sebagai AO bernilai a + c di t₀ dan TC bernilai c·r^(t−t₀) untuk t > t₀ (identik, F-12). Efek yang dibuang: `remove` memuat AO tanpa TC → efek AO lain + (a + c) di t₀; memuat TC tanpa AO → efek TC lain tanpa nilai c di t₀; memuat keduanya atau tidak satu pun → tidak berubah. Uji: efek yang dibuang sama dengan rumus ini (galat < 1e-10) dengan model tiruan.
+- AC-FR-017.2 (peringatan)  Setiap pasangan memberi `cyclind_warn()` kelas `cyclind_warning_outlier_collinear` yang menyebut nama seri, periode, dan korelasi regresor sesudah selisih pertama; peringatan dicatat di slot `notes`.
+- AC-FR-017.3 (laporan)  Tabel `outliers` setiap `CycleSeries` mendapat kolom logis `collinear`; `outlier_report()` mendapat kolom `collinear` (mis. "AO+TC 2019Q3"); objek lama tanpa kolom itu tetap terbaca. `steps` mencatat pemisahan ulang.
+- AC-FR-017.4 (konsistensi mesin)  Pada seri sintetis triwulanan dengan tren I(2) dan AO + TC bertanggal sama (2019Q3), `oecd_spec(freq = 4, transform = "none", engine = "x13")` tidak lagi memberi lembah 2019Q3, dan titik balik acuannya sama dengan `engine = "tramo"`.
+
+### FR-018 — Keputusan transformasi diteruskan ke X-13 (INC-20)
+Sumber: tinjauan yang sama: uji log/level X-13 memilih level pada seri positif bertren, sedangkan TRAMO memilih log. Keputusan desain: ADR-013.
+- AC-FR-018.1  `cycle_one()` menetapkan transformasi (log atau level) satu kali, sebelum penyesuaian musiman: `"log"` → log; `"none"` → level; `"auto"` → log bila semua nilai positif dan satuan bukan persen; `"test"` → uji log/level mesin pencilan (TRAMO atau X-13) pada seri asli; seri persen tetap level pada `"auto"`/`"test"`.
+- AC-FR-018.2  Penyesuaian musiman X-13 memakai `transform.function = "log"` atau `"none"` sesuai keputusan itu (tidak lagi `"auto"`); `steps` mencatatnya ("seasonally adjusted (X-13ARIMA-SEATS, log)"). Uji: argumen `seas()` diperiksa dengan tiruan; seri sintetis bermusim aditif memberi seri tersesuaikan yang sama dengan `seasonal::seas(x, transform.function = "log")`.
+- AC-FR-018.3  Dengan `transform = "log"`, mesin X-13 dan TRAMO memberi titik balik acuan yang sama pada kasus sintetis FR-017.4 (dengan penyesuaian musiman).
+
+### FR-019 — Kegagalan penyesuaian musiman satu seri tidak menghentikan proses (INC-20)
+Sumber: tinjauan yang sama: X-13 gagal untuk satu seri (kovarians ARMA singular, hanya dengan regresor Idulfitri), sehingga `cli_build()` berhenti total dan pemakai terpaksa memanggil fungsi internal lewat `:::`. Keputusan desain: ADR-013; uji musiman: F-13.
+- AC-FR-019.1  Bila X-13 gagal (galat model), muncul `cyclind_warn()` kelas `cyclind_warning_seasonal_failed` yang menyebut nama seri dan galatnya, dan dicatat di `notes` seri itu.
+- AC-FR-019.2  Lalu uji QS (F-13) pada seri asli (ber-log bila keputusan FR-018 log): bila p > `alpha` spesifikasi, seri dipakai tanpa penyesuaian musiman; bila p ≤ `alpha` dan ada regresor hari raya, X-13 dicoba lagi tanpa regresor itu.
+- AC-FR-019.3  Bila masih gagal, kandidat dikeluarkan: `cli_cycles()` tidak memuat seri itu dan menyimpan alasan di atribut `excluded` (lihat `excluded_series()`); `cli_assess()`, `cli_build()`, dan `cci_build()` melanjutkan tanpa seri itu, dan log audit memuat baris "excluded <nama>: ...". Seri acuan tidak dapat dikeluarkan: prosesnya berhenti dengan `cyclind_error_seasonal_failed` (juga `cyclind_error_x13`).
+- AC-FR-019.4  Galat sistem (disk, biner hilang, izin) tetap menghentikan proses dengan `cyclind_error_system`.
+- AC-FR-019.5  Uji memakai seri sintetis yang benar-benar menggagalkan X-13 (bila \pkg{seasonal} terpasang, di luar CRAN) dan tiruan `seasonal::seas()` (selalu).
+
+### FR-020 — Dokumentasi aturan OECD versus pilihan cyclind (INC-20)
+- AC-FR-020.1  `?oecd_spec`, `?oecd_classifier`, vinyet, dan README memisahkan aturan OECD (dengan halaman sumber) dari pilihan cyclind: `min_matched = 3`, batas 40% titik balik hilang/ekstra, uji kesesuaian *fixed-b*, agregasi rasio log, mode triwulanan 3/8, dan `outlier_types = "AO"` (GAA17 h. 283: AO dibuang, LS menurut penilaian ahli, TC tidak disebut).
+- AC-FR-020.2  R/assessment.R dan R/spec.R menyebut CIF sebagai "CIF (Vraná, 2020)", bukan "the OECD package".
+- AC-FR-020.3  `?CycleForm-class` (`R/classes-form.R`): contoh rumus laju BPS diperiksa ketepatannya; `?growth_form` menyatakan bahwa *growth rate cycle* di OECD hanya bentuk penyajian, sedangkan seleksi komponen OECD dilakukan pada *growth cycle* (GAA17 h. 276–277).
+
 ## Kebutuhan nonfungsional
 ### NFR-001 — Tanpa dependensi baru
 - AC-NFR-001.1  DESCRIPTION Imports tidak berubah; AR memakai `stats::ar`.
@@ -206,6 +232,8 @@ Sumber: keputusan maintainer (17 November 2026). Bentuk percepatan dari FR-013 d
 | F-09 | Penghalus HP: tren HP dengan λ(p) = [4(1 − cos 2π/p)²]⁻¹ | Hodrick & Prescott (1997); F-03; Gyomai & Guidetti (2012, tahap penghalusan HP ganda) | FR-013 |
 | F-10 | Rantai rata-rata laju log dengan pembalikan resiprokal | Gyomai & Guidetti (2012, p. 9: "averaging the growth rates … chained"); bentuk log dan resiprokal dari validasi OECD Indonesia | FR-014 |
 | F-11 | Faktor amplitudo rasio simpangan baku | Gyomai & Guidetti (2012, p. 9: "rescales … to match the amplitudes"); glosarium OECD; validasi OECD Indonesia | FR-014 |
+| F-12 | Pemisahan ulang pasangan AO–TC bertanggal sama dan korelasi regresornya | baru (identitas aljabar); regresor AO/TC: Chen & Liu (1993), X-13ARIMA-SEATS Reference Manual | FR-017 |
+| F-13 | Statistik QS musiman pada selisih pertama, p-value χ²(2) | Maravall (2012); U.S. Census Bureau, X-13ARIMA-SEATS Reference Manual | FR-019 |
 
 ## Di luar cakupan
 - Perpanjangan bermusim (SARIMA) dan prakiraan dari model multivariat.

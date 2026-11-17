@@ -266,6 +266,7 @@ cci_build <- function(x, spec = NULL, components = NULL, select = TRUE) {
     }
     check_inputs(candidates, spec)
     cycles <- cli_cycles(candidates, spec)
+    candidates <- drop_excluded(candidates, cycles)
     assessment <- cli_assess(candidates, spec, cycles)
     for (nm in assessment@inverted) cycles[[nm]] <- invert_cycle(cycles[[nm]])
     tps <- cli_turning_points(cycles, spec)
@@ -305,6 +306,7 @@ cci_build <- function(x, spec = NULL, components = NULL, select = TRUE) {
       keep_all(comps, evaluate, spec, first)
     }
   }
+  sel$audit <- rbind(exclusion_audit(cycles), sel$audit)
   validation <- sel$validation
   if (!is.null(sel$composite)) {
     validation <- cci_validate(sel$composite, ref, spec)

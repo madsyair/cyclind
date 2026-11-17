@@ -348,7 +348,12 @@ test_that("new warnings are translated in the interface", {
   expect_match(cyclind:::app_warning_text(w, t_id), "has 2", fixed = TRUE)
   plain <- simpleWarning("other")
   expect_equal(cyclind:::app_warning_text(plain, t_id), "other")
-  for (k in c("warn_twins", "warn_outlier_share", "warn_x13")) {
+  sf <- structure(class = c("cyclind_warning_seasonal_failed",
+                            "cyclind_warning", "warning", "condition"),
+                  list(message = "Series 'x': failed", call = NULL))
+  expect_match(cyclind:::app_warning_text(sf, t_id), "musiman")
+  for (k in c("warn_twins", "warn_outlier_share", "warn_x13",
+              "warn_outlier_collinear", "warn_seasonal_failed")) {
     expect_true(nzchar(t_id(k)) && nzchar(t_en(k)))
   }
 })

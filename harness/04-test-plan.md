@@ -48,3 +48,22 @@ Sesudah review putaran 1 (R1, R2, R4, R6, R7, R10): AC-FR-011.6 versi pertama te
 ### Bukti merah 0.6.0 (G4)
 Bukti merah: sebelum implementasi FR-012 (2 November 2026), `test-evaluation-060.R` gagal pada keenam blok inti (5 kegagalan, 6 galat): `orient_sign()`, `fixed_b_p()`, `recursive_logit()`, dan `validation_horizon()` belum ada; `OecdClassifier` belum punya slot `conformity`; `meta$sign` belum dikenali. Uji GUI AC-FR-012.9 dan uji temuan kritikus (jendela puncak P = 24, K tanpa `min_lead`, kecocokan persis) ditambahkan sesudahnya dan gagal pada kode sebelum perbaikan masing-masing.
 
+
+### Uji INC-20 (FR-017–FR-019, perbaikan X-13)
+| AC | Uji |
+|---|---|
+| AC-FR-017.1 | `test-x13-fixes.R` "an AO/TC pair is split into the value at t0 and the decay" (model tiruan; R = {AO}, {TC}, {AO, TC}, {LS}; galat < 1e-10) |
+| AC-FR-017.2 | "the warning gives the period and the regressor correlation"; `pair_correlation()` = bentuk tertutup F-12 |
+| AC-FR-017.3 | "cycles and the outlier report record collinear pairs" (kolom `collinear`, `notes`, objek lama); `test-outlier-report.R` (nama kolom) |
+| AC-FR-017.4 | "X-13 no longer dates a false trough at a collinear pair" (X-13 dan TRAMO sungguhan, di luar CRAN) |
+| AC-FR-018.1–2 | "the decided transformation reaches the X-13 adjustment" (tiruan: `transform.function`); "X-13 adjusts in logs when cyclind takes logarithms" (X-13 sungguhan); `test-cycles.R` (teks langkah) |
+| AC-FR-018.3 | "with logarithms X-13 and TRAMO date the same turning points" |
+| AC-FR-019.1–2 | "a failed adjustment without seasonality keeps the series"; "... is tried again without the holidays"; "real X-13 failures are handled without stopping"; F-13: "the QS statistic reproduces X-13" (UKgas 176,5144) |
+| AC-FR-019.3 | "a series that cannot be adjusted is excluded with its reason" (`cli_cycles`, `excluded_series`, `cli_assess`, `cli_build`, `cci_build`); "a reference that cannot be adjusted stops the run" |
+| AC-FR-019.4 | "system errors still stop a seasonal adjustment"; `test-outlier-report.R` "system errors of X-13 stop the run" |
+| GUI | `test-app.R` "new warnings are translated in the interface" |
+
+Data uji: seri sintetis di `helper-x13.R` (`pair_series()`, `policy_rate()`, `step_pattern()`, `holiday_series()`); tidak ada data nyata.
+
+### Bukti merah INC-20 (G4)
+Pada b0434f1 (sebelum implementasi), `test-x13-fixes.R` gagal 23 kali dan lolos 6 kali (log di luar repositori: `cyclind-audit/x13-red.log`): `qs_test()`, `pair_correlation()`, `excluded_series()` belum ada; X-13 dipanggil tanpa `transform.function`; tidak ada peringatan `cyclind_warning_outlier_collinear`/`cyclind_warning_seasonal_failed`; lembah palsu 2019Q3 pada `pair_series()`.

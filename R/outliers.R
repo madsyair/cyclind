@@ -38,10 +38,12 @@ setMethod("treat_outliers", "RobustOutliers", function(method, x, ...) {
 # Outliers found by a treatment: position in the treated series, type and
 # whether the effect was removed.
 outlier_table <- function(index = integer(0), type = character(0),
-                          removed = logical(0)) {
-  data.frame(index = as.integer(index), type = as.character(type),
-             removed = rep_len(as.logical(removed), length(index)),
-             stringsAsFactors = FALSE)
+                          removed = logical(0), coef = NULL) {
+  out <- data.frame(index = as.integer(index), type = as.character(type),
+                    removed = rep_len(as.logical(removed), length(index)),
+                    stringsAsFactors = FALSE)
+  if (!is.null(coef)) out$coef <- rep_len(as.numeric(coef), length(index))
+  out
 }
 
 #' @rdname OutlierTreatment-class
@@ -66,12 +68,22 @@ setMethod("treat_outliers", "TramoOutliers", function(method, x, ...) {
                  collapse = ", ")
   tab <- if (is.null(fit$table)) outlier_table() else fit$table
   tab$removed <- tab$type %in% method@remove
+  # AO and TC on the same date (F-12, ADR-012): the AO takes their joint
+  # deviation at that date, the TC the decay after it
+  pairs <- collinear_pairs(tab)
+  effect <- effect + collinear_shift(pairs, length(x), method@remove)
+  tab$collinear <- tab$type %in% c("AO", "TC") & tab$index %in% pairs$index
+  tab$coef <- NULL
   step <- if (is.null(fit$failed)) {
     sprintf("outliers (%s): found %s; removed %s", label, found,
             paste(method@remove, collapse = ", "))
   } else {
     sprintf("outliers (%s): model failed, none removed (%s)", label,
             fit$failed)
+  }
+  if (nrow(pairs) > 0L) {
+    rate <- if (is.null(fit$tc_rate)) tc_rate(engine, f) else fit$tc_rate
+    step <- paste0(step, "; ", warn_collinear(pairs, x, rate))
   }
   list(x = as_ts_like(as.numeric(x) - effect, x), n = as.integer(n),
        step = step, table = tab, failed = fit$failed,
@@ -82,6 +94,64 @@ setMethod("treat_outliers", "TramoOutliers", function(method, x, ...) {
          numeric(0)
        })
 })
+
+# Same-date pairs of an additive outlier and a transitory change: date
+# (`index`) and coefficient of the TC (`coef_tc`). Their regressors
+# correlate 0.85 to 0.97 after differencing (F-12), so the model cannot
+# tell how the deviation at that date splits between the two.
+collinear_pairs <- function(tab) {
+  none <- data.frame(index = integer(0), coef_tc = numeric(0))
+  if (is.null(tab) || nrow(tab) == 0L || is.null(tab$coef)) return(none)
+  ok <- !is.na(tab$index) & !is.na(tab$coef)
+  ao <- tab$index[ok & tab$type == "AO"]
+  tc <- ok & tab$type == "TC" & tab$index %in% ao
+  if (!any(tc)) return(none)
+  data.frame(index = tab$index[tc], coef_tc = tab$coef[tc])
+}
+
+# Correction of the removed effect for same-date pairs (F-12): an AO of
+# a + c at t0 and a TC of c * r from t0 + 1 give the same fitted effect as
+# the AO a and the TC c at t0. Removing the AO only removes c more at t0;
+# removing the TC only removes c less; both or neither, no change.
+collinear_shift <- function(pairs, n, remove) {
+  out <- numeric(n)
+  sgn <- ("AO" %in% remove) - ("TC" %in% remove)
+  if (sgn == 0 || nrow(pairs) == 0L) return(out)
+  for (k in seq_len(nrow(pairs))) {
+    i <- pairs$index[k]
+    out[i] <- out[i] + sgn * pairs$coef_tc[k]
+  }
+  out
+}
+
+# Correlation of the AO and TC regressors at date t0 of a series of length
+# n after first differencing; (2 - r) sqrt(1 + r) / 2 for long series.
+pair_correlation <- function(n, t0, rate) {
+  tt <- seq_len(n)
+  ao <- as.numeric(tt == t0)
+  tc <- ifelse(tt >= t0, rate^(tt - t0), 0)
+  stats::cor(diff(ao), diff(tc))
+}
+
+# Warning for same-date pairs; returns the text recorded in the steps.
+warn_collinear <- function(pairs, x, rate) {
+  f <- stats::frequency(x)
+  per <- period_label(as.numeric(stats::time(x))[pairs$index], f)
+  rho <- vapply(pairs$index, function(i) pair_correlation(length(x), i, rate),
+                numeric(1))
+  cyclind_warn(sprintf(paste(
+    "An additive outlier (AO) and a transitory change (TC) were found on",
+    "the same date (%s); their regressors correlate %s after first",
+    "differencing, so the model cannot split the deviation between them.",
+    "The AO is taken as the whole deviation at that date and the TC as the",
+    "decay after it (ADR-012)."),
+    paste(per, collapse = ", "),
+    paste(sprintf("%.2f", rho), collapse = ", ")),
+    "cyclind_warning_outlier_collinear")
+  sprintf("AO+TC on the same date at %s split into the deviation at that %s",
+          paste(per, collapse = ", "),
+          "date (AO) and the decay after it (TC)")
+}
 
 # Decay rate of a transitory change: TRAMO uses 0.7 at every frequency,
 # X-13ARIMA-SEATS uses 0.7^(12/f) (0.343 for quarterly data).
@@ -160,11 +230,13 @@ regarima_tramo <- function(x, h, critical) {
   is_out <- grepl("^(AO|TC|LS) \\(", nm)
   nm <- nm[is_out]
   coef <- if (length(nm) > 0L) rc[is_out, 1] else numeric(0)
+  tab <- tramo_outlier_table(nm, x)
+  if (nrow(tab) > 0L) tab$coef <- as.numeric(coef)
   list(effects = outlier_effects(nm, coef, x),
        types = c("AO", "TC", "LS"), count = count_types(substr(nm, 1, 2)),
        forecast = as.numeric(m$forecast[, 1]),
        tc_rate = tc_rate("tramo", stats::frequency(x)),
-       table = tramo_outlier_table(nm, x))
+       table = tab)
 }
 
 # Positions and types of outliers named like "AO (5-2011)" (JDemetra+).
@@ -188,8 +260,10 @@ tramo_outlier_table <- function(names, x) {
 
 # Positions and types of the X-13 outlier regressors among the coefficient
 # names, e.g. "AO2012.Jun" (monthly) or "LS2009.4" (quarterly).
-x13_outlier_table <- function(names, x) {
-  names <- names[grepl("^(AO|LS|TC)[0-9]{4}\\.", names)]
+x13_outlier_table <- function(names, x, coef = NULL) {
+  hit <- grepl("^(AO|LS|TC)[0-9]{4}\\.", names)
+  names <- names[hit]
+  if (!is.null(coef)) coef <- as.numeric(coef)[hit]
   if (length(names) == 0L) return(outlier_table())
   f <- stats::frequency(x)
   st <- stats::start(x)
@@ -199,7 +273,7 @@ x13_outlier_table <- function(names, x) {
                 match(tolower(p), tolower(month.abb)))
   idx <- as.integer((year - st[1]) * f + (per - st[2]) + 1L)
   idx[!is.na(idx) & (idx < 1L | idx > length(x))] <- NA_integer_
-  outlier_table(idx, toupper(substr(names, 1, 2)), FALSE)
+  outlier_table(idx, toupper(substr(names, 1, 2)), FALSE, coef)
 }
 
 # When the regARIMA model cannot be estimated: no outliers removed, and
@@ -227,7 +301,14 @@ one_line <- function(message) {
   lines <- trimws(strsplit(message, "\n")[[1]])
   lines <- lines[nzchar(lines) & !grepl("^(X-13 run failed|Errors:)$", lines)]
   if (length(lines) == 0L) return("unknown error")
-  sub("^- ", "", lines[1])
+  # an X-13 error item wraps over several lines; stop at the next item or
+  # at the line that names the temporary files
+  out <- lines[1]
+  for (l in lines[-1]) {
+    if (grepl("^- |Program error|halt execution|iofile", l)) break
+    out <- paste(out, l)
+  }
+  sub("^- ", "", out)
 }
 
 # Errors of the system (disk, files, permissions, missing binary) as
@@ -285,13 +366,14 @@ regarima_x13 <- function(x, h, critical) {
   eff <- cbind(AO = get_tab("regression.aoutlier"),
                TC = get_tab("regression.temporarychange"),
                LS = get_tab("regression.levelshift"))
-  cf <- names(stats::coef(m))
+  cfv <- stats::coef(m)
+  cf <- names(cfv)
   types <- toupper(substr(cf[grepl("^(AO|LS|TC)[0-9]", cf)], 1, 2))
   fc <- suppressMessages(seasonal::series(m, "forecast.forecasts"))
   list(effects = eff, types = c("AO", "TC", "LS"),
        count = count_types(types), forecast = as.numeric(fc[, 1]),
        tc_rate = tc_rate("x13", stats::frequency(x)),
-       table = x13_outlier_table(cf, x))
+       table = x13_outlier_table(cf, x, cfv))
 }
 
 # Log/level test of the regARIMA model (TRAMO or X-13); TRUE for logs. When

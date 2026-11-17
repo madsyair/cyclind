@@ -51,10 +51,12 @@ cli_build <- function(candidates, spec = NULL) {
   }
   check_inputs(candidates, spec)
   cycles <- cli_cycles(candidates, spec)
+  candidates <- drop_excluded(candidates, cycles)
   assessment <- cli_assess(candidates, spec, cycles)
   for (nm in assessment@inverted) cycles[[nm]] <- invert_cycle(cycles[[nm]])
   tps <- cli_turning_points(cycles, spec)
   sel <- select_components(cycles, assessment, spec, candidates@reference)
+  sel$audit <- rbind(exclusion_audit(cycles), sel$audit)
   validation <- sel$validation
   if (!is.null(validation) && length(spec@oos_cutoffs) > 0L) {
     validation@out_of_sample <- cli_selection_bias(candidates, spec,

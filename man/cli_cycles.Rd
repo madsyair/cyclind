@@ -12,12 +12,17 @@ cli_cycles(candidates, spec)
 \item{spec}{A \linkS4class{CliSpec}.}
 }
 \value{
-A named list of \linkS4class{CycleSeries}, reference first.
+A named list of \linkS4class{CycleSeries}, reference first. Candidates
+whose seasonal adjustment failed beyond repair are left out; the
+attribute \code{"excluded"} (see \code{\link[=excluded_series]{excluded_series()}}) gives their names and
+the reason.
 }
 \description{
 Applies, series by series on its own non-missing span: interpolation of
 internal gaps, optional seasonal adjustment of the original series with
-X-13ARIMA-SEATS, the transformation (\code{"auto"} takes logarithms of strictly
+X-13ARIMA-SEATS in the scale of the transformation (see
+\code{seasonal_adjust} in \code{\link[=cli_spec]{cli_spec()}} for series that X-13 cannot adjust),
+the transformation (\code{"auto"} takes logarithms of strictly
 positive series, except series in percent such as interest rates, see
 \code{unit} in \code{\link[=cli_candidates]{cli_candidates()}}), outlier replacement, the cycle form of the
 specification (the level by default, or the growth rate, see

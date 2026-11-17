@@ -25,13 +25,13 @@ test_that("cycles keep the outliers of each series", {
   cyc <- cli_cycles(cand, cli_spec(12))
   ol <- cyc$lead_6@outliers
   expect_s3_class(ol, "data.frame")
-  expect_named(ol, c("time", "period", "type", "removed"))
+  expect_named(ol, c("time", "period", "type", "removed", "collinear"))
   expect_true(stats::time(dat)[50] %in% ol$time)
   expect_equal(nrow(cyc$reference@outliers), 0L)
   expect_output(show(cyc$lead_6), "outliers: 1 replaced")
   rep <- outlier_report(cyc)
   expect_named(rep, c("name", "n_removed", "n_kept", "share", "periods",
-                      "types", "note"))
+                      "types", "collinear", "note"))
   expect_equal(rep$n_removed[rep$name == "lead_6"], 1L)
 })
 
@@ -137,8 +137,11 @@ test_that("a failed log/level test warns and keeps levels", {
   expect_warning(out <- cyclind:::apply_transform(x, "test", "x", "x13"),
                  class = "cyclind_warning_x13")
   expect_match(attr(out, "step"), "levels")
-  expect_error(cyclind:::seasonal_adjust_x13(x),
-               class = "cyclind_error_x13")
+  # a failed seasonal adjustment no longer stops the run (FR-019): this
+  # series has no seasonality, so it is kept as it is
+  expect_warning(sa <- cyclind:::seasonal_adjust_x13(x),
+                 class = "cyclind_warning_seasonal_failed")
+  expect_equal(as.numeric(sa), as.numeric(x))
 })
 
 test_that("system and model failures are told apart", {

@@ -322,6 +322,12 @@ setMethod("show", "CliResult", function(object) {
       if (any(nzchar(rep$note))) {
         sprintf("; %d series with warnings", sum(nzchar(rep$note)))
       }, "; see outlier_report()\n", sep = "")
+  ex <- excluded_series(object)
+  if (nrow(ex) > 0L) {
+    cat("  excluded (seasonal adjustment failed): ",
+        paste(ex$name, collapse = ", "), "; see excluded_series()\n",
+        sep = "")
+  }
   if (is.null(object@composite)) {
     cat("  no composite: no candidate qualified as leading\n")
   } else {

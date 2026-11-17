@@ -23,7 +23,8 @@ cli_turning_points <- function(cycles, spec) {
 # order, when the candidate turns at most `window[2]` periods before and
 # `window[1]` periods after the reference. Leads are positive when the
 # candidate turns first. Of several candidate turning points in the window,
-# `matching = "nearest"` takes the closest in time (as CIF does) and
+# `matching = "nearest"` takes the closest in time (as CIF, Vraná 2020,
+# does) and
 # `"maximum"` the most pronounced (highest peak, deepest trough of the
 # candidate series), the closest among equals (butir 6).
 match_turning_points <- function(ref, cand, window, end_exclusion,
@@ -560,6 +561,14 @@ invert_cycle <- function(cs) {
 cli_assess <- function(candidates, spec, cycles = NULL) {
   check_inputs(candidates, spec)
   if (is.null(cycles)) cycles <- cli_cycles(candidates, spec)
+  candidates <- drop_excluded(candidates, cycles)
+  lost <- setdiff(c(candidates@reference, candidate_names(candidates)),
+                  names(cycles))
+  if (length(lost) > 0L) {
+    cyclind_abort(sprintf("`cycles` has no cycle for: %s.",
+                          paste(lost, collapse = ", ")),
+                  "cyclind_error_argument")
+  }
   ref_cs <- cycles[[candidates@reference]]
   ref_tp <- date_turning_points(spec@dater, ref_cs@normalised,
                                 name = ref_cs@name)

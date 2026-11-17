@@ -41,16 +41,26 @@ composite, following the OECD system of composite leading indicators:
     `cci_validate()`); `cci_as_reference()` makes the index the monthly
     reference series.
 
-`oecd_spec()` follows the OECD documents (Gyomai and Guidetti 2012;
-Gyomai, Ahmad and Astolfi 2017) where they state a rule: TRAMO additive
-outliers with two months of forecasts, the log/level test, the double
-Hodrick-Prescott filter, Bry-Boschan turning points with phases of at
-least 9 and cycles of at least 24 months, the median-lead classification,
-no lag-shifting and the chained average growth of the components. Where
-the documents give no formula (the inversion of counter-cyclical
-components, the amplitude measure), it takes the choice that comes closest
-to the published CLI of Indonesia; `?oecd_spec` lists the source of each
-step. `cli_presentation()` gives the three OECD forms of the composite.
+`oecd_spec()` follows the rules written in the OECD documents (Gyomai
+and Guidetti 2012, "GG12"; Gyomai, Ahmad and Astolfi 2017, "GAA17"):
+TRAMO outliers, of which additive outliers are filtered and level shifts
+removed only on expert judgement (GAA17 p. 283), with two months of
+forecasts (2 to 6, GAA17 p. 284), the log/level test (GAA17 p. 284), the
+double Hodrick-Prescott filter (GG12 p. 7), Bry-Boschan turning points with
+phases of at least 9 and cycles of at least 24 months and a 24/9-month
+matching window (GAA17 p. 285), the median-lead classification (GG12 p. 9),
+no lag-shifting (GAA17 p. 287) and components selected on the growth cycle
+(GAA17 pp. 276-277). The rest are choices of cyclind, not OECD rules, and
+can be changed: transitory changes are kept (`outlier_types = "AO"`; GAA17
+does not mention them) and an AO and a TC on the same date are treated as
+one deviation; at least three matched turning points (`min_matched = 3`);
+at most 40 percent missed or extra turning points; a fixed-b test of
+concordance; the mean of log ratios with reciprocal inversion as
+aggregation and the standard deviation as amplitude measure, both closest
+to the published CLI of Indonesia; and, for quarterly data, phases of 3
+and cycles of 8 quarters. `?oecd_spec` lists the source of each rule and
+each choice.
+`cli_presentation()` gives the three OECD forms of the composite.
 The vignette explains, with simulations, where and why the package
 defaults differ.
 

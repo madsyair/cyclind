@@ -59,8 +59,9 @@ test_that("X-13 seasonal adjustment removes a seasonal pattern", {
   cand <- cli_candidates(sim, "reference", meta = meta)
   raw <- cli_cycles(cand, cli_spec(12))$lead_3
   adj <- cli_cycles(cand, cli_spec(12, seasonal_adjust = TRUE))$lead_3
-  expect_true("seasonally adjusted (X-13ARIMA-SEATS)" %in% adj@steps)
-  expect_lt(which(adj@steps == "seasonally adjusted (X-13ARIMA-SEATS)"),
+  # the logarithm decided by cyclind is passed to X-13 (FR-018)
+  expect_true("seasonally adjusted (X-13ARIMA-SEATS, log)" %in% adj@steps)
+  expect_lt(which(adj@steps == "seasonally adjusted (X-13ARIMA-SEATS, log)"),
             which(adj@steps == "log"))
   seas_amp <- function(v) {
     d <- diff(as.numeric(v))
