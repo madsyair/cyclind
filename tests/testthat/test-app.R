@@ -179,13 +179,15 @@ test_that("the OECD method runs in the interface and in the script", {
     session$userData$data <- function() rv$data
     run_all_steps(session, mode = "manual", cutoffs = "", method = "oecd")
     expect_s4_class(rv$spec@classifier, "OecdClassifier")
-    expect_true(rv$spec@lag_shift)
-    expect_equal(names(rv$composite@shifts), c("lead_6", "lead_3"))
+    # P5: as in OECD practice (Gyomai et al. 2017, p. 287), no lag shift
+    expect_false(rv$spec@lag_shift)
+    expect_length(rv$composite@shifts, 0L)
+    expect_s4_class(rv$spec@dater, "OecdDater")
     expect_match(output$spec_print, "OECD")
     expect_match(output$scorecard, "rata-rata lead")
     script <- script()
     expect_match(script, "oecd_spec(", fixed = TRUE)
-    expect_match(script, "shifts = lag_shifts(", fixed = TRUE)
+    expect_false(grepl("shifts = lag_shifts(", script, fixed = TRUE))
     eval_env <- new.env()
     out <- utils::capture.output(eval(parse(text = script), envir = eval_env))
     expect_equal(as.numeric(eval_env$cli@index),

@@ -1,9 +1,17 @@
 #' Specify a CLI workflow
 #'
 #' Collects every methodological choice in one validated object. Arguments
-#' left at `NULL` take frequency-specific defaults: the monthly defaults
-#' follow the OECD system of composite leading indicators (Gyomai and
-#' Guidetti 2012); the quarterly ones translate them to quarters. The
+#' left at `NULL` take frequency-specific defaults. The defaults of
+#' `cli_spec()` are the package's own choices, not the OECD method: the
+#' cycle filter (double Hodrick-Prescott, 12 to 120 months) and the
+#' normalisation are those of the OECD system of composite leading
+#' indicators (Gyomai and Guidetti 2012), but the outlier rule, the
+#' transformation, the end-of-series extension, the turning-point rule
+#' (Bry-Boschan with 5/15 months), the classification, the lead window, the
+#' aggregation and the amplitude differ; [oecd_spec()] lists the
+#' differences step by step. The quarterly defaults translate the monthly
+#' ones to quarters, an extension of cyclind (the OECD works only with
+#' monthly series). The
 #' classification thresholds were calibrated with the Monte Carlo harness in
 #' `data-raw/` (see `vignette("cyclind")`): on simulated monthly data they
 #' classify about 87 percent of candidates correctly with at most 1.3
@@ -11,7 +19,7 @@
 #' labelled leading (100 samples per
 #' cell, `inst/calibration/accuracy.csv`). The thresholds were tuned and
 #' evaluated on the same simulation design, so these rates are optimistic.
-#' With [oecd_classifier()] the share is 2.5 to 7.5 percent
+#' With [oecd_classifier()] the share is 2.5 to 7.8 percent
 #' (`inst/calibration/oecd-classification.csv`), and with the experimental
 #' growth rate form up to 1.3 percent (`inst/calibration/forms.csv`).
 #'
@@ -59,7 +67,9 @@
 #'   its lower end is the default horizon of the prediction tests.
 #' @param lead_window Turning points are paired when the candidate turns at
 #'   most `lead_window[1]` periods after and `lead_window[2]` periods before
-#'   the reference (default `c(12, 24)` months or `c(4, 8)` quarters).
+#'   the reference (default `c(12, 24)` months or `c(4, 8)` quarters; the
+#'   OECD uses 9 months after and 24 before, Gyomai, Ahmad and Astolfi 2017,
+#'   p. 285, which [oecd_spec()] takes).
 #' @param matching Rule that pairs turning points. Reference turning points
 #'   are taken in time order; each is paired with a candidate turning point
 #'   of the same type inside `lead_window` that is later than the candidate
@@ -99,13 +109,16 @@
 #'   `robust_outliers(outlier_threshold)`. Use [tramo_outliers()] for the
 #'   OECD treatment.
 #' @param lag_shift Shift each component later by its median lead minus the
-#'   shortest median lead of the components before aggregation, as the OECD
-#'   does (default `FALSE`). Values moved past the last date of the data are
-#'   dropped.
+#'   shortest median lead of the components before aggregation (default
+#'   `FALSE`). The OECD system supports such shifts (Gyomai and Guidetti
+#'   2012, p. 9), but "in practice all the indicators currently produced are
+#'   without delayed components" (Gyomai, Ahmad and Astolfi 2017, p. 287).
+#'   Values moved past the last date of the data are dropped.
 #' @param extension An [Extension-class]; default [ar_extension()]: each
 #'   series is extended by one year of AR forecasts before the cycle filter
-#'   (`ar_extension(h = 6)` for the six months of ARIMA forecasts of CIF;
-#'   the OECD uses TRAMO forecasts of 0 to 2 months, see
+#'   (a choice of cyclind; `ar_extension(h = 6)` for the six months of
+#'   ARIMA forecasts of CIF; the OECD extends with 2 to 6 months of TRAMO
+#'   forecasts, Gyomai, Ahmad and Astolfi 2017, p. 284, see
 #'   [Extension-class]). Use [no_extension()] for no extension. The
 #'   extension is separate from the outlier treatment: switching outliers
 #'   off with [update()] keeps it.
@@ -125,6 +138,10 @@
 #'   CLI (see [oecd_spec()]). Only the index changes, not the cycle.
 #' @return A [CliSpec-class] object.
 #' @references
+#' Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+#' leading indicators. In *Handbook on Cyclical Composite Indicators*,
+#' chapter 10, 271--291. Eurostat, Luxembourg.
+#'
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
 #' Indicators*. OECD Publishing, Paris.
 #' @examples
@@ -445,66 +462,113 @@ setMethod("update", "CliSpec", function(object, ...) {
 
 #' Specification that follows the OECD method
 #'
-#' A [cli_spec()] with every step set as in the OECD system of composite
-#' leading indicators (Gyomai and Guidetti 2012):
+#' A [cli_spec()] set, step by step, to the OECD system of composite leading
+#' indicators as documented by Gyomai and Guidetti (2012, "GG12") and
+#' Gyomai, Ahmad and Astolfi (2017, "GAA17"), where the documents state the
+#' rule, and to the choice that reproduces the published OECD CLI of
+#' Indonesia where they do not. It is not a replication of the OECD's
+#' production system: the steps marked "cyclind" below are not written in
+#' the OECD documents.
 #'
-#' * outliers: TRAMO, additive outliers and transitory changes replaced by
-#'   estimates ([tramo_outliers()]);
-#' * logarithm or levels: TRAMO test (`transform = "test"`);
-#' * end of the series: two months of TRAMO forecasts before the filter
-#'   ([tramo_outliers()]; Nilsson and Gyomai 2011);
-#' * cycle: double Hodrick-Prescott filter, 12 to 120 months
-#'   ([hp_double_filter()]);
-#' * turning points: simplified Bry-Boschan ([bry_boschan()]);
-#' * classification: median lead, coincident within +/- 2 months, with
-#'   cyclical conformity and few missed or extra cycles
-#'   ([oecd_classifier()]; `classifier = oecd_classifier(conformity =
-#'   FALSE)` for the median lead alone);
-#' * lag-shifting: the leads of the components aligned (`lag_shift = TRUE`);
-#' * aggregation: chained average log growth with the 60 percent rule,
-#'   counter-cyclical components entering as reciprocals
-#'   ([oecd_aggregate()]);
-#' * presentation: amplitude adjusted (scaled to the standard deviation of
-#'   the reference cycle, `amplitude = "sd"`), trend restored and 12-month
-#'   rate of change ([cli_presentation()]).
+#' Step by step (OECD rule and source; `oecd_spec()`; `cli_spec()`):
 #'
-#' The aggregation formula and the amplitude measure are not written out in
-#' the OECD documents; both were chosen because they reproduce the
-#' published CLI of Indonesia from the seven component cycles the OECD
-#' publishes (correlation 0.9998 with the normalised CLI, every turning
-#' point on the same month, amplitude-adjusted index within a few
-#' hundredths of a point; `data-raw/oecd_idn_validate.R`). This checks the
-#' aggregation and presentation steps on the data the choices were made
-#' with. From the four component series that are public, the whole method
-#' gives a composite that correlates 0.89 with the published CLI and finds
-#' 21 of its 24 turning points (row B1 of
-#' `inst/calibration/oecd-idn-composite.csv`); the classification step
-#' uses the stricter operationalisation of [oecd_classifier()]. An
-#' alternative with a longer forecast, a robust amplitude and arithmetic
-#' growth rates is `oecd_spec(forecast = 12, amplitude = "mad",
-#' aggregator = oecd_aggregate(growth = "ratio"))`.
+#' * outliers: TRAMO, additive outliers replaced, level shifts only on
+#'   expert judgement (GAA17 p. 283); [tramo_outliers()] with
+#'   `outlier_types = "AO"` (transitory changes and level shifts detected
+#'   and reported but kept, ADR-010); robust z-score above 5 of the
+#'   changes;
+#' * log or levels: TRAMO test (GG12 p. 7; GAA17 p. 284); `transform =
+#'   "test"`, series in percent kept in levels; `"auto"`, logarithm of
+#'   positive series not in percent;
+#' * end of the series: 2 to 6 months of TRAMO forecasts (GAA17 p. 284);
+#'   2 months; 12 months of AR forecasts;
+#' * cycle: double Hodrick-Prescott filter, 12 to 120 months (GG12 p. 7
+#'   and 15; OECD 2024, question 10); [hp_double_filter()]; the same;
+#' * normalisation: mean and mean absolute deviation (GG12 p. 7; GAA17
+#'   p. 284); the same; the same;
+#' * turning points: Bry-Boschan with phases of at least 9 and cycles of
+#'   at least 24 months (GAA17 p. 285); [oecd_dater()] (9/24, symmetric
+#'   phase rule); [bry_boschan()] (5/15, as in GG12 annex B);
+#' * matching window: 24 months lead and 9 months lag (GAA17 p. 285);
+#'   `lead_window = c(9, 24)`; `c(12, 24)`;
+#' * classification: median lead, coincident within 2 months (GG12
+#'   p. 8--9); [oecd_classifier()]; [cyclind_classifier()];
+#' * lag-shifting: supported but not used in practice (GAA17 p. 287);
+#'   `lag_shift = FALSE`; `FALSE`;
+#' * aggregation: chained mean of the ratios \eqn{c_{i,t}/c_{i,t-1}} with the
+#'   60 percent rule (GAA17 p. 286, note 8); [oecd_aggregate()], chained
+#'   mean log ratio with reciprocal inversion (cyclind, see below);
+#'   [equal_weight()];
+#' * amplitude adjustment: rescaled to the reference cycle, measure not
+#'   given (GG12 p. 9; GAA17 p. 288); standard deviation (cyclind, see
+#'   below); mean absolute deviation;
+#' * trend restored: trend of the reference times the CLI, not computed
+#'   before GDP is available (GG12 p. 10; OECD 2024, question 6);
+#'   [cli_presentation()]; the same.
+#'
+#' **Turning points.** The OECD dates with the simplified Bry-Boschan rule
+#' and phases of at least 9 and cycles of at least 24 months (GAA17,
+#' p. 285). The 5/15-month rule of the original Bry-Boschan routine, which
+#' the OECD used with the phase-average trend method before 2008 (GG12,
+#' annex B), is `oecd_spec(dater = bry_boschan())`. Which turning point of a
+#' too-short phase the OECD drops is not documented; cyclind keeps the most
+#' extreme ones (`phase_rule = "symmetric"`, see [Dater-class]).
+#'
+#' **Aggregation.** GAA17 (p. 286, note 8) writes the CLI as
+#' \deqn{CLI_t = \frac{\sum_i w_i \delta_{i,t,t-1} c_{i,t} / c_{i,t-1}}
+#'   {\sum_i w_i \delta_{i,t,t-1}} CLI_{t-1},\quad CLI_1 = 100,}
+#' with \eqn{\delta_{i,t,t-1} = 1} when component \eqn{i} is available at
+#' \eqn{t} and \eqn{t-1}, computed when \eqn{\sum_i w_i \delta_{i,t,t-1}} is
+#' at least 60 percent. The document does not say how a counter-cyclical
+#' component enters. This written formula, with inversion \eqn{200 - c}, is
+#' `oecd_aggregate(growth = "ratio")`. The default of `oecd_spec()` is
+#' `oecd_aggregate(growth = "log")`: the mean of log ratios, with a
+#' counter-cyclical component entering as the reciprocal
+#' \eqn{100^2 / c}. It is a choice of cyclind, made because it is closer to
+#' the published CLI of Indonesia: from the seven component cycles the OECD
+#' publishes, the correlation with the published normalised CLI is 0.99985
+#' (largest difference 0.086) against 0.99839 (0.605) for the written
+#' formula, and both find all 27 of its turning points (audit of 2026-11-17;
+#' `data-raw/oecd_idn_validate.R`). Most of the gain comes from the
+#' reciprocal inversion, not from the logarithm; that the OECD inverts this
+#' way has not been confirmed by the OECD.
+#'
+#' **Amplitude.** The OECD does not give the measure by which the CLI is
+#' rescaled to the amplitude of the reference. On the CLI of Indonesia the
+#' ratio of standard deviations over common dates (`amplitude = "sd"`)
+#' matches the published amplitude-adjusted CLI and the ratio of mean
+#' absolute deviations does not (about 17 percent too small), so `"sd"` is
+#' the default here.
 #'
 #' Seasonal adjustment, which the OECD applies only to series that are not
 #' already adjusted at the source, uses X-13ARIMA-SEATS (the successor of
 #' X-12-ARIMA, with SEATS) when `seasonal_adjust = TRUE`. Quarterly
 #' candidates are always interpolated linearly by [cli_align()], at the
-#' month the OECD uses (`method` only concerns the reference series). The
-#' selection loop of
-#' [cli_build()] then evaluates composites with the OECD classifier.
+#' month the OECD uses (GG12 p. 6; `method` only concerns the reference
+#' series, for which the OECD method of monthly GDP is not reproduced).
+#' The selection loop of [cli_build()] then evaluates composites with the
+#' OECD classifier.
 #'
 #' The minimum median lead of the out-of-sample check is set to the
 #' coincident band (2 months). Other arguments are passed to [cli_spec()].
 #'
+#' From the four component series of Indonesia that are public, the whole
+#' method gives a composite that correlates 0.89 with the published CLI and
+#' finds 10 of the 12 turning points that [oecd_dater()] dates in it over
+#' the common span (row B1 of `inst/calibration/oecd-idn-composite.csv`);
+#' the classification step uses the stricter operationalisation of
+#' [oecd_classifier()].
+#'
 #' @param freq Data frequency, 12 or 4. The OECD system is monthly; for
-#'   quarterly data the month thresholds are converted to quarters.
+#'   quarterly data the month thresholds are converted to quarters (an
+#'   extension of cyclind, not an OECD rule).
 #' @param seasonal_adjust,holidays See [cli_spec()].
 #' @param engine Engine of [tramo_outliers()] and of the log/level test.
 #' @param classifier An OECD [Classifier-class], by default
 #'   [oecd_classifier()].
 #' @param forecast Months of TRAMO forecasts appended before the filter
-#'   ([tramo_outliers()]); `NULL` means 2 months (1 quarter), the upper end
-#'   of the "forecast horizons from 0 to 2 month" that the OECD put in place
-#'   (Nilsson and Gyomai 2011, para. 65). Until INC-15 it was one year.
+#'   ([tramo_outliers()]); `NULL` means 2 months (1 quarter), within the
+#'   2 to 6 months of GAA17 (p. 284). Until INC-15 it was one year.
 #' @param amplitude Amplitude measure of the index (see [cli_spec()]); the
 #'   OECD amplitude-adjusted CLI matches standard deviations (`"sd"`).
 #' @param transform Transformation before the filter (see [cli_spec()]);
@@ -520,22 +584,44 @@ setMethod("update", "CliSpec", function(object, ...) {
 #'   Hodrick-Prescott filter, for example [hp_smoother()] for series that
 #'   are already growth rates (FR-014.8). `NULL` keeps the OECD filter (or
 #'   the default filter of the cycle form).
+#' @param dater A [Dater-class]; `NULL` means [oecd_dater()] (phases of 9
+#'   and cycles of 24 months, or 3 and 8 quarters). `bry_boschan()` gives
+#'   the original 5/15-month rule.
+#' @param aggregator An [Aggregator-class]; `NULL` means [oecd_aggregate()]
+#'   (log growth, reciprocal inversion). `oecd_aggregate(growth = "ratio")`
+#'   is the formula written in GAA17.
+#' @param lag_shift Shift components by their median lead before
+#'   aggregation? `FALSE` by default, as in OECD practice (GAA17, p. 287).
+#' @param lead_window Pairing window of turning points (see [cli_spec()]);
+#'   `NULL` means 9 months after and 24 before the reference (3 and 8
+#'   quarters).
+#' @param min_median_lead Minimum median lead; `NULL` means the coincident
+#'   band of `classifier` (2 months).
+#' @param outliers An [OutlierTreatment-class]; `NULL` means
+#'   `tramo_outliers(engine = engine, forecast = forecast, remove =
+#'   outlier_types)`. When given, `outlier_types` is ignored.
+#' @param extension An [Extension-class]; `NULL` means [no_extension()]
+#'   (the TRAMO forecasts of `outliers` extend the series).
 #' @param ... Further arguments of [cli_spec()]. With `form =`
 #'   [growth_form()] (experimental, not part of the OECD method) the
 #'   filter is [hp_smoother()], as in [cli_spec()].
 #' @return A [CliSpec-class].
 #' @references
+#' Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+#' leading indicators. In *Handbook on Cyclical Composite Indicators*,
+#' chapter 10, 271--291. Eurostat, Luxembourg.
+#'
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
 #' Indicators*. OECD Publishing, Paris.
 #'
-#' Nilsson, R. and Gyomai, G. (2011). Cycle extraction: a comparison of the
-#' phase-average trend method, the Hodrick-Prescott and Christiano-Fitzgerald
-#' filters. *OECD Statistics Working Papers* 2011/04.
-#' \doi{10.1787/5kg9srt7f8g0-en}
+#' OECD (2024). *Composite Leading Indicators: Frequently Asked Questions*.
+#' OECD, Paris.
 #' @seealso [cli_spec()] for the package defaults and the reasons they
 #'   differ (`vignette("cyclind")`).
 #' @examples
 #' oecd_spec()
+#' # the original Bry-Boschan rule (5/15 months), OECD before 2008
+#' oecd_spec(dater = bry_boschan())
 #' \donttest{
 #' sim <- simulate_cycles(seed = 1)
 #' meta <- data.frame(name = colnames(sim)[-1], rationale = "early_stage")
@@ -550,7 +636,11 @@ oecd_spec <- function(freq = 12, seasonal_adjust = FALSE, holidays = list(),
                       engine = c("auto", "tramo", "x13"),
                       classifier = oecd_classifier(), forecast = NULL,
                       amplitude = c("sd", "mad"), transform = "test",
-                      filter = NULL, outlier_types = "AO", ...) {
+                      filter = NULL, outlier_types = "AO",
+                      dater = NULL, aggregator = NULL,
+                      lag_shift = FALSE, lead_window = NULL,
+                      min_median_lead = NULL, outliers = NULL,
+                      extension = NULL, ...) {
   check_frequency(freq)
   engine <- match.arg(engine)
   if (identical(amplitude, c("sd", "mad"))) amplitude <- "sd"
@@ -564,6 +654,8 @@ oecd_spec <- function(freq = 12, seasonal_adjust = FALSE, holidays = list(),
     cyclind_abort("`filter` must be a CycleFilter (see hp_double_filter()).",
                   "cyclind_error_argument")
   }
+  check_strategy(dater, "Dater", "dater")
+  check_strategy(aggregator, "Aggregator", "aggregator")
   # the OECD double HP filter, or the default filter of another form
   form <- list(...)$form
   filt <- if (!is.null(filter)) {
@@ -573,13 +665,31 @@ oecd_spec <- function(freq = 12, seasonal_adjust = FALSE, holidays = list(),
   } else {
     default_filter(form)
   }
-  cli_spec(freq = freq, filter = filt, dater = NULL,
-           aggregator = oecd_aggregate(), transform = transform,
+  monthly <- freq == 12
+  cli_spec(freq = freq, filter = filt,
+           dater = if (is.null(dater)) oecd_dater() else dater,
+           aggregator = if (is.null(aggregator)) oecd_aggregate() else
+             aggregator,
+           transform = transform,
            seasonal_adjust = seasonal_adjust, holidays = holidays,
-           min_median_lead = cls@coincident * freq / 12,
+           min_median_lead = if (is.null(min_median_lead)) {
+             cls@coincident * freq / 12
+           } else {
+             min_median_lead
+           },
            classifier = cls,
-           outliers = tramo_outliers(engine = engine, forecast = forecast,
-                                     remove = outlier_types),
-           lag_shift = TRUE, extension = no_extension(),
+           outliers = if (is.null(outliers)) {
+             tramo_outliers(engine = engine, forecast = forecast,
+                            remove = outlier_types)
+           } else {
+             outliers
+           },
+           lag_shift = lag_shift,
+           lead_window = if (is.null(lead_window)) {
+             if (monthly) c(9, 24) else c(3, 8)
+           } else {
+             lead_window
+           },
+           extension = if (is.null(extension)) no_extension() else extension,
            amplitude = amplitude, ...)
 }

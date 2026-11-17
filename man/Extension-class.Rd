@@ -96,8 +96,8 @@ specification whose forecasts came from \code{\link[=tramo_outliers]{tramo_outli
 
 \strong{Length of the extension.} The default of \code{\link[=cli_spec]{cli_spec()}} is one year of
 AR forecasts (12 months or 4 quarters; \code{h} and \code{order_max} change it).
-The OECD appends TRAMO forecasts of 0 to 2 months (Nilsson and Gyomai
-2011, para. 65; \code{\link[=oecd_spec]{oecd_spec()}} uses 2 months), and the OECD Python
+The OECD appends 2 to 6 months of TRAMO forecasts (Gyomai, Ahmad and
+Astolfi 2017, p. 284; \code{\link[=oecd_spec]{oecd_spec()}} uses 2 months), and the OECD Python
 package CIF extends each series with six months of ARIMA forecasts
 before its filter. A longer extension moves more of the end-point
 revision of the two-sided filter into the forecast error, at the cost
@@ -125,9 +125,9 @@ Methods}, 2nd edition. Springer, New York.
 Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
 Indicators}. OECD Publishing, Paris.
 
-Nilsson, R. and Gyomai, G. (2011). Cycle extraction: a comparison of the
-phase-average trend method, the Hodrick-Prescott and Christiano-Fitzgerald
-filters. \emph{OECD Statistics Working Papers} 2011/04.
+Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+leading indicators. In \emph{Handbook on Cyclical Composite Indicators},
+chapter 10, 271--291. Eurostat, Luxembourg.
 
 Kaiser, R. and Maravall, A. (2001). \emph{Measuring Business Cycles in
 Economic Time Series}. Lecture Notes in Statistics 154. Springer, New

@@ -1,10 +1,10 @@
 "composite","n_components","corr_lag0","best_lag","corr_best","aa_gap","mad_gap","ref_tp","matched","missed","extra","mean_abs_gap","median_lead","ref_tp_rs","ref_matched","ref_extra","ref_median_lead","ref_ccf_lag","ref_ccf_r"
-"OECD published CLI (benchmark)",7,1,0,1,0,0,27,27,0,0,0,0,16,16,11,3.5,3,0.834
-"A0 OECD components, OECD signs, arithmetic growth",7,0.998,0,0.998,0.338,0.053,27,27,0,0,0,0,16,16,11,3.5,3,0.83
-"A1 OECD components, OECD signs, oecd_spec()",7,1,0,1,0.037,0.021,27,27,0,0,0,0,16,16,11,3.5,3,0.833
-"A2 OECD components, signs found by cyclind, oecd_aggregate()",7,0.904,0,0.904,0.884,0.536,27,17,10,6,0.706,0,16,15,8,3,3,0.808
-"A3 OECD components, signs from meta$sign, oecd_aggregate()",7,1,0,1,0.037,0.021,27,27,0,0,0,0,16,16,11,3.5,3,0.833
-"A4 OECD components, OECD signs, equal_weight()",7,0.984,0,0.984,0.337,0.201,27,27,0,0,0,0,16,16,11,3.5,3,0.799
-"A5 OECD cycles of the four components of B",4,0.929,0,0.929,0.718,0.432,27,22,5,5,0.864,0,17,16,11,4,4,0.742
-"B1 four original series, oecd_spec(), OECD signs",4,0.886,1,0.886,0.814,0.556,24,21,3,3,0.952,0,14,13,11,4,4,0.657
-"B2 cli_build(): LOCOST",1,0.612,0,0.612,1.711,0.942,27,10,17,9,0.8,0,19,15,5,2,5,0.382
+"OECD published CLI (benchmark)",7,1,0,1,0,0,14,14,0,0,0,0,8,8,6,3.5,3,0.834
+"A0 OECD components, OECD signs, arithmetic growth",7,0.998,0,0.998,0.338,0.053,14,14,0,0,0,0,8,8,6,3.5,3,0.83
+"A1 OECD components, OECD signs, oecd_spec()",7,1,0,1,0.037,0.021,14,14,0,0,0,0,8,8,6,3.5,3,0.833
+"A2 OECD components, signs found by cyclind, oecd_aggregate()",7,0.883,0,0.883,0.836,0.476,14,13,1,4,0.462,0,8,8,9,4,2,0.796
+"A3 OECD components, signs from meta$sign, oecd_aggregate()",7,1,0,1,0.037,0.021,14,14,0,0,0,0,8,8,6,3.5,3,0.833
+"A4 OECD components, OECD signs, equal_weight()",7,0.984,0,0.984,0.337,0.201,14,14,0,0,0,0,8,8,6,3.5,3,0.799
+"A5 OECD cycles of the four components of B",4,0.929,0,0.929,0.718,0.432,14,11,3,4,0.727,0,9,8,7,3.5,4,0.742
+"B1 four original series, oecd_spec(), OECD signs",4,0.886,1,0.886,0.814,0.556,12,10,2,2,1,0,8,7,5,3,4,0.657
+"B2 cli_build(): no leading component",0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA

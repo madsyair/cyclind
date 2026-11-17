@@ -76,7 +76,9 @@ series_frequencies <- c(
 #'   monthly path, Denton 1971 with the Cholette modification, computed
 #'   here), `"chow-lin"` (regression on a monthly `indicator`, Chow and Lin
 #'   1971, via the 'tempdisagg' package; the indicator must not also be a
-#'   candidate) or `"linear"`.
+#'   candidate) or `"linear"`. The OECD builds a monthly GDP reference
+#'   with its own method, which cyclind does not reproduce; any of these
+#'   gives a similar reference cycle (`vignette("oecd-indonesia")`).
 #' * **Quarterly to monthly, candidates**: linear interpolation with the
 #'   quarterly value placed in the central month (flows, averages) or the
 #'   last month (stocks), as the OECD does; `position` overrides it, e.g. for

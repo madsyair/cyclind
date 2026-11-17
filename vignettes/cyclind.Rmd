@@ -290,21 +290,39 @@ fm[, c("form", "freq", "noise_sd", "correct.leading", "false_leading",
 
 ## 8. The OECD method and the defaults
 
-`oecd_spec()` follows the steps of the OECD system (Gyomai and Guidetti
-2012): TRAMO outliers with short forecasts before the filter
-(`tramo_outliers()`, through RJDemetra or, without Java, the regARIMA part
-of X-13), the TRAMO log/level test (`transform = "test"`), the median-lead
-classification with the OECD criteria of cyclical conformity and missed or
-extra cycles (`oecd_classifier()`), lag-shifting (`lag_shift = TRUE`) and
-the chained average growth of the components (`oecd_aggregate()`).
-`cli_presentation()` returns the three OECD forms of a level composite:
-amplitude adjusted, trend restored and its 12-month rate of change. Where
-the OECD documents name a criterion without a threshold or a formula, the
-choice is cyclind's: the thresholds of the conformity criteria (at most 40
-percent missed or extra turning points, concordance significant at 5
-percent, a positive cross-correlation peak), the aggregation formula and
-the amplitude measure. The rest of this section compares them with the
-published CLI of Indonesia.
+`oecd_spec()` follows the OECD documents (Gyomai and Guidetti 2012,
+"GG12"; Gyomai, Ahmad and Astolfi 2017, "GAA17") where they state a rule,
+with the source of each step:
+
+| Step | OECD rule (source) | `oecd_spec()` | `cli_spec()` |
+| --- | --- | --- | --- |
+| Outliers | TRAMO, additive outliers removed (GAA17 p. 283) | `tramo_outliers()`, `outlier_types = "AO"` | robust z-score |
+| Log or levels | TRAMO test (GAA17 p. 284) | `transform = "test"` | `"auto"` |
+| End of series | 2--6 months of TRAMO forecasts (GAA17 p. 284) | 2 months | 12 months, AR |
+| Cycle | double HP, 12--120 months (GG12 p. 7, 15) | same | same |
+| Normalisation | mean, mean absolute deviation (GG12 p. 7) | same | same |
+| Turning points | Bry-Boschan, phase 9, cycle 24 months (GAA17 p. 285) | `oecd_dater()` | `bry_boschan()`, 5/15 |
+| Matching window | 24 months lead, 9 lag (GAA17 p. 285) | `c(9, 24)` | `c(12, 24)` |
+| Classification | median lead, coincident within 2 months (GG12 p. 9) | `oecd_classifier()` | `cyclind_classifier()` |
+| Lag-shifting | not used in practice (GAA17 p. 287) | off | off |
+| Aggregation | chained mean of ratios, 60 percent rule (GAA17 p. 286, note 8) | chained mean log ratio (cyclind) | `equal_weight()` |
+| Amplitude | rescaled to the reference, measure not given (GAA17 p. 288) | standard deviation (cyclind) | mean absolute deviation |
+| Trend restored | not computed before GDP is available (OECD 2024, FAQ 6) | same | same |
+
+The TRAMO steps run through RJDemetra or, without Java, the regARIMA part
+of X-13. Which turning point of a phase that is too short the OECD drops
+is not documented; both daters keep the most extreme ones
+(`phase_rule = "symmetric"`, see `?Dater`), so that dating the reversed
+series gives the same turning points. The original 5/15-month rule, which
+the OECD used before 2008 (GG12, annex B), is `oecd_spec(dater =
+bry_boschan())`. `cli_presentation()` returns the three OECD forms of a
+level composite: amplitude adjusted, trend restored and its 12-month rate
+of change. Where the OECD documents name a criterion without a threshold
+or a formula, the choice is cyclind's: the thresholds of the conformity
+criteria (at most 40 percent missed or extra turning points, concordance
+significant at 5 percent, a positive cross-correlation peak), the
+inversion of counter-cyclical components and the amplitude measure. The
+rest of this section compares them with the published CLI of Indonesia.
 
 ```{r oecd, eval = FALSE}
 res_oecd <- cli_build(cand, oecd_spec())
@@ -372,9 +390,9 @@ cli_spec(aggregator = equal_weight(ragged_edge = "level"),
 
 The length of the extension differs between programs. cyclind appends one
 year of AR forecasts of the changes (12 months or 4 quarters,
-`ar_extension(h = )` changes it); the OECD appends TRAMO forecasts of 0
-to 2 months (`oecd_spec()` uses 2); the OECD Python package CIF appends six
-months of ARIMA forecasts. A longer extension moves more of the end-point
+`ar_extension(h = )` changes it); the OECD appends 2 to 6 months of TRAMO
+forecasts (GAA17 p. 284; `oecd_spec()` uses 2); the OECD Python package
+CIF appends six months of ARIMA forecasts. A longer extension moves more of the end-point
 revision of the two-sided filter into the forecast error, so the end of
 the cycle leans more on the model. `ar_extension(h = 6)` is the CIF
 choice. Switching the outliers of `oecd_spec()` off
@@ -421,18 +439,24 @@ idn[, c("composite", "corr_lag0", "aa_gap", "matched", "ref_tp",
 With the OECD signs (the exchange rate, the interest rate and producer
 prices inverted), `oecd_spec()` reproduces the published CLI (A1): the
 correlation with the normalised CLI is 0.9998 (the table rounds it to
-1.000), all 27 turning points fall
-on the same month, and the amplitude-adjusted index (`aa_gap`, scaled to
-the OECD ratio-to-trend reference) is on average 0.04 points from the
-published one. Arithmetic growth rates (A0) give the same turning points
-but a correlation of 0.998 and an index 0.34 points away; a plain average
-is further off (A4). From the data alone cyclind inverts the exchange rate
-and the interest rate, as the OECD does, but not producer prices, whose
-cycle barely moves with GDP (A2); given as `meta$sign`, the OECD sign
-gives back A1 (A3). The sign of a weak component should therefore come
-from its economic rationale. This first experiment starts from the
-component cycles the OECD publishes, and the aggregation formula and the
-amplitude measure were chosen on these same data: it checks the
+1.000), all 14 turning points that `oecd_dater()` finds in it fall on the
+same month (all 27 with the 5/15-month rule), and the amplitude-adjusted
+index (`aa_gap`, scaled to the OECD ratio-to-trend reference) is on
+average 0.04 points from the published one. Arithmetic growth rates (A0),
+the formula written in GAA17 (p. 286, note 8), give the same turning
+points but a correlation of 0.998 and an index 0.34 points away; a plain
+average is further off (A4). From the data alone, with the 9/24-month
+dating, cyclind inverts the exchange rate and producer prices but not the
+interest rate (A2); with the 5/15-month rule it inverted the exchange
+rate and the interest rate but not producer prices. The cycle of
+producer prices barely moves with GDP (correlation below 0.1), and the
+window in which the sign is read grows with the length of the reference
+cycle, so that with the longer cycles of the 9/24-month rule it takes in
+the opposite phase of the interest rate; given as `meta$sign`, the OECD
+signs give back A1 (A3). The sign of a weak component should
+therefore come from its economic rationale. This first experiment starts
+from the component cycles the OECD publishes, and the aggregation formula
+and the amplitude measure were chosen on these same data: it checks the
 aggregation and presentation steps in sample, not the whole method. The
 second experiment, below, runs the whole method from original series.
 
@@ -450,8 +474,8 @@ growth with counter-cyclical components entering as reciprocals
 published amplitude-adjusted CLI is the normalised CLI times 1.71, the
 ratio of standard deviations (1.70; the mean absolute deviations give
 1.43). `oecd_spec()` therefore uses both, with `amplitude = "sd"`, and two
-months of TRAMO forecasts, the horizon the OECD adopted (Nilsson and
-Gyomai 2011). One difference remains: the OECD published the last month
+months of TRAMO forecasts, within the 2 to 6 months of GAA17 (p. 284).
+One difference remains: the OECD published the last month
 with 2 of the 6 live components, below its own 60 percent rule, while
 cyclind leaves that month missing.
 
@@ -465,22 +489,22 @@ cmp_idn[, c("component", "A_class_oecd_rule", "A_class_oecd_median_rule",
 
 From quarterly GDP (Denton-Cholette to months) and the original series,
 `oecd_spec()` gives cycles that correlate 0.92 to 0.99 with the OECD
-cycles; the GDP cycle matches all 19 reference turning points. The
+cycles; the GDP cycle matches all 10 reference turning points. The
 composite of the four (B1) correlates 0.89 with the published CLI and
-finds 21 of its 24 turning points; it leads GDP by four months at the
-cross-correlation peak, as do the OECD cycles of the same four (A5).
-(Before 0.1.0.9000, when `oecd_spec()` also removed transitory changes,
-the figures were 0.88 and 18.)
-Classification differs most. By the median lead alone, five of the seven
-OECD components are leading and two coincident; with the conformity
-criteria of the OECD rule only the interest rate passes, mainly because
-the dating finds more cycles in the components than in GDP (some also
-fail the concordance test). The published CLI
-itself has 11 extra turning points against 16 of the reference, a share
-above the `max_extra` of 0.4 that the conformity criteria use. `cli_build()`
-then keeps the interest rate alone (B2). The OECD chose the components
-with economic rationale and on an earlier sample, so the stricter rule is
-a warning about the Indonesian components, not a contradiction.
+finds 10 of its 12 turning points in the common span; it leads GDP by
+four months at the cross-correlation peak, as do the OECD cycles of the
+same four (A5). (With transitory changes also removed, the default of
+`tramo_outliers()` before 0.1.0.9000, the figures were 0.88 and 9 of 12.)
+Classification differs most. By the median lead alone,
+six of the seven OECD components are leading and one coincident; with the
+conformity criteria of the OECD rule none passes, mainly because the
+dating finds more cycles in the components than in GDP and several fail
+the concordance test. The published CLI itself has 6 extra turning points
+against 8 of the reference, a share above the `max_extra` of 0.4 that the
+conformity criteria use. `cli_build()` then finds no leading component
+(B2). The OECD chose the components with economic rationale and on an
+earlier sample, so the stricter rule is a warning about the Indonesian
+components, not a contradiction.
 
 ## 9. A coincident index
 
@@ -571,6 +595,10 @@ Estrella, A. and Mishkin, F. S. (1998). Predicting U.S. recessions:
 financial variables as leading indicators. *Review of Economics and
 Statistics*, 80(1), 45–61.
 
+Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+leading indicators. In *Handbook on Cyclical Composite Indicators*,
+chapter 10, 271–291. Eurostat, Luxembourg.
+
 Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
 Indicators*. OECD Publishing, Paris.
 
@@ -582,10 +610,8 @@ Marcellino, M. (2006). Leading indicators. In G. Elliott, C. W. J. Granger and
 A. Timmermann (eds.), *Handbook of Economic Forecasting*, Vol. 1, 879–960.
 Elsevier.
 
-Nilsson, R. and Gyomai, G. (2011). Cycle extraction: a comparison of the
-phase-average trend method, the Hodrick-Prescott and Christiano-Fitzgerald
-filters. *OECD Statistics Working Papers* 2011/04.
-https://doi.org/10.1787/5kg9srt7f8g0-en
+OECD (2024). *Composite Leading Indicators: Frequently Asked Questions*.
+OECD, Paris.
 
 Pesaran, M. H. and Timmermann, A. (2009). Testing dependence among serially
 correlated multicategory variables. *Journal of the American Statistical

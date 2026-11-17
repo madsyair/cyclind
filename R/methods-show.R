@@ -40,6 +40,7 @@ setMethod("show", "Dater", function(object) {
     v <- slot(object, s)
     cat("  ", s, ": ", if (is.na(v)) "default" else v, "\n", sep = "")
   }
+  cat("  phase_rule: ", dater_phase_rule(object), "\n", sep = "")
   invisible(object)
 })
 

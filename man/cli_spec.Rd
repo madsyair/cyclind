@@ -94,7 +94,9 @@ its lower end is the default horizon of the prediction tests.}
 
 \item{lead_window}{Turning points are paired when the candidate turns at
 most \code{lead_window[1]} periods after and \code{lead_window[2]} periods before
-the reference (default \code{c(12, 24)} months or \code{c(4, 8)} quarters).}
+the reference (default \code{c(12, 24)} months or \code{c(4, 8)} quarters; the
+OECD uses 9 months after and 24 before, Gyomai, Ahmad and Astolfi 2017,
+p. 285, which \code{\link[=oecd_spec]{oecd_spec()}} takes).}
 
 \item{ccf_lag_max}{Largest lead or lag of the cross-correlation search
 (default 24 months or 8 quarters).}
@@ -130,14 +132,17 @@ moving Idulfitri effect, which fixed monthly factors cannot.}
 OECD treatment.}
 
 \item{lag_shift}{Shift each component later by its median lead minus the
-shortest median lead of the components before aggregation, as the OECD
-does (default \code{FALSE}). Values moved past the last date of the data are
-dropped.}
+shortest median lead of the components before aggregation (default
+\code{FALSE}). The OECD system supports such shifts (Gyomai and Guidetti
+2012, p. 9), but "in practice all the indicators currently produced are
+without delayed components" (Gyomai, Ahmad and Astolfi 2017, p. 287).
+Values moved past the last date of the data are dropped.}
 
 \item{extension}{An \linkS4class{Extension}; default \code{\link[=ar_extension]{ar_extension()}}: each
 series is extended by one year of AR forecasts before the cycle filter
-(\code{ar_extension(h = 6)} for the six months of ARIMA forecasts of CIF;
-the OECD uses TRAMO forecasts of 0 to 2 months, see
+(a choice of cyclind; \code{ar_extension(h = 6)} for the six months of
+ARIMA forecasts of CIF; the OECD extends with 2 to 6 months of TRAMO
+forecasts, Gyomai, Ahmad and Astolfi 2017, p. 284, see
 \linkS4class{Extension}). Use \code{\link[=no_extension]{no_extension()}} for no extension. The
 extension is separate from the outlier treatment: switching outliers
 off with \code{\link[=update]{update()}} keeps it.}
@@ -181,9 +186,17 @@ A \linkS4class{CliSpec} object.
 }
 \description{
 Collects every methodological choice in one validated object. Arguments
-left at \code{NULL} take frequency-specific defaults: the monthly defaults
-follow the OECD system of composite leading indicators (Gyomai and
-Guidetti 2012); the quarterly ones translate them to quarters. The
+left at \code{NULL} take frequency-specific defaults. The defaults of
+\code{cli_spec()} are the package's own choices, not the OECD method: the
+cycle filter (double Hodrick-Prescott, 12 to 120 months) and the
+normalisation are those of the OECD system of composite leading
+indicators (Gyomai and Guidetti 2012), but the outlier rule, the
+transformation, the end-of-series extension, the turning-point rule
+(Bry-Boschan with 5/15 months), the classification, the lead window, the
+aggregation and the amplitude differ; \code{\link[=oecd_spec]{oecd_spec()}} lists the
+differences step by step. The quarterly defaults translate the monthly
+ones to quarters, an extension of cyclind (the OECD works only with
+monthly series). The
 classification thresholds were calibrated with the Monte Carlo harness in
 \verb{data-raw/} (see \code{vignette("cyclind")}): on simulated monthly data they
 classify about 87 percent of candidates correctly with at most 1.3
@@ -191,7 +204,7 @@ percent of non-leading (coincident, lagging or noise) series wrongly
 labelled leading (100 samples per
 cell, \code{inst/calibration/accuracy.csv}). The thresholds were tuned and
 evaluated on the same simulation design, so these rates are optimistic.
-With \code{\link[=oecd_classifier]{oecd_classifier()}} the share is 2.5 to 7.5 percent
+With \code{\link[=oecd_classifier]{oecd_classifier()}} the share is 2.5 to 7.8 percent
 (\code{inst/calibration/oecd-classification.csv}), and with the experimental
 growth rate form up to 1.3 percent (\code{inst/calibration/forms.csv}).
 }
@@ -206,6 +219,10 @@ spec
 update(spec, min_lead = 6, aggregator = dynamic_factor())
 }
 \references{
+Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+leading indicators. In \emph{Handbook on Cyclical Composite Indicators},
+chapter 10, 271--291. Eurostat, Luxembourg.
+
 Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
 Indicators}. OECD Publishing, Paris.
 }

@@ -241,7 +241,8 @@ apply_transform <- function(x, transform, name, engine = "auto",
     cyclind_abort(sprintf("Series '%s' has non-positive values; cannot log.",
                           name), "cyclind_error_transform")
   }
-  if (transform == "log" || (transform == "auto" && positive)) {
+  auto_log <- transform == "auto" && positive && !identical(unit, "percent")
+  if (transform == "log" || auto_log) {
     out <- log(x)
     attr(out, "step") <- "log"
   } else {

@@ -86,7 +86,9 @@ keeps the quarterly constraint: \code{"denton-cholette"} (the smoothest
 monthly path, Denton 1971 with the Cholette modification, computed
 here), \code{"chow-lin"} (regression on a monthly \code{indicator}, Chow and Lin
 1971, via the 'tempdisagg' package; the indicator must not also be a
-candidate) or \code{"linear"}.
+candidate) or \code{"linear"}. The OECD builds a monthly GDP reference
+with its own method, which cyclind does not reproduce; any of these
+gives a similar reference cycle (\code{vignette("oecd-indonesia")}).
 \item \strong{Quarterly to monthly, candidates}: linear interpolation with the
 quarterly value placed in the central month (flows, averages) or the
 last month (stocks), as the OECD does; \code{position} overrides it, e.g. for

@@ -12,8 +12,12 @@
 #'   the amplitude-adjusted CLI divided by 100, comparable with the level of
 #'   the reference series ("business cycle"). The trend is the Hodrick-Prescott
 #'   trend with the cut-off of the specification's double HP filter (120
-#'   months by default), taken from the transformed reference series and
-#'   extended linearly beyond the last reference observation;
+#'   months by default), taken from the transformed reference series. As
+#'   at the OECD, which does not compute the trend-restored CLI before GDP
+#'   for the period is available (OECD 2024, question 6), the trend-restored
+#'   CLI and its rate of change are `NA` outside the span of the reference
+#'   series; `extend_trend = TRUE` extends the trend linearly instead and
+#'   flags those rows in `trend_extrapolated`;
 #' * **12-month rate of change** of the trend-restored CLI (4 quarters for
 #'   quarterly data), comparable with the year-on-year growth of the
 #'   reference ("growth rate cycle").
@@ -46,15 +50,27 @@
 #' @param composite Optional [CompositeIndex-class] presented instead of the
 #'   composite of `x`, for instance one chosen by hand with
 #'   [cli_composite()] from `cycles(x)`.
+#' @param extend_trend Extend the trend of the reference linearly beyond
+#'   its first and last observation, so that the trend-restored CLI covers
+#'   the whole composite? `FALSE` (default) leaves those dates `NA`, as the
+#'   OECD does; the linear extension is an extrapolation by cyclind.
 #' @return A data frame with `time` and the columns `amplitude_adjusted`,
 #'   `trend_restored`, `rate_of_change`, `reference` (seasonally adjusted
 #'   and cleaned of outliers),
 #'   `reference_amplitude_adjusted` (the reference without trend, in the
-#'   units of `amplitude_adjusted`), `reference_trend` and
-#'   `reference_rate_of_change`.
+#'   units of `amplitude_adjusted`), `reference_trend`,
+#'   `reference_rate_of_change`, `reference_smoothed` (the cycle of the
+#'   reference, de-trended and smoothed but not normalised, in the units of
+#'   `amplitude_adjusted`: the series with which the OECD compares the
+#'   amplitude-adjusted CLI, Gyomai, Ahmad and Astolfi 2017, p. 288) and
+#'   `trend_extrapolated` (`TRUE` where the trend is a linear extrapolation,
+#'   only with `extend_trend = TRUE`).
 #' @references
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
 #' Indicators*. OECD Publishing, Paris.
+#'
+#' OECD (2024). *Composite Leading Indicators: Frequently Asked Questions*.
+#' OECD, Paris.
 #' @examples
 #' sim <- simulate_cycles(seed = 1)
 #' meta <- data.frame(name = colnames(sim)[-1], rationale = "early_stage")
@@ -62,7 +78,12 @@
 #' pr <- cli_presentation(res)
 #' tail(pr)
 #' @export
-cli_presentation <- function(x, composite = NULL) {
+cli_presentation <- function(x, composite = NULL, extend_trend = FALSE) {
+  if (!is.logical(extend_trend) || length(extend_trend) != 1L ||
+      is.na(extend_trend)) {
+    cyclind_abort("`extend_trend` must be TRUE or FALSE.",
+                  "cyclind_error_argument")
+  }
   if (!is(x, "CliResult")) {
     cyclind_abort("`x` must be a CliResult (see cli_build()).",
                   "cyclind_error_argument")
@@ -81,7 +102,9 @@ cli_presentation <- function(x, composite = NULL) {
   amp_adj <- 100 + as.numeric(comp@cycle) * comp@amplitude
   if (form_units(ref) != "level") return(rate_presentation(comp, ref, amp_adj))
   logged <- is_logged(ref)
-  trend <- reference_trend(ref, x@spec)
+  trend <- reference_trend(ref, x@spec, extend = extend_trend)
+  extrapolated <- attr(trend, "extrapolated")
+  attr(trend, "extrapolated") <- NULL
   trend_level <- if (logged) exp(trend) else trend
   # the reference as seasonally adjusted and cleaned of outliers, so that
   # neither seasonality nor spikes enter the comparison
@@ -90,12 +113,14 @@ cli_presentation <- function(x, composite = NULL) {
     # percent deviation from trend, as the amplitude of a logged reference
     tr <- trend_level * amp_adj / 100
     ref_amp <- 100 * orig / trend_level
+    ref_smooth <- 100 * exp(as.numeric(ref@cycle))
   } else {
     # deviation from trend in percent of the mean level, as the amplitude
     # of a reference that is not logged (it may cross zero)
     scale <- mean(abs(as.numeric(ref@transformed)), na.rm = TRUE)
     tr <- trend_level + (amp_adj - 100) / 100 * scale
     ref_amp <- 100 + 100 * (orig - trend_level) / scale
+    ref_smooth <- 100 + 100 * as.numeric(ref@cycle) / scale
   }
   data.frame(
     time = as.numeric(stats::time(comp@cycle)),
@@ -105,7 +130,9 @@ cli_presentation <- function(x, composite = NULL) {
     reference = orig,
     reference_amplitude_adjusted = ref_amp,
     reference_trend = trend_level,
-    reference_rate_of_change = rate_of_change(orig, f)
+    reference_rate_of_change = rate_of_change(orig, f),
+    reference_smoothed = ref_smooth,
+    trend_extrapolated = extrapolated
   )
 }
 
@@ -125,7 +152,9 @@ rate_presentation <- function(comp, ref, amp_adj) {
     reference = orig,
     reference_amplitude_adjusted = 100 + orig - centre,
     reference_trend = centre,
-    reference_rate_of_change = na
+    reference_rate_of_change = na,
+    reference_smoothed = 100 + as.numeric(ref@cycle) - centre,
+    trend_extrapolated = rep(FALSE, length(orig))
   )
   attr(out, "units") <- form_units(ref)
   out
@@ -147,8 +176,9 @@ rate_of_change <- function(v, lag) {
   if (all(v > 0, na.rm = TRUE)) 100 * (v / prev - 1) else v - prev
 }
 
-# Long-term HP trend of the transformed reference, extended linearly.
-reference_trend <- function(ref, spec) {
+# Long-term HP trend of the transformed reference, extended linearly beyond
+# its span when `extend` is TRUE (attribute `extrapolated` marks those rows).
+reference_trend <- function(ref, spec, extend = FALSE) {
   f <- spec@freq
   tp <- if (methods::.hasSlot(spec@filter, "trend_period") &&
               !is.na(spec@filter@trend_period)) {
@@ -163,6 +193,13 @@ reference_trend <- function(ref, spec) {
   tr <- hp_trend_core(core, hp_lambda(tp))
   out[span[1]:span[2]] <- tr
   m <- length(tr)
+  extrapolated <- rep(FALSE, length(v))
+  if (!extend) {
+    attr(out, "extrapolated") <- extrapolated
+    return(out)
+  }
+  extrapolated[-(span[1]:span[2])] <- TRUE
+  attr(out, "extrapolated") <- extrapolated
   if (span[2] < length(v)) {
     slope <- tr[m] - tr[m - 1L]
     out[(span[2] + 1L):length(v)] <- tr[m] + slope *

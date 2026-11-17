@@ -44,8 +44,10 @@ readLines(file.path(dir, "SOURCE.txt"))[1]
 
 GDP is quarterly and the candidates are monthly. `cli_align()` brings GDP
 to months with the Denton-Cholette method, which keeps the quarterly
-totals, as the OECD does with its monthly GDP reference. The interest
-rate is a monthly average.
+totals. The OECD derives its monthly GDP reference with a method of its
+own, which cyclind does not reproduce; linear interpolation at the central
+month gives almost the same reference cycle. The interest rate is a
+monthly average.
 
 ```{r align}
 x <- cli_align(series, type = c(gdp = "flow", call_money_rate = "average"),
@@ -73,13 +75,19 @@ cand
 
 ## Step 3. The OECD specification
 
-`oecd_spec()` sets every step as in the OECD system: TRAMO-type outliers
+`oecd_spec()` follows the OECD documents where they state a rule (Gyomai
+and Guidetti 2012; Gyomai, Ahmad and Astolfi 2017): TRAMO-type outliers
 with two months of forecasts, the log/level test, the double
-Hodrick-Prescott filter (12 to 120 months), Bry-Boschan turning points,
-the median-lead classification with cyclical conformity, lag-shifting,
-chained average log growth and an amplitude matched by standard
-deviations. With these settings cyclind reproduces the published CLI of
-Indonesia from its seven components (see section 8 of `vignette("cyclind")`).
+Hodrick-Prescott filter (12 to 120 months), Bry-Boschan turning points
+with phases of at least 9 and cycles of at least 24 months, a matching
+window of 24 months lead and 9 months lag, the median-lead classification
+with cyclical conformity and no lag-shifting. Where the documents give no
+formula, it takes the choices that come closest to the published CLI of
+Indonesia: chained average log growth with counter-cyclical components
+entering as reciprocals, and an amplitude matched by standard deviations.
+With these settings cyclind reproduces the published CLI of Indonesia
+from its seven components (section 8 of `vignette("cyclind")`;
+`?oecd_spec` gives the source of each step).
 
 ```{r spec}
 spec <- oecd_spec()
@@ -118,14 +126,18 @@ as.data.frame(a)[, c("name", "class", "median_lead", "n_matched",
                      "extra", "reasons")]
 ```
 
-Only the interest rate passes the OECD rule with cyclical conformity: the
-other three lead too, but they have too many extra turning points.
+No candidate passes the OECD rule with cyclical conformity. All four lead
+GDP by their median lead, but the interest rate, share prices and
+consumer confidence have too many extra turning points, and the
+exchange rate, share prices and consumer confidence fail the concordance
+test.
 
 ## Step 7. Composite
 
-`cli_build()` keeps the leading candidates, shifts them so that their
-median leads align and chains their average growth. Because only one
-candidate leads, the composite of the four components is built with
+`cli_build()` keeps the leading candidates and chains their average
+growth; like the OECD in practice, `oecd_spec()` does not shift them by
+their leads. Because no candidate leads, `cli_build()` builds no
+composite and says so; the composite of the four components is built with
 `cli_composite()` from the inverted cycles that `cli_build()` returns.
 
 ```{r build}
@@ -245,14 +257,15 @@ as.data.frame(a_g)[, c("name", "class", "median_lead", "n_matched",
                        "extra", "reasons")]
 ```
 
-No candidate passes. The interest rate still leads, by half a year, but
-its turning points no longer agree with those of GDP growth often enough
-for the concordance test.
+Only share prices pass, with a median lead of 2.5 months. The interest
+rate leads by seven months and the exchange rate by three, but their
+turning points do not agree with those of GDP growth often enough for the
+concordance test.
 
 ## Step 7. Composite
 
-`cli_build()` finds no leader and says so; the composite of the four
-growth rates is again built with `cli_composite()`.
+`cli_build()` keeps share prices alone; to compare with the OECD, the
+composite of the four growth rates is again built with `cli_composite()`.
 
 ```{r build-growth}
 res_g <- cli_build(cand_g, spec_g)
@@ -319,21 +332,18 @@ are in the folder printed by
    exchange rate countercyclical) and the variable type of the interest
    rate *Average*. For Part B also set the unit of the interest rate to
    *Ratio/percent*.
-3. **Specification.** Method *Exactly as the OECD*. The interface uses
+3. **Specification.** Method *OECD method, with notes*. The interface uses
    `oecd_spec()`; *Engine of the TRAMO outliers* is automatic by default
    (TRAMO through RJDemetra, otherwise X-13), as in this vignette. For Part B set *Cycle form* to
    *Growth rate (growth rate cycle)* and *Growth rate period* to
    *Annual (y-on-y)*; the interface then writes
    `oecd_spec(freq = 12, ..., form = growth_form())`.
 4. Steps 4 to 8 of the interface run the cycles, turning points,
-   classification, composite and validation. Automatic mode keeps the
-   interest rate in Part A and finds no leader in Part B; choose the four
-   components by hand for the composites above. With the OECD method the
-   interface aligns the components by their median leads (OECD
-   lag-shifting) also in manual mode, so its composite equals
-   `cli_composite(cy, meta$name, spec, cy$gdp, shifts =
-   lag_shifts(meta$name, assessment(res)))` and differs slightly from the
-   unshifted composite of this vignette.
+   classification, composite and validation. Automatic mode finds no
+   leader in Part A and keeps share prices in Part B; choose the four
+   components by hand for the composites above. The OECD method does not
+   shift the components by their leads, so the composite of the interface
+   equals `cli_composite(cy, meta$name, spec, cy$gdp)` of this vignette.
 5. Step 9 builds a composite coincident index, which this vignette does
    not need. Step 10 downloads the results, the OECD forms of
    presentation of step 9 above and an R script that reproduces them with

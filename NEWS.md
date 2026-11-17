@@ -1,6 +1,6 @@
 # cyclind 0.1.0.9000
 
-## Breaking changes
+## Acceleration form removed (breaking)
 
 * The acceleration form is removed: `acceleration_form()`, the class
   `AccelerationForm` and its choice in the graphical interface no longer
@@ -37,6 +37,93 @@
   Composite Indicators: Leading, Coincident and Lagging" ("Indikator
   Komposit Siklus: Pendahulu, Sejalan, dan Tertinggal").
 
+## Audit of the growth-cycle computations against the OECD method
+
+Changes after an audit of the growth-cycle computations against the OECD
+documents (Gyomai and Guidetti 2012, "GG12"; Gyomai, Ahmad and Astolfi
+2017, chapter 10 of the Eurostat *Handbook on Cyclical Composite
+Indicators*, "GAA17"; OECD CLI FAQ 2024).
+
+### Breaking changes
+
+* `oecd_spec()` dates turning points with the new `oecd_dater()`:
+  Bry-Boschan with phases of at least 9 and cycles of at least 24 months
+  (GAA17 p. 285), instead of 5 and 15 months (the rule of the original
+  routine, used by the OECD before 2008, GG12 annex B). The quarterly
+  values, 3 and 8 quarters, are a translation by cyclind. On the OECD
+  reference series of Indonesia the number of turning points falls from
+  19 to 10, on the published CLI from 27 to 14.
+* `oecd_spec()` no longer shifts components by their median lead
+  (`lag_shift = FALSE`), as in OECD practice (GAA17 p. 287), and pairs
+  turning points within 24 months lead and 9 months lag
+  (`lead_window = c(9, 24)`, GAA17 p. 285) instead of 12 months lag.
+* Daters have a `phase_rule`. The new default, `"symmetric"`, removes a
+  phase shorter than `min_phase` so that the most extreme turning points
+  are kept, and dating the reversed series gives the same turning points;
+  the rule of cyclind 0.1.0 dropped the later turning point and could lose
+  the deepest trough of a crisis. `phase_rule = "bbq"` keeps the old rule,
+  which reproduces the 'BCDating' golden file on 46 of 50 series (45 with
+  the symmetric rule). This changes the dates of `bry_boschan()` and
+  `bbq()` in every specification, including `cli_spec()`; see
+  `harness/adr/ADR-004.md`.
+* `oecd_aggregate()` applies the 60 percent rule, as in GAA17 (p. 286,
+  note 8), to the components available at both t and t - 1; before, it
+  counted those available at t.
+* `cli_presentation()` leaves the trend-restored CLI and its rate of
+  change missing after the last observation of the reference, as the OECD
+  does (FAQ, question 6); `extend_trend = TRUE` extends the trend linearly
+  and flags those rows in the new column `trend_extrapolated`.
+* `cli_spec(transform = "auto")` no longer takes logarithms of a series
+  declared `unit = "percent"` (an interest rate is not multiplicative).
+
+### New features
+
+* `oecd_spec()` takes `dater`, `aggregator`, `lag_shift`, `lead_window`,
+  `min_median_lead`, `outliers` and `extension`; before,
+  `oecd_spec(dater = ...)` failed. `oecd_spec(dater = bry_boschan())`
+  gives the 5/15-month rule.
+* `cli_presentation()` returns `reference_smoothed`, the reference cycle
+  de-trended and smoothed but not normalised, the series with which the
+  OECD compares the amplitude-adjusted CLI (GAA17 p. 288).
+
+### Documentation
+
+* Claims that `oecd_spec()` sets "every step as in the OECD system" and
+  that `cli_spec()` defaults "follow the OECD" are replaced by a table of
+  each step with its source (`?oecd_spec`, `vignette("cyclind")`,
+  section 8). The interface calls the method "OECD method, with notes"
+  ("Metode OECD, dengan catatan") instead of "Exactly as the OECD".
+* The aggregation formula written by the OECD (GAA17 p. 286, note 8) is
+  `oecd_aggregate(growth = "ratio")`. The default of `oecd_spec()`,
+  chained log growth with counter-cyclical components entering as
+  reciprocals, and the amplitude measured by standard deviations are
+  documented as choices of cyclind that come closest to the published CLI
+  of Indonesia, not as OECD rules.
+* The horizon of the TRAMO forecasts is cited from GAA17 (2 to 6 months,
+  p. 284) instead of an OECD working paper that could not be checked; the
+  monthly GDP reference of the OECD is no longer said to be computed like
+  `cli_align()` does; the quarterly filters and daters are marked as
+  extensions of cyclind; the 12-month AR extension of `cli_spec()` is
+  documented as a choice of cyclind.
+* `inst/calibration/` is regenerated with the new phase rule
+  (`calibrate_collect.R`, `compare_oecd.R`, `oecd_idn_validate.R`).
+
+### Not changed (noted for later)
+
+* The OECD inversion of counter-cyclical components and its amplitude
+  measure are not documented; the reciprocal inversion and the standard
+  deviation were inferred from the published CLI of Indonesia.
+* The chain of `oecd_aggregate()` starts (and restarts after a gap) at the
+  mean level of the components, not at 100.
+* The window of local extrema (5 months) and the censoring of the ends
+  (6 months) of the daters are not given by the OECD.
+* `reference_amplitude_adjusted` (ratio to trend, not smoothed) is still
+  the reference shown in the plots of the interface.
+* `cli_spec()` keeps its own defaults (robust outliers, 12 months of AR
+  forecasts, `equal_weight()`, amplitude by mean absolute deviation,
+  `c(12, 24)` matching window), which differ from the OECD as listed in
+  `?oecd_spec`.
+
 ## Fixes from the comparison with the OECD package CIF
 
 * Outliers are transparent. Every outlier treatment reports the dates and
@@ -51,7 +138,14 @@
   `oecd_spec()` gains `outlier_types = "AO"`, following the 2017 OECD
   documentation (Gyomai, Ahmad and Astolfi 2017, p. 283; ADR-010).
   Transitory changes and level shifts are detected and reported but kept.
-  `outlier_types = c("AO", "TC")` restores the earlier default.
+  `outlier_types = c("AO", "TC")` restores the earlier default. With the
+  9/24-month dating of `oecd_spec()`, the composite of the four public
+  series of Indonesia (row B1 of `inst/calibration/oecd-idn-composite.csv`)
+  now correlates 0.886 with the published CLI and finds 10 of its 12
+  turning points, against 0.880 and 9 of 12 with transitory changes
+  removed; the cycles of consumer confidence and the exchange rate come
+  closer to the OECD cycles (0.901 to 0.921 and 0.971 to 0.974).
+  `compare_oecd.R` and `oecd_idn_validate.R` were run again.
 * Switching the outliers of a specification off
   (`update(oecd_spec(), outlier_threshold = Inf)`) no longer switches the
   end extension off: the new `regarima_extension()` keeps the forecasts
@@ -62,9 +156,9 @@
   levels with a warning. System errors (a full disk, a missing binary, a
   file that cannot be written) stop with `cyclind_error_system`, and a
   failed seasonal adjustment stops with `cyclind_error_x13`.
-* `transform = "auto"` (and `"test"`) no longer logs series declared with
-  `unit = "percent"`, such as interest rates; `"log"` still logs every
-  series.
+* `transform = "test"`, like `"auto"` (see above), no longer logs series
+  declared with `unit = "percent"`, such as interest rates; `"log"` still
+  logs every series.
 * New `cycle_agreement()`: Pearson and Spearman correlations and the RMSE
   against the reference outside excluded crisis periods, with paired
   moving-block bootstrap intervals from an explicit `seed` (the package
@@ -82,8 +176,8 @@
   binary and RJDemetra, and MD5 checksums of the input. The script
   exported by the interface prints it.
 * The length of the end extension is documented (`?Extension`, vignette):
-  one year of AR forecasts in cyclind, 0 to 2 months of TRAMO forecasts at
-  the OECD and six months of ARIMA forecasts in CIF.
+  one year of AR forecasts in cyclind, 2 to 6 months of TRAMO forecasts at
+  the OECD (GAA17 p. 284) and six months of ARIMA forecasts in CIF.
 * Tests pin the inclusive bounds of the dater: phases of exactly
   `min_phase` and cycles of exactly `min_cycle` are kept.
 * New warnings are shown in the interface with an Indonesian or English
