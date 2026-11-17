@@ -71,6 +71,13 @@ The lead of the cross-correlation peak is the primary lead measure because
 the Monte Carlo calibration of the package showed that median leads at
 turning points shrink towards zero as idiosyncratic noise grows, while the
 cross-correlation lead stays unbiased (see \code{vignette("cyclind")}).
+
+A reference cycle without turning points, for example a short sample or
+a growth rate cycle that the dater leaves flat, stops with an error of
+class \code{cyclind_error_reference_turning_points}. A reference with fewer
+turning points than the classifier needs is assessed; every candidate is
+then rejected, with \code{matched} among the reasons. A candidate whose span
+contains none of the reference turning points is rejected the same way.
 }
 \examples{
 sim <- simulate_cycles(seed = 1)
