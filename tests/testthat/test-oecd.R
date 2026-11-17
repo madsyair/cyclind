@@ -131,6 +131,23 @@ test_that("FR-014.2: oecd_aggregate(growth = 'log') chains average log growth", 
   expect_equal(out2[5] / out2[4], 104 / 103, tolerance = 1e-12)
 })
 
+test_that("P7: the 60 percent rule counts components at t and t - 1", {
+  # Gyomai, Ahmad and Astolfi (2017, p. 286, note 8): CLI_t is computed when
+  # sum_i w_i delta_{i,t,t-1} >= 60 percent, delta = 1 when component i is
+  # available at t and at t - 1. At t = 3 three of five components are
+  # available (60 percent) but only one of them also at t = 2 (20 percent).
+  z <- cbind(a = c(0, 1, 2, 3), b = c(0, 1, NA, 3), c = c(0, 1, NA, 3),
+             d = c(0, NA, 2, 3), e = c(0, NA, 2, 3))
+  for (g in c("ratio", "log")) {
+    ag <- oecd_aggregate(growth = g)
+    out <- aggregate_components(ag, z, NULL, update(spec, aggregator = ag))
+    expect_false(is.na(out$cycle[2]))
+    expect_true(is.na(out$cycle[3]))
+    # the chain restarts at the mean level of the components after the gap
+    expect_equal(out$cycle[4], 103)
+  }
+})
+
 test_that("FR-014.2: growth argument and objects saved before it", {
   expect_error(oecd_aggregate(growth = "geometric"),
                class = "cyclind_error_argument")
@@ -306,13 +323,47 @@ test_that("oecd_spec bundles the OECD choices", {
   expect_s4_class(s@classifier, "OecdClassifier")
   expect_s4_class(s@aggregator, "OecdAggregate")
   expect_s4_class(s@outliers, "TramoOutliers")
-  expect_true(s@lag_shift)
+  # Gyomai, Ahmad and Astolfi (2017, p. 287): no component is shifted
+  expect_false(s@lag_shift)
   expect_equal(s@transform, "test")
   expect_s4_class(s@filter, "HPDoubleFilter")
   expect_equal(s@min_median_lead, 2)
   expect_equal(oecd_spec(4)@min_median_lead, 2 / 3)
   expect_equal(oecd_spec(12, max_iter = 3)@max_iter, 3)
   expect_output(show(s), "OECD")
+})
+
+test_that("P1: oecd_spec() dates with phases of 9 and cycles of 24 months", {
+  s <- oecd_spec(12)
+  expect_s4_class(s@dater, "OecdDater")
+  r <- cyclind:::resolve_dater(s@dater, 12)
+  expect_equal(c(r$min_phase, r$min_cycle), c(9, 24))
+  expect_identical(r$phase_rule, "symmetric")
+  rq <- cyclind:::resolve_dater(oecd_spec(4)@dater, 4)
+  expect_equal(c(rq$min_phase, rq$min_cycle), c(3, 8))
+  # the dater can be changed, e.g. to the original 5/15 rule (OECD before
+  # 2008), and no longer collides with the argument set inside oecd_spec()
+  old <- oecd_spec(dater = bry_boschan())
+  expect_s4_class(old@dater, "BryBoschan")
+  expect_equal(cyclind:::resolve_dater(old@dater, 12)$min_cycle, 15)
+  expect_error(oecd_spec(dater = "bb"), class = "cyclind_error_argument")
+})
+
+test_that("P5/P6: lag shifting is an option, the lag window is 9 months", {
+  expect_true(oecd_spec(lag_shift = TRUE)@lag_shift)
+  # 24 months lead and 9 months lag (Gyomai et al. 2017, p. 285)
+  expect_equal(oecd_spec()@lead_window, c(9, 24))
+  expect_equal(oecd_spec(4)@lead_window, c(3, 8))
+  expect_equal(oecd_spec(lead_window = c(12, 24))@lead_window, c(12, 24))
+  # the other choices fixed by oecd_spec() can be changed as well
+  expect_identical(
+    oecd_spec(aggregator = oecd_aggregate(growth = "ratio"))@aggregator@growth,
+    "ratio")
+  expect_equal(oecd_spec(min_median_lead = 1)@min_median_lead, 1)
+  expect_s4_class(oecd_spec(extension = ar_extension())@extension,
+                  "ArExtension")
+  expect_s4_class(oecd_spec(outliers = robust_outliers(4))@outliers,
+                  "RobustOutliers")
 })
 
 test_that("cli_build runs with the OECD classifier and aggregation", {
@@ -334,9 +385,18 @@ test_that("cli_presentation gives the three OECD forms", {
   expect_named(pr, c("time", "amplitude_adjusted", "trend_restored",
                      "rate_of_change", "reference",
                      "reference_amplitude_adjusted", "reference_trend",
-                     "reference_rate_of_change"))
+                     "reference_rate_of_change", "reference_smoothed",
+                     "trend_extrapolated"))
   expect_equal(pr$reference_amplitude_adjusted,
                100 * pr$reference / pr$reference_trend)
+  # P9: the reference de-trended and smoothed but not normalised, the
+  # comparison series of the amplitude-adjusted CLI (Gyomai et al. 2017,
+  # p. 288)
+  ref <- cycles(res)$reference
+  expect_true(cyclind:::is_logged(ref))
+  expect_equal(pr$reference_smoothed, 100 * exp(as.numeric(ref@cycle)))
+  expect_lt(stats::sd(diff(pr$reference_smoothed), na.rm = TRUE),
+            stats::sd(diff(pr$reference_amplitude_adjusted), na.rm = TRUE))
   comp <- res@composite
   expect_equal(pr$amplitude_adjusted,
                100 + as.numeric(comp@cycle) * comp@amplitude)
@@ -347,9 +407,29 @@ test_that("cli_presentation gives the three OECD forms", {
   i <- i[i > 12][1]
   expect_equal(pr$rate_of_change[i],
                100 * (pr$trend_restored[i] / pr$trend_restored[i - 12] - 1))
-  # the trend is extended to the end of the composite
+  # P8: as at the OECD (CLI FAQ 2024, no. 6), no trend-restored CLI after
+  # the last reference observation
+  sim <- simulate_cycles(seed = 1)
+  sim[(nrow(sim) - 5L):nrow(sim), "reference"] <- NA
+  meta <- data.frame(name = colnames(sim)[-1], rationale = "early_stage")
+  res <- cli_build(cli_candidates(sim, "reference", meta = meta))
+  pr <- cli_presentation(res)
   last_cli <- max(which(!is.na(pr$amplitude_adjusted)))
-  expect_false(is.na(pr$trend_restored[last_cli]))
+  last_ref <- max(which(!is.na(pr$reference)))
+  expect_gt(last_cli, last_ref)
+  expect_true(all(is.na(pr$trend_restored[(last_ref + 1L):last_cli])))
+  expect_true(all(is.na(pr$rate_of_change[(last_ref + 1L):last_cli])))
+  expect_false(is.na(pr$trend_restored[last_ref]))
+  expect_false(any(pr$trend_extrapolated))
+  # extend_trend = TRUE extends the trend linearly and flags those rows
+  ext <- cli_presentation(res, extend_trend = TRUE)
+  expect_false(is.na(ext$trend_restored[last_cli]))
+  expect_true(all(ext$trend_extrapolated[(last_ref + 1L):last_cli]))
+  expect_false(any(ext$trend_extrapolated[seq_len(last_ref)][
+    !is.na(pr$reference[seq_len(last_ref)])]))
+  expect_equal(ext$trend_restored[1:last_ref], pr$trend_restored[1:last_ref])
+  expect_error(cli_presentation(res, extend_trend = NA),
+               class = "cyclind_error_argument")
   expect_error(cli_presentation(1), class = "cyclind_error_argument")
 })
 
@@ -370,6 +450,8 @@ test_that("R3/R4: the forms of a reference that is not logged", {
                  (pr$amplitude_adjusted[ok] - 100) / 100 * scale)
   expect_equal(pr$reference_amplitude_adjusted,
                100 + 100 * (pr$reference - pr$reference_trend) / scale)
+  expect_equal(pr$reference_smoothed,
+               100 + 100 * as.numeric(ref@cycle) / scale)
   # the de-trended reference is on the scale of the composite (the old
   # ratio to a trend near zero ran into the thousands)
   ratio <- stats::sd(pr$reference_amplitude_adjusted, na.rm = TRUE) /
@@ -442,11 +524,18 @@ test_that("signs of the Indonesian components: data and meta$sign", {
   o <- oecd_idn()
   meta <- data.frame(name = o$comps, rationale = "early_stage")
   cand <- cli_candidates(o$x[, c("RS", o$comps)], "RS", meta = meta)
-  a <- cli_assess(cand, oecd_spec(), cycles = o$cycles)
-  # from the data, cyclind inverts the exchange rate and the interest rate as
-  # the OECD does; producer prices barely co-move with GDP (r < 0.1), so
-  # their sign cannot come from the data
+  a <- cli_assess(cand, oecd_spec(dater = bry_boschan()), cycles = o$cycles)
+  # dated with 5/15 months, cyclind inverts the exchange rate and the
+  # interest rate as the OECD does; producer prices barely co-move with GDP
+  # (r < 0.1), so their sign cannot come from the data
   expect_setequal(a@inverted, c("LOCOEX", "LOCOST"))
+  # dated with 9/24 months the reference cycle is longer (73 against 41
+  # months), the window in which the sign is read widens to 18 months and
+  # takes in the opposite phase of the interest rate: only the exchange rate
+  # is read as the OECD reads it, so declare the signs
+  a <- cli_assess(cand, oecd_spec(), cycles = o$cycles)
+  expect_true("LOCOEX" %in% a@inverted)
+  expect_false("LOCOST" %in% a@inverted)
   meta$sign <- ifelse(o$comps %in% c("LOCOEX", "LOCOST", "LOCOPP"), -1, 1)
   cand <- cli_candidates(o$x[, c("RS", o$comps)], "RS", meta = meta)
   a <- cli_assess(cand, oecd_spec(), cycles = o$cycles)

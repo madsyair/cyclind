@@ -82,8 +82,9 @@ test_that("AC-FR-015.3: series in percent are differenced in points", {
   expect_identical(cand@meta$unit, c("percent", NA))
   spec <- cli_spec(freq = 4, form = growth_form(), outlier_threshold = Inf)
   cy <- cli_cycles(cand, spec)
-  # logged by the "auto" transformation, but differenced in points
-  expect_true(any(grepl("^log", cy$rate@steps)))
+  # P11: the "auto" transformation keeps a series in percent in levels
+  expect_true(any(grepl("^levels", cy$rate@steps)))
+  expect_true(any(grepl("^log", cy$rate2@steps)))
   expect_equal(as.numeric(cy$rate@transformed)[-(1:4)],
                rate[5:n] - rate[1:(n - 4)], tolerance = 1e-10)
   expect_true(any(grepl("difference \\(percentage points\\)",
@@ -91,9 +92,14 @@ test_that("AC-FR-015.3: series in percent are differenced in points", {
   # without the unit: percent growth of the rate
   expect_equal(as.numeric(cy$rate2@transformed)[-(1:4)],
                100 * (rate[5:n] / rate[1:(n - 4)] - 1), tolerance = 1e-10)
-  # the level form ignores the unit
+  # the level form: "auto" takes no logarithm of a series in percent (an
+  # interest rate is not multiplicative, audit P11); "log" still does
   c0 <- cli_cycles(cand, cli_spec(freq = 4, outlier_threshold = Inf))
-  expect_equal(c0$rate@normalised, c0$rate2@normalised)
+  expect_true(any(grepl("^levels", c0$rate@steps)))
+  expect_false(isTRUE(all.equal(c0$rate@normalised, c0$rate2@normalised)))
+  c1 <- cli_cycles(cand, cli_spec(freq = 4, outlier_threshold = Inf,
+                                  transform = "log"))
+  expect_equal(c1$rate@normalised, c1$rate2@normalised)
   # a reference in percent, given in a row of meta
   x2 <- cbind(ref = rate, lv = lv)
   m2 <- data.frame(name = c("ref", "lv"), rationale = c(NA, "early_stage"),

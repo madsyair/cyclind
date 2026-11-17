@@ -28,11 +28,12 @@
 #'   names these criteria without thresholds; the four tests and their
 #'   thresholds (40 percent missed or extra, concordance at the 5 percent
 #'   level, positive peak) are the operationalisation of cyclind, stricter
-#'   than OECD practice: the published CLI of Indonesia has 11 extra
-#'   turning points against 16 of its reference (0.69), and of the four
-#'   original component series of that CLI that are public the rule accepts
-#'   only the interest rate (`inst/calibration/oecd-idn-composite.csv`,
-#'   rows "OECD published CLI" and B2). Without
+#'   than OECD practice: dated with [oecd_dater()], the published CLI of
+#'   Indonesia has 6 extra turning points against 8 of its reference
+#'   (0.75), and the rule accepts none of the four original component
+#'   series of that CLI that are public
+#'   (`inst/calibration/oecd-idn-composite.csv`, rows "OECD published CLI"
+#'   and B2). Without
 #'   them the median lead alone labels about half of all independent cycles
 #'   as leading; with them about one in ten (monthly) to one in five
 #'   (quarterly) in the simulations of `inst/calibration/lead-window.csv`,

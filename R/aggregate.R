@@ -69,18 +69,22 @@ setMethod("aggregate_components", "OecdAggregate",
   n <- nrow(lv)
   ratio <- lv[-1, , drop = FALSE] / lv[-n, , drop = FALSE]
   growth <- rbind(NA_real_, if (log_growth) log(ratio) else ratio - 1)
+  # Gyomai, Ahmad and Astolfi (2017, p. 286, note 8): a step of the chain
+  # needs at least `min_coverage` of the components available at t and at
+  # t - 1 (audit P7); a chain starts (or restarts after a gap) at the mean
+  # level of the components available at t
+  q <- max(1, ceiling(aggregator@min_coverage * ncol(z) - 1e-9))
+  pairs <- rowSums(is.finite(growth))
   covered <- coverage_mask(z, aggregator@min_coverage)
   g <- rowMeans(growth, na.rm = TRUE)
   g[!is.finite(g)] <- NA_real_
   step <- if (log_growth) exp(g) else 1 + g
   index <- rep(NA_real_, n)
   for (t in seq_len(n)) {
-    if (!covered[t]) next
-    chain <- t > 1L && !is.na(index[t - 1L]) && !is.na(g[t])
-    index[t] <- if (chain) {
-      index[t - 1L] * step[t]
-    } else {
-      mean(lv[t, ], na.rm = TRUE)
+    if (t > 1L && !is.na(index[t - 1L])) {
+      if (pairs[t] >= q && !is.na(g[t])) index[t] <- index[t - 1L] * step[t]
+    } else if (covered[t]) {
+      index[t] <- mean(lv[t, ], na.rm = TRUE)
     }
   }
   w <- rep(1 / ncol(z), ncol(z))

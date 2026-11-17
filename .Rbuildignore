@@ -16,3 +16,4 @@
 ^doc$
 ^Meta$
 ^tests/testthat/_problems$
+^\.git$

@@ -32,24 +32,29 @@ test_that("censoring rules hold on random walks", {
 
 test_that("BBQ replicates BCDating (golden file)", {
   golden <- readRDS(test_path("fixtures", "bcdating_bbq.rds"))
-  same <- 0L
-  for (g in golden) {
-    y <- ts(g$y, frequency = 4, start = 1980)
-    tp <- date_turning_points(bbq(), y)
-    ref <- sort(c(g$peaks, g$troughs))
-    if (identical(as.integer(ref), tp@index)) {
-      same <- same + 1L
-    } else {
-      # differences come from BCDating keeping the earlier of two close
-      # turning points; cyclind keeps the more extreme one
-      ours_p <- tp@index[tp@type == "peak"]
-      ref_p <- g$peaks
-      expect_gte(max(g$y[ours_p]), max(g$y[ref_p]) - 1e-8)
-      expect_lte(abs(length(tp@index) - length(ref)), 2)
+  # phase_rule = "bbq" is the rule of cyclind 0.1.0, kept for this
+  # replication; the symmetric default differs on one more series (ADR-004)
+  for (rule in c("bbq", "symmetric")) {
+    same <- 0L
+    for (g in golden) {
+      y <- ts(g$y, frequency = 4, start = 1980)
+      tp <- date_turning_points(bbq(phase_rule = rule), y)
+      ref <- sort(c(g$peaks, g$troughs))
+      if (identical(as.integer(ref), tp@index)) {
+        same <- same + 1L
+      } else {
+        # differences come from BCDating keeping the earlier of two close
+        # turning points; cyclind keeps the more extreme one
+        ours_p <- tp@index[tp@type == "peak"]
+        ref_p <- g$peaks
+        expect_gte(max(g$y[ours_p]), max(g$y[ref_p]) - 1e-8)
+        expect_lte(abs(length(tp@index) - length(ref)), 2)
+      }
     }
+    # 46 of the 50 series give identical dates with the 0.1.0 rule
+    # (development version 0.8.0), 45 with the symmetric rule
+    expect_gte(same, if (rule == "bbq") 46L else 45L)
   }
-  # 46 of the 50 series give identical dates (development version 0.8.0)
-  expect_gte(same, 46L)
 })
 
 test_that("Bry-Boschan matches Coinprofile on a smooth monthly series", {
@@ -105,4 +110,95 @@ test_that("turning points convert to a data frame", {
   df <- as.data.frame(tp)
   expect_named(df, c("time", "period", "type", "index", "value"))
   expect_equal(df$period[1], "2000-12")
+})
+
+# ---- phase rule (audit P2) --------------------------------------------------
+# The audit example: a moderate trough (t = 30), a small peak (t = 60), the
+# deepest trough five months later (t = 66) and a peak (t = 100); the phase
+# 60 -> 66 is shorter than 9 months.
+audit_blip <- function() {
+  tt <- 1:130
+  y <- -0.6 * exp(-((tt - 30) / 8)^2) + 0.25 * exp(-((tt - 60) / 3)^2) -
+    2.0 * exp(-((tt - 66) / 4)^2) + 1.2 * exp(-((tt - 100) / 12)^2)
+  ts(y, frequency = 12)
+}
+
+# Turning points of the reversed series, mapped back to forward time.
+reversed_tp <- function(dater, x) {
+  n <- length(x)
+  r <- date_turning_points(dater, ts(rev(as.numeric(x)),
+                                     frequency = frequency(x)))
+  o <- order(n + 1L - r@index)
+  list(index = (n + 1L - r@index)[o], type = r@type[o])
+}
+
+test_that("P2: the symmetric phase rule keeps the deepest trough", {
+  x <- audit_blip()
+  tp <- date_turning_points(bry_boschan(min_phase = 9, min_cycle = 24), x)
+  expect_identical(tp@index, c(66L, 100L))
+  expect_identical(tp@type, c("trough", "peak"))
+  expect_identical(tp@params$phase_rule, "symmetric")
+  # the earlier rule drops the later turning point of the short phase and
+  # so loses the deepest trough
+  old <- date_turning_points(
+    bry_boschan(min_phase = 9, min_cycle = 24, phase_rule = "bbq"), x)
+  expect_identical(old@index, c(30L, 100L))
+  expect_identical(oecd_dater()@phase_rule, "symmetric")
+})
+
+test_that("P2: reversing the series reverses the turning points", {
+  daters <- list(bry_boschan(), bry_boschan(min_phase = 9, min_cycle = 24),
+                 oecd_dater())
+  series <- list(audit_blip())
+  for (s in 1:20) {
+    set.seed(s)
+    series[[length(series) + 1L]] <- ts(cumsum(rnorm(300)) +
+      8 * sin(2 * pi * (1:300) / 70), frequency = 12)
+  }
+  for (x in series) {
+    for (d in daters) {
+      f <- date_turning_points(d, x)
+      r <- reversed_tp(d, x)
+      expect_identical(f@index, r$index)
+      # a peak stays a peak when time runs backwards
+      expect_identical(f@type, r$type)
+    }
+  }
+  for (s in 1:20) {
+    set.seed(100 + s)
+    xq <- ts(cumsum(rnorm(140)) + 6 * sin(2 * pi * (1:140) / 24),
+             frequency = 4)
+    for (d in list(bbq(), oecd_dater())) {
+      expect_identical(date_turning_points(d, xq)@index,
+                       reversed_tp(d, xq)$index)
+    }
+  }
+})
+
+test_that("P2: the symmetric rule respects the censoring rules", {
+  for (s in 1:15) {
+    set.seed(s)
+    xm <- ts(cumsum(rnorm(240)), frequency = 12)
+    xq <- ts(cumsum(rnorm(120)), frequency = 4)
+    check_censoring(date_turning_points(oecd_dater(), xm), 240)
+    check_censoring(date_turning_points(oecd_dater(), xq), 120)
+    check_censoring(date_turning_points(bbq(phase_rule = "bbq"), xq), 120)
+  }
+})
+
+test_that("P1: oecd_dater() uses phases of 9 and cycles of 24 months", {
+  d <- oecd_dater()
+  expect_s4_class(d, "Dater")
+  m <- cyclind:::resolve_dater(d, 12)
+  expect_equal(c(m$min_phase, m$min_cycle), c(9, 24))
+  q <- cyclind:::resolve_dater(d, 4)
+  expect_equal(c(q$min_phase, q$min_cycle), c(3, 8))
+  expect_equal(cyclind:::resolve_dater(oecd_dater(min_cycle = 30), 12)$min_cycle,
+               30)
+  expect_error(bry_boschan(phase_rule = "later"),
+               class = "cyclind_error_argument")
+  # objects saved before the phase rule existed keep the earlier rule
+  old <- bry_boschan()
+  attr(old, "phase_rule") <- NULL
+  expect_identical(cyclind:::resolve_dater(old, 12)$phase_rule, "bbq")
 })

@@ -47,9 +47,9 @@
 #'   filter; `NULL` means one year (12 months or 4 quarters). With 0 the
 #'   regARIMA model gives no forecasts and the extension of the
 #'   specification applies instead ([ar_extension()] by
-#'   default; add `extension = no_extension()` for none). The OECD uses
-#'   series-specific horizons of 0 to 2 months (Nilsson and Gyomai 2011,
-#'   para. 65), which [oecd_spec()] follows with 2 months.
+#'   default; add `extension = no_extension()` for none). The OECD extends
+#'   the series with 2 to 6 months of TRAMO forecasts (Gyomai, Ahmad and
+#'   Astolfi 2017, p. 284); [oecd_spec()] uses 2 months.
 #' @param critical Critical t-value of the outlier detection; `NULL` uses
 #'   the program's default, which depends on the length of the series.
 #' @return An `OutlierTreatment` object.
@@ -61,6 +61,10 @@
 #' Gómez, V. and Maravall, A. (2001). Automatic modeling methods for
 #' univariate series. In D. Peña, G. C. Tiao and R. S. Tsay (eds.), *A
 #' Course in Time Series Analysis*, 171--201. Wiley, New York.
+#'
+#' Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+#' leading indicators. In *Handbook on Cyclical Composite Indicators*,
+#' chapter 10, 271--291. Eurostat, Luxembourg.
 #'
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
 #' Indicators*. OECD Publishing, Paris.

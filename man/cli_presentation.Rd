@@ -4,7 +4,7 @@
 \alias{cli_presentation}
 \title{The three OECD forms of a composite leading indicator}
 \usage{
-cli_presentation(x, composite = NULL)
+cli_presentation(x, composite = NULL, extend_trend = FALSE)
 }
 \arguments{
 \item{x}{A \linkS4class{CliResult} with a composite.}
@@ -12,14 +12,24 @@ cli_presentation(x, composite = NULL)
 \item{composite}{Optional \linkS4class{CompositeIndex} presented instead of the
 composite of \code{x}, for instance one chosen by hand with
 \code{\link[=cli_composite]{cli_composite()}} from \code{cycles(x)}.}
+
+\item{extend_trend}{Extend the trend of the reference linearly beyond
+its first and last observation, so that the trend-restored CLI covers
+the whole composite? \code{FALSE} (default) leaves those dates \code{NA}, as the
+OECD does; the linear extension is an extrapolation by cyclind.}
 }
 \value{
 A data frame with \code{time} and the columns \code{amplitude_adjusted},
 \code{trend_restored}, \code{rate_of_change}, \code{reference} (seasonally adjusted
 and cleaned of outliers),
 \code{reference_amplitude_adjusted} (the reference without trend, in the
-units of \code{amplitude_adjusted}), \code{reference_trend} and
-\code{reference_rate_of_change}.
+units of \code{amplitude_adjusted}), \code{reference_trend},
+\code{reference_rate_of_change}, \code{reference_smoothed} (the cycle of the
+reference, de-trended and smoothed but not normalised, in the units of
+\code{amplitude_adjusted}: the series with which the OECD compares the
+amplitude-adjusted CLI, Gyomai, Ahmad and Astolfi 2017, p. 288) and
+\code{trend_extrapolated} (\code{TRUE} where the trend is a linear extrapolation,
+only with \code{extend_trend = TRUE}).
 }
 \description{
 Returns the forms in which the OECD presents a CLI (Gyomai and Guidetti
@@ -36,8 +46,12 @@ gap ("growth cycle");
 the amplitude-adjusted CLI divided by 100, comparable with the level of
 the reference series ("business cycle"). The trend is the Hodrick-Prescott
 trend with the cut-off of the specification's double HP filter (120
-months by default), taken from the transformed reference series and
-extended linearly beyond the last reference observation;
+months by default), taken from the transformed reference series. As
+at the OECD, which does not compute the trend-restored CLI before GDP
+for the period is available (OECD 2024, question 6), the trend-restored
+CLI and its rate of change are \code{NA} outside the span of the reference
+series; \code{extend_trend = TRUE} extends the trend linearly instead and
+flags those rows in \code{trend_extrapolated};
 \item \strong{12-month rate of change} of the trend-restored CLI (4 quarters for
 quarterly data), comparable with the year-on-year growth of the
 reference ("growth rate cycle").
@@ -77,4 +91,7 @@ tail(pr)
 \references{
 Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
 Indicators}. OECD Publishing, Paris.
+
+OECD (2024). \emph{Composite Leading Indicators: Frequently Asked Questions}.
+OECD, Paris.
 }

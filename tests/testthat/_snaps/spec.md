@@ -45,6 +45,7 @@
         min_phase: default
         min_cycle: default
         end_exclusion: default
+        phase_rule: symmetric
 
 ---
 
