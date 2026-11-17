@@ -7,12 +7,37 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
-# X-13ARIMA-SEATS (package seasonal) runs the TRAMO-type regARIMA models
-# when RJDemetra is not installed.
-has_x13 <- requireNamespace("seasonal", quietly = TRUE)
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = has_x13,
-                      fig.width = 7, fig.height = 3.5)
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+                      fig.height = 3.5)
+# Steps 4 to 9 need TRAMO (package RJDemetra, which needs Java). Their
+# output was computed by data-raw/oecd_idn_vignette.R with the code shown
+# below and is read from inst/vignette-results/.
+vr <- readRDS(system.file("vignette-results", "oecd-indonesia.rds",
+                          package = "cyclind"))
+va <- vr$part_a
+vb <- vr$part_b
+r2 <- function(x) formatC(x, format = "f", digits = 2)
+num <- function(x) format(x, trim = TRUE)
+cap <- function(s) paste0(toupper(substr(s, 1, 1)), substring(s, 2))
+label <- c(share_prices = "share prices",
+           call_money_rate = "the call-money rate",
+           rupiah_per_usd = "the exchange rate",
+           consumer_confidence = "consumer confidence")
+words <- function(x) {
+  x <- unname(label[x])
+  if (length(x) < 2) return(x)
+  paste(paste(x[-length(x)], collapse = ", "), "and", x[length(x)])
+}
+failing <- function(assess, reason) {
+  assess$name[grepl(reason, assess$reasons, fixed = TRUE)]
+}
+words_num <- function(x) {
+  x <- num(x)
+  if (length(x) < 2) return(x)
+  paste(paste(x[-length(x)], collapse = ", "), "and", x[length(x)])
+}
+agree <- function(v, stat) v$agreement$x[v$agreement$statistic == stat]
 ```
 
 The OECD publishes a composite leading indicator (CLI) for Indonesia,
@@ -20,14 +45,23 @@ together with its reference series (monthly GDP) and its seven
 components. For four components the OECD also publishes the original
 series: share prices, the call-money rate, the rupiah exchange rate and
 consumer confidence. cyclind ships these series, downloaded from the OECD
-SDMX interface, in `inst/extdata/oecd-idn/`, one CSV file per indicator,
-as statistical offices publish them. This vignette builds a CLI from them
-with `oecd_spec()` in the nine steps of cyclind, twice: first against the
-deviation cycle of GDP (the OECD's own reference), then against the cycle
-of the annual GDP growth rate. The last section repeats the steps in the
-graphical interface.
+Data Explorer on 13 November 2026, in `inst/extdata/oecd-idn/`, one CSV
+file per indicator. This vignette builds a CLI from them with
+`oecd_spec()`, twice: first against the growth cycle of GDP (the deviation
+from its trend, the OECD's own reference), then against the growth rate
+cycle of GDP (its annual growth rate). The last section repeats the steps
+in the graphical interface.
 
-# Part A. Reference: the deviation cycle of GDP
+Steps 1 to 3 run when the vignette is built. Steps 4 to 9 need the TRAMO
+program of JDemetra+ (package **RJDemetra**, which needs Java) for the
+outliers, the log/level test and the forecasts that extend each series.
+To keep the vignette free of Java, their output was computed with the
+code shown here by `data-raw/oecd_idn_vignette.R` and is printed from
+`inst/vignette-results/oecd-indonesia.rds`; the provenance of that
+computation is at the end. The code runs as shown when RJDemetra is
+installed.
+
+# Part A. Reference: the growth cycle of GDP
 
 ## Step 1. Data
 
@@ -39,15 +73,14 @@ files <- file.path(dir, c("gdp.csv", "share_prices.csv",
                           "consumer_confidence.csv"))
 series <- read_cli_series(files)
 vapply(series, attr, "", "frequency")
-readLines(file.path(dir, "SOURCE.txt"))[1]
+oecd <- read_cli_data(file.path(dir, "oecd_cli.csv"))
 ```
 
 GDP is quarterly and the candidates are monthly. `cli_align()` brings GDP
 to months with the Denton-Cholette method, which keeps the quarterly
 totals. The OECD derives its monthly GDP reference with a method of its
-own, which cyclind does not reproduce; linear interpolation at the central
-month gives almost the same reference cycle. The interest rate is a
-monthly average.
+own, which cyclind does not reproduce. The interest rate is a monthly
+average.
 
 ```{r align}
 x <- cli_align(series, type = c(gdp = "flow", call_money_rate = "average"),
@@ -76,60 +109,100 @@ cand
 ## Step 3. The OECD specification
 
 `oecd_spec()` follows the OECD documents where they state a rule (Gyomai
-and Guidetti 2012; Gyomai, Ahmad and Astolfi 2017): TRAMO-type outliers
-with two months of forecasts, the log/level test, the double
-Hodrick-Prescott filter (12 to 120 months), Bry-Boschan turning points
-with phases of at least 9 and cycles of at least 24 months, a matching
-window of 24 months lead and 9 months lag, the median-lead classification
-with cyclical conformity and no lag-shifting. Where the documents give no
-formula, it takes the choices that come closest to the published CLI of
-Indonesia: chained average log growth with counter-cyclical components
-entering as reciprocals, and an amplitude matched by standard deviations.
-With these settings cyclind reproduces the published CLI of Indonesia
-from its seven components (section 8 of `vignette("cyclind")`;
-`?oecd_spec` gives the source of each step).
+and Guidetti 2012; Gyomai, Ahmad and Astolfi 2017): TRAMO-type outliers,
+of which only additive outliers are removed (`outlier_types = "AO"`), two
+months of forecasts, the log/level test, the double Hodrick-Prescott
+filter (12 to 120 months), Bry-Boschan turning points with phases of at
+least 9 and cycles of at least 24 months, a matching window of 24 months
+lead and 9 months lag, the median-lead classification with cyclical
+conformity, and no lag-shifting. Where the documents give no formula, it
+takes the choices that come closest to the published CLI of Indonesia:
+chained average log growth with counter-cyclical components entering as
+reciprocals, and an amplitude matched by standard deviations. The section
+"The OECD method and the defaults" of `vignette("cyclind")` shows how
+close these choices come when the seven component cycles published by the
+OECD are aggregated; `?oecd_spec` gives the source of each step.
 
 ```{r spec}
-spec <- oecd_spec()
+spec <- oecd_spec(engine = "tramo")
 spec
 ```
 
+`engine = "tramo"` asks for TRAMO, as the OECD uses. The default,
+`"auto"`, takes TRAMO when RJDemetra is installed and the regARIMA part of
+X-13ARIMA-SEATS (package **seasonal**) otherwise. X-13 is a different
+program: it finds other outliers, so its results differ from those shown
+here.
+
 ## Step 4. Cycles
 
-```{r cycles}
+```{r cycles, eval = FALSE}
 cyc <- cli_cycles(cand, spec)
 cyc$gdp@steps
 ```
 
+```{r cycles-out, echo = FALSE}
+va$steps
+```
+
+Every outlier treatment reports what it found. `outlier_report()` lists
+the outliers that were removed and, in brackets in its column `periods`,
+those that were detected but kept:
+
+```{r outliers, eval = FALSE}
+outlier_report(cyc)[, c("name", "n_removed", "n_kept", "types")]
+```
+
+```{r outliers-out, echo = FALSE}
+va$outliers[, c("name", "n_removed", "n_kept", "types")]
+```
+
+Following the OECD documentation of 2017, only the
+`r sum(va$outliers$n_removed)` additive outliers are replaced; the
+`r sum(va$outliers$n_kept)` transitory changes and level shifts are
+reported but stay in the series.
+
 The OECD's own reference cycle is in `oecd_cli.csv`. The GDP cycle that
 cyclind extracts from quarterly GDP follows it closely:
 
-```{r reference}
-oecd <- read_cli_data(file.path(dir, "oecd_cli.csv"))
+```{r reference, eval = FALSE}
 ref <- stats::ts.intersect(cyclind = cyc$gdp@normalised,
                            oecd = oecd[, "reference_normalised"])
 cor(ref[stats::complete.cases(ref), ])[1, 2]
 ```
 
+```{r reference-out, echo = FALSE}
+va$cor_reference
+```
+
 ## Step 5. Turning points
 
-```{r turning-points}
+```{r turning-points, eval = FALSE}
 tps <- cli_turning_points(cyc, spec)
 as.data.frame(tps$gdp)[, c("period", "type")]
 ```
 
+```{r turning-points-out, echo = FALSE}
+va$tps
+```
+
 ## Step 6. Classification
 
-```{r assess}
+```{r assess, eval = FALSE}
 a <- cli_assess(cand, spec, cyc)
 as.data.frame(a)[, c("name", "class", "median_lead", "n_matched",
                      "extra", "reasons")]
 ```
 
+```{r assess-out, echo = FALSE}
+va$assess
+```
+
 No candidate passes the OECD rule with cyclical conformity. All four lead
-GDP by their median lead, but the interest rate, share prices and
-consumer confidence have too many extra turning points, and the
-exchange rate, share prices and consumer confidence fail the concordance
+GDP by their median lead (`r num(min(va$assess$median_lead))` to
+`r num(max(va$assess$median_lead))` months), but
+`r words(failing(va$assess, "extra"))` have too many extra turning points,
+and `r words(failing(va$assess, "concordance"))` fail the concordance
 test.
 
 ## Step 7. Composite
@@ -140,7 +213,7 @@ their leads. Because no candidate leads, `cli_build()` builds no
 composite and says so; the composite of the four components is built with
 `cli_composite()` from the inverted cycles that `cli_build()` returns.
 
-```{r build}
+```{r build, eval = FALSE}
 res <- cli_build(cand, spec)
 leaders(res)
 cy <- cycles(res)
@@ -151,32 +224,78 @@ both <- stats::ts.intersect(cyclind = cli4@cycle,
 cor(both[stats::complete.cases(both), ])[1, 2]
 ```
 
+```{r build-out, echo = FALSE}
+message(paste("Warning:", va$build_warnings))
+va$leaders
+writeLines(va$cli4)
+va$cor_oecd
+```
+
 The OECD CLI uses seven components, three of which (producer prices,
 production of non-metallic products and tourism) are not published as
-original series, so the composite of four follows it only roughly.
+original series, so the composite of four follows it only roughly. A
+crisis can dominate a correlation on its own; `cycle_agreement()`
+measures the agreement without 2020 and 2021 and gives block-bootstrap
+intervals from an explicit `seed`:
+
+```{r agreement, eval = FALSE}
+cycle_agreement(cli4, oecd[, "cli_normalised"],
+                exclude = c(2020, 2021 + 11 / 12), reps = 499, seed = 1)
+```
+
+```{r agreement-out, echo = FALSE}
+va$agreement
+```
+
+Without the two crisis years the Pearson correlation is
+`r r2(agree(va, "pearson"))` and the rank correlation
+`r r2(agree(va, "spearman"))`.
 
 ## Step 8. Validation
 
 `cli_validate()` and `cli_quality()` judge the composite against the GDP
 cycle:
 
-```{r validate}
+```{r validate, eval = FALSE}
 val <- cli_validate(cli4, cy$gdp, spec)
 cli_quality(val, spec)
 ```
 
+```{r validate-out, echo = FALSE}
+writeLines(va$quality)
+```
+
+The composite leads the turning points of GDP, but its probabilities of
+contraction do not beat the naive forecast, so the verdict is
+*`r va$quality_verdict`*.
+
 ## Step 9. Presentation
 
 The three OECD forms: the amplitude-adjusted CLI, the trend-restored CLI
-and its 12-month rate of change.
+and its 12-month rate of change. The trend-restored CLI is left missing
+after the last observation of GDP, as the OECD does.
 
-```{r presentation}
+```{r presentation, eval = FALSE}
 pres <- cli_presentation(res, cli4)
-tail(pres)
+tail(pres[, c("time", "amplitude_adjusted", "trend_restored",
+              "rate_of_change")])
 ```
 
-```{r plot}
-a2 <- stats::ts.intersect(cyclind = cli4@index,
+```{r presentation-out, echo = FALSE}
+tail(va$presentation[, c("time", "amplitude_adjusted", "trend_restored",
+                         "rate_of_change")])
+```
+
+```{r plot-data, eval = FALSE}
+idx <- cli4@index
+```
+
+```{r plot-data-stored, include = FALSE}
+idx <- va$index
+```
+
+```{r plot, fig.alt = "CLI of four components and the OECD CLI, 1997-2026"}
+a2 <- stats::ts.intersect(cyclind = idx,
                           oecd = oecd[, "cli_amplitude_adjusted"])
 ok <- stats::time(a2)[stats::complete.cases(a2)]
 a2 <- stats::window(a2, start = min(ok), end = max(ok))
@@ -189,24 +308,21 @@ legend("topright", c("cyclind, four components", "OECD, seven components"),
        col = c("black", "grey50"), lty = 1, bty = "n")
 ```
 
-# Part B. Reference: the cycle of the annual GDP growth rate
+# Part B. Reference: the growth rate cycle of GDP
 
 Users often follow the growth rate of GDP rather than its deviation from
-trend. The OECD serves them with the 12-month growth rate of its
-trend-restored CLI (`cli_growth_rate` in `oecd_cli.csv`). In cyclind the
-reference itself can be a growth rate: the cycle form of step 3 turns
-every series into its annual growth rate after the outlier treatment (the
-BPS formula, `100 * (Y_t / Y_{t-4} - 1)`; the call-money rate, a
-percentage, is given `unit = "percent"` below so that its rate is a
-difference in percentage points), and
-a Hodrick-Prescott smoother (no detrending) then removes the short
-movements. The form is experimental: the OECD thresholds were set for
-deviation cycles. Step 1 is the same as in Part A.
+trend. The OECD serves them with the 12-month rate of change of its
+trend-restored CLI (`cli_growth_rate` in `oecd_cli.csv`; Gyomai and
+Guidetti 2012, p. 11). In cyclind the reference itself can be a growth
+rate: the cycle form `growth_form()` turns every series into its annual
+growth rate, `100 * (Y_t / Y_{t-12} - 1)`, after the outlier treatment,
+and a Hodrick-Prescott smoother (no detrending) then removes the short
+movements. The call-money rate, a percentage, is given `unit = "percent"`
+so that its change is a difference in percentage points. The form is
+experimental: the OECD thresholds were set for growth cycles. Step 1 is
+the same as in Part A.
 
 ## Step 2. Candidates, with the unit of the interest rate
-
-The call-money rate is a percentage: its change is read in percentage
-points, not as a growth rate of the rate.
 
 ```{r candidates-growth}
 meta_g <- meta
@@ -214,24 +330,28 @@ meta_g$unit <- c(NA, "percent", NA, NA)
 cand_g <- cli_candidates(x, reference = "gdp", meta = meta_g)
 ```
 
-## Step 3. The OECD specification with the growth-rate form
+## Step 3. The OECD specification with the growth rate form
 
 ```{r spec-growth}
-spec_g <- oecd_spec(form = growth_form())
+spec_g <- oecd_spec(engine = "tramo", form = growth_form())
 spec_g
 ```
 
 ## Step 4. Cycles
 
-```{r cycles-growth}
+```{r cycles-growth, eval = FALSE}
 cyc_g <- cli_cycles(cand_g, spec_g)
 cyc_g$gdp@steps
 ```
 
-The cycle of GDP growth moves with the OECD's CLI growth rate, which
-leads it by a few months as a leading indicator should:
+```{r cycles-growth-out, echo = FALSE}
+vb$steps
+```
 
-```{r reference-growth}
+The growth rate cycle of GDP moves with the 12-month rate of change of
+the OECD CLI, which leads it by a few months:
+
+```{r reference-growth, eval = FALSE}
 gy <- oecd[, "cli_growth_rate"]
 lead_cor <- function(k) {
   z <- stats::ts.intersect(stats::lag(gy, -k), cyc_g$gdp@cycle)
@@ -240,34 +360,56 @@ lead_cor <- function(k) {
 sapply(c(lead_0 = 0, lead_3 = 3, lead_6 = 6), lead_cor)
 ```
 
+```{r reference-growth-out, echo = FALSE}
+gy <- oecd[, "cli_growth_rate"]
+vb$lead_cor
+```
+
 ## Step 5. Turning points
 
-The growth cycle turns more often than the deviation cycle:
+The growth rate cycle has `r nrow(vb$tps)` turning points, the growth
+cycle of Part A `r nrow(va$tps)`:
 
-```{r turning-points-growth}
+```{r turning-points-growth, eval = FALSE}
 tps_g <- cli_turning_points(cyc_g, spec_g)
 as.data.frame(tps_g$gdp)[, c("period", "type")]
 ```
 
+```{r turning-points-growth-out, echo = FALSE}
+vb$tps
+```
+
 ## Step 6. Classification
 
-```{r assess-growth}
+```{r assess-growth, eval = FALSE}
 a_g <- cli_assess(cand_g, spec_g, cyc_g)
 as.data.frame(a_g)[, c("name", "class", "median_lead", "n_matched",
                        "extra", "reasons")]
 ```
 
-Only share prices pass, with a median lead of 2.5 months. The interest
-rate leads by seven months and the exchange rate by three, but their
-turning points do not agree with those of GDP growth often enough for the
-concordance test.
+```{r assess-growth-out, echo = FALSE}
+vb$assess
+```
+
+```{r growth-numbers, include = FALSE}
+lead_b <- vb$assess[vb$assess$class == "leading", ]
+fail_b <- vb$assess[grepl("concordance", vb$assess$reasons), ]
+```
+
+Only `r words(lead_b$name)` pass, with a median lead of
+`r num(lead_b$median_lead)` months. `r cap(words(fail_b$name))` lead by
+`r words_num(fail_b$median_lead)` months
+respectively, but their phases do not agree with those of GDP growth
+often enough for the concordance test.
 
 ## Step 7. Composite
 
-`cli_build()` keeps share prices alone; to compare with the OECD, the
-composite of the four growth rates is again built with `cli_composite()`.
+`cli_build()` keeps `r words(vb$leaders)` alone and warns that a
+composite of fewer than three components is little more than the cycle of
+its components; to compare with the OECD, the composite of the four growth
+rates is again built with `cli_composite()`.
 
-```{r build-growth}
+```{r build-growth, eval = FALSE}
 res_g <- cli_build(cand_g, spec_g)
 leaders(res_g)
 cy_g <- cycles(res_g)
@@ -275,52 +417,84 @@ cli4_g <- cli_composite(cy_g, meta$name, spec_g, cy_g$gdp)
 cli4_g
 both_g <- stats::ts.intersect(cyclind = cli4_g@cycle, oecd = gy)
 cor(both_g[stats::complete.cases(both_g), ])[1, 2]
+cycle_agreement(cli4_g, gy, exclude = c(2020, 2021 + 11 / 12),
+                reps = 499, seed = 1)
 ```
 
-The composite of the four growth rates follows the OECD's CLI growth
-rate closely, although it is built from four of the seven components.
+```{r build-growth-out, echo = FALSE}
+message(paste("Warning:", vb$build_warnings))
+vb$leaders
+writeLines(vb$cli4)
+vb$cor_oecd
+vb$agreement
+```
+
+The composite of the four growth rates correlates
+`r r2(vb$cor_oecd)` with the 12-month rate of change of the OECD CLI
+(`r r2(agree(vb, "pearson"))` without 2020 and 2021), although it is
+built from four of the seven components.
 
 ## Step 8. Validation
 
-```{r validate-growth}
+```{r validate-growth, eval = FALSE}
 val_g <- cli_validate(cli4_g, cy_g$gdp, spec_g)
 cli_quality(val_g, spec_g)
 ```
 
+```{r validate-growth-out, echo = FALSE}
+writeLines(vb$quality)
+```
+
 The composite leads the turning points of GDP growth, but its
-probability of a downturn does not beat the naive forecast: the leads
+probabilities of a downturn do worse than the naive forecast: the leads
 are too irregular to time slowdowns.
 
 ## Step 9. Presentation
 
-With the growth-rate form, the trend-restored series is a growth rate in
+With the growth rate form, the trend-restored series is a growth rate in
 percent (the cycle plus the mean growth of GDP), and a 12-month rate of
 change of a growth rate has no meaning, so it is left empty. The plot
 standardises both series to compare their timing on one axis.
 
-```{r presentation-growth}
+```{r presentation-growth, eval = FALSE}
 pres_g <- cli_presentation(res_g, cli4_g)
 tail(pres_g[, c("time", "amplitude_adjusted", "trend_restored")])
 ```
 
-```{r plot-growth}
+```{r presentation-growth-out, echo = FALSE}
+tail(vb$presentation[, c("time", "amplitude_adjusted", "trend_restored")])
+```
+
+```{r plot-growth-data, eval = FALSE}
+cyc4_g <- cli4_g@cycle
+```
+
+```{r plot-growth-data-stored, include = FALSE}
+cyc4_g <- vb$cycle
+```
+
+```{r plot-growth, fig.alt = "Standardised growth rate cycles, 1998-2026"}
 std <- function(z) (z - mean(z, na.rm = TRUE)) / stats::sd(z, na.rm = TRUE)
-g2 <- stats::ts.intersect(cyclind = cli4_g@cycle, oecd = gy)
+g2 <- stats::ts.intersect(cyclind = cyc4_g, oecd = gy)
 ok <- stats::time(g2)[stats::complete.cases(g2)]
 g2 <- stats::window(g2, start = min(ok), end = max(ok))
-plot(std(g2[, "cyclind"]), ylab = "Standardised", xlab = NULL,
-     ylim = range(std(g2), na.rm = TRUE),
-     main = "Growth cycle: cyclind composite and the OECD CLI growth rate")
-lines(std(g2[, "oecd"]), col = "grey50")
+s2 <- stats::ts(apply(g2, 2, std), start = stats::start(g2),
+                frequency = stats::frequency(g2))
+plot(s2[, "cyclind"], ylab = "Standardised", xlab = NULL,
+     ylim = range(s2, na.rm = TRUE),
+     main = "Growth rate cycle: cyclind composite and the OECD CLI")
+lines(s2[, "oecd"], col = "grey50")
 abline(h = 0, lty = 2)
-legend("bottomright", c("cyclind, four components", "OECD CLI growth rate"),
+legend("bottomright", c("cyclind, four components",
+                        "OECD CLI, 12-month rate of change"),
        col = c("black", "grey50"), lty = 1, bty = "n")
 ```
 
 # The same in the graphical interface
 
-`run_app()` opens the interface (it needs the shiny package). The files
-are in the folder printed by
+`run_app()` opens the interface (it needs the shiny package). English is
+the default; `run_app(language = "id")` gives the same interface in
+Indonesian. The files are in the folder printed by
 `system.file("extdata", "oecd-idn", package = "cyclind")`.
 
 1. **Data.** Source *Upload several files (one per indicator)*; select
@@ -333,18 +507,42 @@ are in the folder printed by
    rate *Average*. For Part B also set the unit of the interest rate to
    *Ratio/percent*.
 3. **Specification.** Method *OECD method, with notes*. The interface uses
-   `oecd_spec()`; *Engine of the TRAMO outliers* is automatic by default
-   (TRAMO through RJDemetra, otherwise X-13), as in this vignette. For Part B set *Cycle form* to
-   *Growth rate (growth rate cycle)* and *Growth rate period* to
-   *Annual (y-on-y)*; the interface then writes
-   `oecd_spec(freq = 12, ..., form = growth_form())`.
+   `oecd_spec()`. Set *Engine of the TRAMO outliers* to *TRAMO (package
+   RJDemetra)*, as in this vignette; the automatic choice takes TRAMO when
+   RJDemetra is installed and X-13 otherwise. For Part B set *Cycle form*
+   to *Growth rate cycle: growth rate* and *Growth rate period* to
+   *Annual (y-on-y)*.
 4. Steps 4 to 8 of the interface run the cycles, turning points,
    classification, composite and validation. Automatic mode finds no
-   leader in Part A and keeps share prices in Part B; choose the four
-   components by hand for the composites above. The OECD method does not
-   shift the components by their leads, so the composite of the interface
-   equals `cli_composite(cy, meta$name, spec, cy$gdp)` of this vignette.
+   leader in Part A and keeps `r words(vb$leaders)` in Part B; choose the
+   four components by hand for the composites above. The OECD method does
+   not shift the components by their leads, so the composite of the
+   interface equals `cli_composite(cy, meta$name, spec, cy$gdp)` of this
+   vignette.
 5. Step 9 builds a composite coincident index, which this vignette does
    not need. Step 10 downloads the results, the OECD forms of
    presentation of step 9 above and an R script that reproduces them with
-   the same functions as this vignette.
+   the same functions as this vignette and prints their provenance
+   (`cyclind_provenance()`, as below).
+
+# Provenance of the stored results
+
+`cyclind_provenance()` records the versions of the software and the MD5
+checksums of the data. The results of steps 4 to 9 were computed on
+`r vr$created` with:
+
+```{r provenance, echo = FALSE}
+vr$provenance
+```
+
+# References
+
+Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+leading indicators. In G. L. Mazzi and A. Ozyildirim (eds.), *Handbook on
+Cyclical Composite Indicators for Business Cycle Analysis*, chapter 10,
+273–291. Publications Office of the European Union, Luxembourg.
+<https://doi.org/10.2785/962890>
+
+Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
+Indicators*. OECD, Paris.
+<https://www.oecd.org/content/dam/oecd/en/data/methods/OECD-System-of-Composite-Leading-Indicators.pdf>
