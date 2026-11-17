@@ -58,7 +58,7 @@ the default filter of the cycle form).}
 follows the OECD practice (Gyomai, Ahmad and Astolfi 2017, p. 283:
 additive outliers are filtered, level shifts only on expert judgement;
 ADR-010); the other types are detected and reported but kept.
-\code{c("AO", "TC")} was the default before 0.1.0.9000.}
+\code{c("AO", "TC")} was the default before 0.2.0.}
 
 \item{dater}{A \linkS4class{Dater}; \code{NULL} means \code{\link[=oecd_dater]{oecd_dater()}} (phases of 9
 and cycles of 24 months, or 3 and 8 quarters). \code{bry_boschan()} gives

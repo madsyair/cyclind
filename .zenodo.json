@@ -1,0 +1,35 @@
+{
+  "title": "cyclind: Cyclical Composite Indicators: Leading, Coincident and Lagging",
+  "upload_type": "software",
+  "version": "0.2.0",
+  "description": "<p>R package that builds cyclical composite indicators for business and growth cycles (composite leading indicators, CLI, and coincident indices) following the OECD system of composite leading indicators. Candidate series are de-trended and smoothed, turning points are dated with the Bry-Boschan and Harding-Pagan rules, and every candidate is classified as leading, coincident, lagging or rejected. Leading and coincident components are aggregated into a composite that is re-selected until it passes in-sample and pseudo out-of-sample tests, with a quality scorecard, an audit trail of selection decisions and an optional 'shiny' interface.</p>",
+  "creators": [
+    {
+      "name": "Choir, Achmad Syahrul",
+      "affiliation": "Politeknik Statistika STIS"
+    }
+  ],
+  "license": "GPL-3.0-or-later",
+  "access_right": "open",
+  "language": "eng",
+  "keywords": [
+    "R",
+    "R package",
+    "composite leading indicators",
+    "coincident index",
+    "business cycle",
+    "growth cycle",
+    "turning points",
+    "Bry-Boschan",
+    "Hodrick-Prescott filter",
+    "OECD",
+    "official statistics"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/madsyair/cyclind",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

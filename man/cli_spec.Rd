@@ -62,7 +62,7 @@ decision serves both). With \code{"auto"} and \code{"test"},
 series declared in percent (\code{unit = "percent"} in the metadata of
 \code{\link[=cli_candidates]{cli_candidates()}}: interest rates, unemployment rates, survey
 balances) stay in levels, since their cycle is additive; \code{"log"} takes
-the logarithm of every series. Before 0.1.0.9000, \code{"auto"} also logged
+the logarithm of every series. Before 0.2.0, \code{"auto"} also logged
 positive series in percent.}
 
 \item{seasonal_adjust}{Seasonally adjust with X-13ARIMA-SEATS (needs the

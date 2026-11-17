@@ -104,7 +104,7 @@ expert judgement; ADR-010). Transitory changes (TC) and level shifts
 and reported, but kept: in monthly activity data the automatic
 procedure often labels the onset of a recession a level shift or a
 transitory change, and removing it would erase a genuine cyclical
-movement. \code{remove = c("AO", "TC")} was the default before 0.1.0.9000;
+movement. \code{remove = c("AO", "TC")} was the default before 0.2.0;
 \code{remove = c("AO", "TC", "LS")} gives the fully linearised series (Gyomai
 and Guidetti 2012, p. 6).
 

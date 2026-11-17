@@ -4,6 +4,8 @@
 [![R-CMD-check](https://github.com/madsyair/cyclind/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/madsyair/cyclind/actions/workflows/R-CMD-check.yaml)
 [![test-coverage](https://github.com/madsyair/cyclind/actions/workflows/test-coverage.yaml/badge.svg)](https://github.com/madsyair/cyclind/actions/workflows/test-coverage.yaml)
 [![lint](https://github.com/madsyair/cyclind/actions/workflows/lint.yaml/badge.svg)](https://github.com/madsyair/cyclind/actions/workflows/lint.yaml)
+[![gui-e2e](https://github.com/madsyair/cyclind/actions/workflows/gui-e2e.yaml/badge.svg)](https://github.com/madsyair/cyclind/actions/workflows/gui-e2e.yaml)
+[![License: GPL (>= 3)](https://img.shields.io/badge/license-GPL%20(%3E%3D%203)-blue.svg)](https://cran.r-project.org/web/licenses/GPL-3)
 <!-- badges: end -->
 
 `cyclind` builds composite leading indicators (CLI), and the coincident index
@@ -75,12 +77,13 @@ A Shiny interface runs the same steps with plots for each of them:
 
 ## Installation
 
-`cyclind` is not on CRAN yet. Install the development version from
-[GitHub](https://github.com/madsyair/cyclind):
+`cyclind` is not on CRAN yet. Install the latest release (0.2.0) or the
+development version from [GitHub](https://github.com/madsyair/cyclind):
 
 ``` r
 # install.packages("remotes")
-remotes::install_github("madsyair/cyclind")
+remotes::install_github("madsyair/cyclind@v0.2.0")  # release
+remotes::install_github("madsyair/cyclind")         # development version
 
 # or, with pak
 # install.packages("pak")

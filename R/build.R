@@ -124,7 +124,7 @@ select_components <- function(cycles, assessment, spec, reference) {
   sel
 }
 
-# Twin threshold of a specification (objects saved before 0.1.0.9000 keep
+# Twin threshold of a specification (objects saved before 0.2.0 keep
 # every candidate but identical ones).
 spec_twin_threshold <- function(spec) {
   if (methods::.hasSlot(spec, "twin_threshold") &&

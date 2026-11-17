@@ -45,7 +45,7 @@
 #'   series declared in percent (`unit = "percent"` in the metadata of
 #'   [cli_candidates()]: interest rates, unemployment rates, survey
 #'   balances) stay in levels, since their cycle is additive; `"log"` takes
-#'   the logarithm of every series. Before 0.1.0.9000, `"auto"` also logged
+#'   the logarithm of every series. Before 0.2.0, `"auto"` also logged
 #'   positive series in percent.
 #' @param seasonal_adjust Seasonally adjust with X-13ARIMA-SEATS (needs the
 #'   \pkg{seasonal} package)? The adjustment is made in the scale chosen by
@@ -633,7 +633,7 @@ setMethod("update", "CliSpec", function(object, ...) {
 #'   follows the OECD practice (Gyomai, Ahmad and Astolfi 2017, p. 283:
 #'   additive outliers are filtered, level shifts only on expert judgement;
 #'   ADR-010); the other types are detected and reported but kept.
-#'   `c("AO", "TC")` was the default before 0.1.0.9000.
+#'   `c("AO", "TC")` was the default before 0.2.0.
 #' @param filter A [CycleFilter-class] in place of the OECD double
 #'   Hodrick-Prescott filter, for example [hp_smoother()] for series that
 #'   are already growth rates (FR-014.8). `NULL` keeps the OECD filter (or
