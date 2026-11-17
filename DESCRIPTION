@@ -1,17 +1,19 @@
 Package: cyclind
 Type: Package
 Title: Cyclical Composite Indicators: Leading, Coincident and Lagging
-Version: 0.1.0.9000
-Authors@R: c(
-    person("Achmad Syahrul", "Choir", email = "madsyair@stis.ac.id",
+Version: 0.2.0
+Authors@R:
+    person("Achmad Syahrul", "Choir", , "madsyair@stis.ac.id",
            role = c("aut", "cre"))
-    )
 Description: Builds cyclical composite indicators for business and growth
     cycles (composite leading indicators, CLI, and coincident indices)
-    following the OECD system of composite leading indicators
-    (Gyomai and Guidetti 2012). Candidate series are de-trended and smoothed
-    (Hodrick and Prescott 1997 <doi:10.2307/2953682>; Christiano and
-    Fitzgerald 2003 <doi:10.1111/1468-2354.t01-1-00076>; Hamilton 2018
+    following the OECD system of composite leading indicators (Gyomai and
+    Guidetti 2012
+    <https://www.oecd.org/content/dam/oecd/en/data/methods/OECD-System-of-Composite-Leading-Indicators.pdf>;
+    Gyomai, Ahmad and Astolfi 2017 <doi:10.2785/962890>). Candidate series
+    are de-trended and smoothed (Hodrick and Prescott 1997
+    <doi:10.2307/2953682>; Christiano and Fitzgerald 2003
+    <doi:10.1111/1468-2354.t01-1-00076>; Hamilton 2018
     <doi:10.1162/rest_a_00706>), turning points are dated with the
     Bry-Boschan and Harding-Pagan rules (Harding and Pagan 2002
     <doi:10.1016/S0304-3932(01)00108-8>), and every candidate is classified

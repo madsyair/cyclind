@@ -200,6 +200,7 @@ validate_coincident <- function(composite, reference, spec, prediction) {
   comp_cs@name <- "CCI"
   ref_tp <- date_turning_points(spec@dater, reference@normalised,
                                 name = reference@name)
+  check_reference_turning_points(ref_tp)
   comp_tp <- date_turning_points(spec@dater, comp_cs@normalised, name = "CCI")
   row <- assess_pair(reference, ref_tp, comp_cs, comp_tp, spec)$row
   chk <- coincident_criteria(spec_classifier(spec), row, spec)

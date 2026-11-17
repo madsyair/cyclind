@@ -44,7 +44,8 @@ match_turning_points <- function(ref, cand, window, end_exclusion,
   used <- logical(length(c_idx))
   last <- -Inf
   pairs <- data.frame(ref_index = r_idx, type = r_typ,
-                      cand_index = NA_integer_, lead = NA_real_)
+                      cand_index = rep(NA_integer_, length(r_idx)),
+                      lead = rep(NA_real_, length(r_idx)))
   for (k in seq_along(r_idx)) {
     lead <- r_idx[k] - c_idx
     ok <- !used & c_typ == r_typ[k] & c_idx > last &
@@ -60,6 +61,21 @@ match_turning_points <- function(ref, cand, window, end_exclusion,
   list(pairs = pairs, n_extra = sum(!used))
 }
 
+# Stop when the reference cycle has no turning point: no lead, concordance
+# or probability of contraction can be measured against it. A reference
+# with fewer turning points than a classifier needs is not stopped here;
+# the classifier rejects every candidate and records why ("matched").
+check_reference_turning_points <- function(ref_tp) {
+  n <- length(ref_tp@index)
+  if (n > 0L) return(invisible(ref_tp))
+  cyclind_abort(sprintf(paste(
+    "The reference series '%s' has %d turning points, so no lead can be",
+    "measured against it. Use a longer sample with complete cycles, another",
+    "cycle form (for example level_form() instead of growth_form()) or a",
+    "dater with shorter phases."
+  ), ref_tp@name, n), "cyclind_error_reference_turning_points")
+}
+
 # Index of the candidate turning point paired with a reference one.
 pick_turning_point <- function(ok, lead, value, type, matching) {
   if (identical(matching, "maximum")) {
@@ -69,7 +85,7 @@ pick_turning_point <- function(ok, lead, value, type, matching) {
   ok[which.min(abs(lead[ok]))]
 }
 
-# Matching rule of a specification (objects saved before 0.1.0.9000 have
+# Matching rule of a specification (objects saved before 0.2.0 have
 # none and match the nearest turning point).
 spec_matching <- function(spec) {
   if (methods::.hasSlot(spec, "matching") && length(spec@matching) == 1L) {
@@ -538,6 +554,13 @@ invert_cycle <- function(cs) {
 #' turning points shrink towards zero as idiosyncratic noise grows, while the
 #' cross-correlation lead stays unbiased (see `vignette("cyclind")`).
 #'
+#' A reference cycle without turning points, for example a short sample or
+#' a growth rate cycle that the dater leaves flat, stops with an error of
+#' class `cyclind_error_reference_turning_points`. A reference with fewer
+#' turning points than the classifier needs is assessed; every candidate is
+#' then rejected, with `matched` among the reasons. A candidate whose span
+#' contains none of the reference turning points is rejected the same way.
+#'
 #' @param candidates A [CandidateSet-class].
 #' @param spec A [CliSpec-class].
 #' @param cycles Optional output of [cli_cycles()] to avoid recomputation.
@@ -572,6 +595,7 @@ cli_assess <- function(candidates, spec, cycles = NULL) {
   ref_cs <- cycles[[candidates@reference]]
   ref_tp <- date_turning_points(spec@dater, ref_cs@normalised,
                                 name = ref_cs@name)
+  check_reference_turning_points(ref_tp)
   rows <- list()
   matches <- list()
   inverted <- character(0)

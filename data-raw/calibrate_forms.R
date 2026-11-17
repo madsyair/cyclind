@@ -4,7 +4,7 @@
 # This script measures how the same default rules classify simulated
 # candidates with known class when the cycles are taken as annual growth
 # rates (with the HP smoother as default filter). The acceleration form was
-# removed in 0.1.0.9000, and with it its rows.
+# removed in 0.2.0, and with it its rows.
 # Run from the package root (about 7 minutes for 60 replications):
 #   Rscript data-raw/calibrate_forms.R
 # Output: inst/calibration/forms.csv

@@ -58,7 +58,7 @@ outlier_report <- function(x) {
   out
 }
 
-# Outliers and notes of a cycle (objects saved before 0.1.0.9000 have
+# Outliers and notes of a cycle (objects saved before 0.2.0 have
 # neither).
 series_outliers <- function(cs) {
   if (methods::.hasSlot(cs, "outliers")) cs@outliers else empty_outliers()

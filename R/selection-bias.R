@@ -55,6 +55,7 @@ cli_selection_bias <- function(candidates, spec, cutoffs,
   candidates <- drop_excluded(candidates, full_cycles)
   ref <- full_cycles[[candidates@reference]]
   ref_tp <- date_turning_points(spec@dater, ref@normalised, name = ref@name)
+  check_reference_turning_points(ref_tp)
   rows <- lapply(sort(cutoffs), function(t0) {
     one_cutoff(candidates, spec, t0, full_cycles, ref, ref_tp, role)
   })
@@ -75,10 +76,13 @@ one_cutoff <- function(candidates, spec, t0, full_cycles, ref, ref_tp,
   train <- tryCatch(
     suppressWarnings(builder(window(candidates, end = t0),
                              update(spec, oos_cutoffs = numeric(0)))),
-    cyclind_error = function(e) NULL
+    cyclind_error_reference_turning_points = function(e) {
+      "no turning point of the reference before the cut-off"
+    },
+    cyclind_error = function(e) "training window too short"
   )
-  if (is.null(train)) {
-    empty$note <- "training window too short"
+  if (is.character(train)) {
+    empty$note <- train
     return(empty)
   }
   if (is.null(train@composite)) {

@@ -75,6 +75,7 @@ validate_leading <- function(composite, reference, spec, prediction) {
   comp_cs <- composite_as_cycle(composite)
   ref_tp <- date_turning_points(spec@dater, reference@normalised,
                                 name = reference@name)
+  check_reference_turning_points(ref_tp)
   comp_tp <- date_turning_points(spec@dater, comp_cs@normalised, name = "CLI")
   row <- assess_pair(reference, ref_tp, comp_cs, comp_tp, spec)$row
   chk <- leading_checks(row, spec)
