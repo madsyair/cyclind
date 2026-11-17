@@ -970,3 +970,29 @@ Putusan: APPROVE
 - R24: bukan regresi; dibiarkan.
 - R25: `?LeadAssessment`: `inverted` relatif terhadap seri asli.
 
+
+# Review INC-20 (perbaikan X-13, FR-017–FR-020)
+
+Ditinjau oleh A5 sendiri dengan daftar periksa A6, dari berkas dan diff
+(tanpa isolasi konteks: tidak ada alat subagen di sesi ini). Perlu tinjauan
+maintainer di PR.
+
+| ID | Tingkat | Temuan | Tindak lanjut |
+|---|---|---|---|
+| R1 | major | `cli_assess()` dengan daftar siklus yang kehilangan atribut `excluded` (mis. hasil `cycles[...]`) akan gagal dengan galat S4 yang tidak jelas | Diperbaiki: galat `cyclind_error_argument` yang menyebut seri tanpa siklus; diuji |
+| R2 | major | Bila semua kandidat dikeluarkan, `CandidateSet` tanpa kandidat diteruskan dan gagal jauh di hilir | Diperbaiki: `drop_excluded()` berhenti dengan `cyclind_error_seasonal_failed` ("No candidate is left"); diuji |
+| R3 | minor | `show()` `CliResult` tidak menyebut seri yang dikeluarkan | Diperbaiki: baris "excluded (seasonal adjustment failed)"; diuji |
+| R4 | minor | Pesan galat X-13 terpotong di baris pertama ("... due to model") | Diperbaiki: `one_line()` menyambung butir galat yang terbungkus, tanpa nama berkas sementara; diuji |
+| R5 | minor | Uji `"test"` kini dijalankan pada seri asli (sebelum penyesuaian musiman); hasil dengan `seasonal_adjust = TRUE` dapat berubah | Diterima dan didokumentasikan (ADR-013, NEWS, `?cli_spec`) |
+| R6 | minor | ADR-012 memilih kecocokan dengan TRAMO; pada seri yang memang memuat AO dan TC sungguhan, aturan lama lebih dekat ke seri "TC saja" (0,70 lawan 0,10) | Diterima; tercatat jujur di ADR-012 dan `x13-collinear.csv` |
+| R7 | nit | `apply_transform()` kini hanya pembungkus `transform_decision()` yang dipakai uji lama | Dibiarkan (kecil, menjaga uji lama) |
+| R8 | nit | Pasangan bertetangga tidak ditangani | Disengaja: setiap regresor menempati tanggal sendiri (F-12 §4, ADR-012) |
+
+Kontrak: tanpa Imports baru (QS dengan `stats`); semua galat lewat
+`cyclind_abort()` dengan kelas `cyclind_error_*`, peringatan lewat
+`cyclind_warn()`; tidak ada cabang `if (class == ...)` baru (penanganan
+pasangan di metode `treat_outliers()` strategi `TramoOutliers`); tidak ada
+`set.seed()` di kode paket (hanya di uji lewat `with_seed()` yang memulihkan
+RNG, dan di `data-raw/`).
+
+Putusan: APPROVE (R1–R4 ditutup; R5–R8 diterima).

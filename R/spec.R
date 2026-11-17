@@ -39,14 +39,28 @@
 #' @param transform `"auto"` (logarithm for strictly positive series),
 #'   `"log"`, `"none"` or `"test"` (logarithm when the log/level test of a
 #'   regARIMA model prefers it, as TRAMO does at the OECD; needs
-#'   \pkg{RJDemetra} or \pkg{seasonal}). With `"auto"` and `"test"`,
+#'   \pkg{RJDemetra} or \pkg{seasonal}; with seasonal adjustment the test
+#'   is run on the unadjusted series, before the adjustment, so that one
+#'   decision serves both). With `"auto"` and `"test"`,
 #'   series declared in percent (`unit = "percent"` in the metadata of
 #'   [cli_candidates()]: interest rates, unemployment rates, survey
 #'   balances) stay in levels, since their cycle is additive; `"log"` takes
 #'   the logarithm of every series. Before 0.1.0.9000, `"auto"` also logged
 #'   positive series in percent.
 #' @param seasonal_adjust Seasonally adjust with X-13ARIMA-SEATS (needs the
-#'   \pkg{seasonal} package)?
+#'   \pkg{seasonal} package)? The adjustment is made in the scale chosen by
+#'   `transform` (multiplicative when the series is logged, additive
+#'   otherwise), so that X-13 does not run a log/level test of its own. When
+#'   X-13 fails on a series (for example a singular ARMA covariance matrix),
+#'   a warning of class `cyclind_warning_seasonal_failed` names the series
+#'   and the error, and: when the QS test (at level `alpha`) finds no
+#'   seasonality, the series is used unadjusted; otherwise the adjustment is
+#'   tried again without the holiday regressors; when that fails too, the
+#'   candidate is left out of [cli_cycles()] with the reason (see
+#'   [excluded_series()] and the audit log of [cli_build()]). A reference
+#'   series that cannot be adjusted stops the run
+#'   (`cyclind_error_seasonal_failed`), and so do errors of the system
+#'   (`cyclind_error_system`).
 #' @param outlier_threshold Robust z-score of period-to-period changes above
 #'   which an observation is replaced by interpolation; `Inf` disables. A
 #'   shortcut for `outliers = robust_outliers(outlier_threshold)`.
@@ -74,7 +88,7 @@
 #'   are taken in time order; each is paired with a candidate turning point
 #'   of the same type inside `lead_window` that is later than the candidate
 #'   turning point paired before and not used yet. `"nearest"` (default)
-#'   takes the one closest in time, as the OECD package CIF does;
+#'   takes the one closest in time, as CIF (Vraná, 2020) does;
 #'   `"maximum"` takes the most pronounced one, the highest peak or deepest
 #'   trough of the candidate cycle, and the closest of equally pronounced
 #'   ones. Unpaired reference turning points are missed and unpaired
@@ -84,7 +98,8 @@
 #' @param twin_threshold Candidates whose normalised cycles correlate at
 #'   least this much in absolute value are twins: before the selection loop
 #'   only the one with the higher peak cross-correlation with the reference
-#'   is kept (default 0.99, as in CIF). The twins dropped are listed in the
+#'   is kept (default 0.99, as in CIF, Vraná 2020). The twins dropped are
+#'   listed in the
 #'   audit log and in a warning. 1 drops identical cycles only.
 #' @param ccf_lag_max Largest lead or lag of the cross-correlation search
 #'   (default 24 months or 8 quarters).
@@ -117,7 +132,8 @@
 #' @param extension An [Extension-class]; default [ar_extension()]: each
 #'   series is extended by one year of AR forecasts before the cycle filter
 #'   (a choice of cyclind; `ar_extension(h = 6)` for the six months of
-#'   ARIMA forecasts of CIF; the OECD extends with 2 to 6 months of TRAMO
+#'   ARIMA forecasts of CIF (Vraná, 2020); the OECD extends with 2 to 6
+#'   months of TRAMO
 #'   forecasts, Gyomai, Ahmad and Astolfi 2017, p. 284, see
 #'   [Extension-class]). Use [no_extension()] for no extension. The
 #'   extension is separate from the outlier treatment: switching outliers
@@ -144,6 +160,10 @@
 #'
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
 #' Indicators*. OECD Publishing, Paris.
+#'
+#' Vraná, L. (2020). *cif: Composite Indicators Framework for Business
+#' Cycle Analysis*. Python package version 0.0.6.
+#' <https://pypi.org/project/cif/>
 #' @examples
 #' spec <- cli_spec(freq = 12)
 #' spec
@@ -470,41 +490,75 @@ setMethod("update", "CliSpec", function(object, ...) {
 #' production system: the steps marked "cyclind" below are not written in
 #' the OECD documents.
 #'
-#' Step by step (OECD rule and source; `oecd_spec()`; `cli_spec()`):
+#' **Rules of the OECD** (written in GG12 or GAA17; `oecd_spec()` follows
+#' them):
 #'
-#' * outliers: TRAMO, additive outliers replaced, level shifts only on
-#'   expert judgement (GAA17 p. 283); [tramo_outliers()] with
-#'   `outlier_types = "AO"` (transitory changes and level shifts detected
-#'   and reported but kept, ADR-010); robust z-score above 5 of the
-#'   changes;
-#' * log or levels: TRAMO test (GG12 p. 7; GAA17 p. 284); `transform =
-#'   "test"`, series in percent kept in levels; `"auto"`, logarithm of
-#'   positive series not in percent;
+#' * outliers: TRAMO finds them; additive outliers (AO) are filtered out and
+#'   level shifts (LS) are analysed and removed only on expert judgement
+#'   (GAA17 p. 283; transitory changes are not mentioned);
+#' * log or levels: the TRAMO log/level test (GG12 p. 7; GAA17 p. 284);
+#'   `transform = "test"`;
 #' * end of the series: 2 to 6 months of TRAMO forecasts (GAA17 p. 284);
-#'   2 months; 12 months of AR forecasts;
 #' * cycle: double Hodrick-Prescott filter, 12 to 120 months (GG12 p. 7
-#'   and 15; OECD 2024, question 10); [hp_double_filter()]; the same;
+#'   and 15; OECD 2024, question 10); [hp_double_filter()];
+#' * the target is the growth cycle (deviation from trend); components are
+#'   selected on it, and CLIs for the growth rate and classical cycles are
+#'   presentations (GAA17 pp. 276--277);
 #' * normalisation: mean and mean absolute deviation (GG12 p. 7; GAA17
-#'   p. 284); the same; the same;
-#' * turning points: Bry-Boschan with phases of at least 9 and cycles of
-#'   at least 24 months (GAA17 p. 285); [oecd_dater()] (9/24, symmetric
-#'   phase rule); [bry_boschan()] (5/15, as in GG12 annex B);
+#'   p. 284);
+#' * turning points: simplified Bry-Boschan with phases of at least 9 and
+#'   cycles of at least 24 months (GAA17 p. 285); [oecd_dater()];
 #' * matching window: 24 months lead and 9 months lag (GAA17 p. 285);
-#'   `lead_window = c(9, 24)`; `c(12, 24)`;
-#' * classification: median lead, coincident within 2 months (GG12
-#'   p. 8--9); [oecd_classifier()]; [cyclind_classifier()];
+#'   `lead_window = c(9, 24)`;
+#' * evaluation: length and consistency of the lead, cyclical conformity
+#'   (cross-correlation) and missing or extra cycles, named without
+#'   thresholds (GG12 p. 8);
+#' * classification: median lead at turning points, coincident within
+#'   +/- 2 months (GG12 p. 9); [oecd_classifier()];
 #' * lag-shifting: supported but not used in practice (GAA17 p. 287);
-#'   `lag_shift = FALSE`; `FALSE`;
-#' * aggregation: chained mean of the ratios \eqn{c_{i,t}/c_{i,t-1}} with the
-#'   60 percent rule (GAA17 p. 286, note 8); [oecd_aggregate()], chained
-#'   mean log ratio with reciprocal inversion (cyclind, see below);
-#'   [equal_weight()];
+#'   `lag_shift = FALSE`;
+#' * aggregation: chained mean of the ratios \eqn{c_{i,t}/c_{i,t-1}} with
+#'   the 60 percent rule (GAA17 p. 286, note 8);
 #' * amplitude adjustment: rescaled to the reference cycle, measure not
-#'   given (GG12 p. 9; GAA17 p. 288); standard deviation (cyclind, see
-#'   below); mean absolute deviation;
+#'   given (GG12 p. 9; GAA17 p. 288);
 #' * trend restored: trend of the reference times the CLI, not computed
 #'   before GDP is available (GG12 p. 10; OECD 2024, question 6);
-#'   [cli_presentation()]; the same.
+#'   [cli_presentation()].
+#'
+#' **Choices of cyclind** (not written in the OECD documents; each can be
+#' changed):
+#'
+#' * `outlier_types = "AO"`: transitory changes are detected and reported
+#'   but kept, as level shifts are (ADR-010), and an AO and a TC found on
+#'   the same date are rewritten so that the AO is the whole deviation at
+#'   that date (ADR-012, [OutlierTreatment-class]); `c("AO", "TC", "LS")`
+#'   gives the fully linearised series of GG12 (p. 6);
+#' * forecasts: 2 months, the lower end of the OECD range;
+#' * `min_matched = 3` in [oecd_classifier()]: the OECD table of median
+#'   leads sets no minimum number of matched turning points;
+#' * the thresholds and tests that make the OECD evaluation criteria
+#'   operational ([oecd_classifier()], `conformity = TRUE`): at most 40
+#'   percent missed and 40 percent extra turning points (`max_missed`,
+#'   `max_extra`), a positive cross-correlation peak, and a concordance
+#'   significantly above its value under independence, tested with a
+#'   fixed-b HAC test (Kiefer and Vogelsang 2005; see [cli_assess()]);
+#' * aggregation: the mean of log ratios with reciprocal inversion of
+#'   counter-cyclical components ([oecd_aggregate()], see below) instead
+#'   of the written ratio formula;
+#' * amplitude: ratio of standard deviations (see below);
+#' * phase rule of the dating: the most extreme turning points are kept
+#'   (`phase_rule = "symmetric"`);
+#' * quarterly data: the OECD system is monthly; the month thresholds are
+#'   converted to quarters (phases of 3 and cycles of 8 quarters, a lead
+#'   window of 3 and 8 quarters, a coincident band of 2/3 of a quarter);
+#' * the transformation decided by cyclind is also used by the X-13
+#'   seasonal adjustment, and a series that X-13 cannot adjust is handled
+#'   as described under `seasonal_adjust` in [cli_spec()].
+#'
+#' [cli_spec()] uses the package defaults instead: a robust z-score above 5
+#' for outliers, `transform = "auto"`, 12 months of AR forecasts, the
+#' Bry-Boschan rule with 5/15 months (GG12 annex B), a window of
+#' `c(12, 24)`, [cyclind_classifier()] and [equal_weight()].
 #'
 #' **Turning points.** The OECD dates with the simplified Bry-Boschan rule
 #' and phases of at least 9 and cycles of at least 24 months (GAA17,
@@ -616,6 +670,10 @@ setMethod("update", "CliSpec", function(object, ...) {
 #'
 #' OECD (2024). *Composite Leading Indicators: Frequently Asked Questions*.
 #' OECD, Paris.
+#'
+#' Kiefer, N. M. and Vogelsang, T. J. (2005). A new asymptotic theory for
+#' heteroskedasticity-autocorrelation robust tests. *Econometric Theory*,
+#' 21(6), 1130--1164.
 #' @seealso [cli_spec()] for the package defaults and the reasons they
 #'   differ (`vignette("cyclind")`).
 #' @examples

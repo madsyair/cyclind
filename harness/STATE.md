@@ -17,6 +17,7 @@
 - Tafsiran: bentuk rantai diubah dari laju pertumbuhan ke rata-rata perubahan siklus (aditif) atas temuan A2c C1; dukungan empiris diulang dengan kode paket (selisih ≤ 0,001).
 
 - 2026-11-17: maintainer memutuskan menghapus bentuk percepatan (`acceleration_form()`) seluruhnya (FR-016; alasan di `01-requirements.md`) dan menyetujui label GUI bentuk siklus ("Growth cycle: …", "Growth rate cycle: …") serta subjudul "Indikator Komposit Siklus: Pendahulu, Sejalan, dan Tertinggal"; cabang `hapus-akselerasi`, lewat PR. Tambahan di PR yang sama: bahasa bawaan GUI menjadi Inggris (menjelang CRAN); vinyet hanya diubah bila terdampak, perbaikan menyeluruhnya di PR terpisah.
+- 2026-11-17: maintainer meminta perbaikan empat masalah X-13 yang ditemukan saat menerapkan paket pada sebuah analisis terapan (FR-017–FR-020, INC-20): pasangan AO–TC kolinear, keputusan log diteruskan ke X-13, penyesuaian musiman yang gagal tidak menghentikan proses, dan dokumentasi aturan OECD vs pilihan cyclind; cabang `perbaikan-x13`, lewat PR. Tafsiran: "dibuang bersama atau diestimasi ulang tanpa TC" disebut sebagai contoh; dipilih penulisan ulang pasangan (ADR-012) karena paling konsisten dengan TRAMO pada simulasi.
 - 2026-11-11 13:14: pengguna menyetujui penghalus di cyclind dan GUI ("Iya") atas usulan strategi `CycleForm` + `hp_smoother()`, status eksperimental, lewat PR; 13:21 "Kerjakan repo cyclind".
 
 ## Increment
@@ -35,6 +36,7 @@
 | INC-11 | Perbaikan cacat hasil tinjauan menyeluruh (0.5.1) | FR-011 | — | selesai (PR #6, digabung) |
 | INC-12 | Evaluasi kandidat dan validasi yang lebih jujur (0.6.0) | FR-012 | F-05, F-06, F-07 | selesai (PR #7, digabung) |
 | INC-13 | Bentuk siklus laju/percepatan dan `hp_smoother()` (0.7.0, eksperimental) | FR-013 | F-08, F-09 | G1–G8 lolos; PR #8 digabung (2026-11-11) |
+| INC-20 | Perbaikan X-13: pasangan AO–TC, transformasi ke X-13, kegagalan penyesuaian musiman, dokumentasi OECD vs cyclind (0.1.0.9000) | FR-017–FR-020 | F-12, F-13 | lihat log 2026-11-17 |
 | INC-18 | Penghapusan bentuk percepatan; label bentuk siklus, subjudul, dan bahasa bawaan Inggris di GUI (0.1.0.9000) | FR-016 | F-08 | lihat log 2026-11-17 |
 
 ## Log putaran

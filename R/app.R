@@ -617,7 +617,9 @@ app_warning_text <- function(w, t) {
   keys <- c(cyclind_warning_few_components = "warn_few_components",
             cyclind_warning_twins = "warn_twins",
             cyclind_warning_outlier_share = "warn_outlier_share",
-            cyclind_warning_x13 = "warn_x13")
+            cyclind_warning_x13 = "warn_x13",
+            cyclind_warning_outlier_collinear = "warn_outlier_collinear",
+            cyclind_warning_seasonal_failed = "warn_seasonal_failed")
   hit <- keys[names(keys) %in% class(w)]
   if (length(hit) == 0L) return(conditionMessage(w))
   paste0(t(hit[[1]]), " (", conditionMessage(w), ")")

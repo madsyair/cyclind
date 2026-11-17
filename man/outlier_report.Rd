@@ -14,7 +14,9 @@ outlier_report(x)
 A data frame with one row per series: \code{name}, \code{n_removed},
 \code{n_kept}, \code{share} (removed outliers per observation), \code{periods} (type
 and period of each outlier, kept ones in brackets), \code{types} (counts by
-type) and \code{note} (warnings, empty when there were none).
+type), \code{collinear} (additive outliers and transitory changes found on
+the same date, see \linkS4class{OutlierTreatment}) and \code{note} (warnings,
+empty when there were none).
 }
 \description{
 Tabulates, series by series, the outliers that the outlier treatment of

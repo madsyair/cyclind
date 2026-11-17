@@ -56,7 +56,9 @@ available components to the previous value
 \item{transform}{\code{"auto"} (logarithm for strictly positive series),
 \code{"log"}, \code{"none"} or \code{"test"} (logarithm when the log/level test of a
 regARIMA model prefers it, as TRAMO does at the OECD; needs
-\pkg{RJDemetra} or \pkg{seasonal}). With \code{"auto"} and \code{"test"},
+\pkg{RJDemetra} or \pkg{seasonal}; with seasonal adjustment the test
+is run on the unadjusted series, before the adjustment, so that one
+decision serves both). With \code{"auto"} and \code{"test"},
 series declared in percent (\code{unit = "percent"} in the metadata of
 \code{\link[=cli_candidates]{cli_candidates()}}: interest rates, unemployment rates, survey
 balances) stay in levels, since their cycle is additive; \code{"log"} takes
@@ -64,7 +66,19 @@ the logarithm of every series. Before 0.1.0.9000, \code{"auto"} also logged
 positive series in percent.}
 
 \item{seasonal_adjust}{Seasonally adjust with X-13ARIMA-SEATS (needs the
-\pkg{seasonal} package)?}
+\pkg{seasonal} package)? The adjustment is made in the scale chosen by
+\code{transform} (multiplicative when the series is logged, additive
+otherwise), so that X-13 does not run a log/level test of its own. When
+X-13 fails on a series (for example a singular ARMA covariance matrix),
+a warning of class \code{cyclind_warning_seasonal_failed} names the series
+and the error, and: when the QS test (at level \code{alpha}) finds no
+seasonality, the series is used unadjusted; otherwise the adjustment is
+tried again without the holiday regressors; when that fails too, the
+candidate is left out of \code{\link[=cli_cycles]{cli_cycles()}} with the reason (see
+\code{\link[=excluded_series]{excluded_series()}} and the audit log of \code{\link[=cli_build]{cli_build()}}). A reference
+series that cannot be adjusted stops the run
+(\code{cyclind_error_seasonal_failed}), and so do errors of the system
+(\code{cyclind_error_system}).}
 
 \item{outlier_threshold}{Robust z-score of period-to-period changes above
 which an observation is replaced by interpolation; \code{Inf} disables. A
@@ -141,7 +155,8 @@ Values moved past the last date of the data are dropped.}
 \item{extension}{An \linkS4class{Extension}; default \code{\link[=ar_extension]{ar_extension()}}: each
 series is extended by one year of AR forecasts before the cycle filter
 (a choice of cyclind; \code{ar_extension(h = 6)} for the six months of
-ARIMA forecasts of CIF; the OECD extends with 2 to 6 months of TRAMO
+ARIMA forecasts of CIF (Vraná, 2020); the OECD extends with 2 to 6
+months of TRAMO
 forecasts, Gyomai, Ahmad and Astolfi 2017, p. 284, see
 \linkS4class{Extension}). Use \code{\link[=no_extension]{no_extension()}} for no extension. The
 extension is separate from the outlier treatment: switching outliers
@@ -167,7 +182,7 @@ CLI (see \code{\link[=oecd_spec]{oecd_spec()}}). Only the index changes, not the
 are taken in time order; each is paired with a candidate turning point
 of the same type inside \code{lead_window} that is later than the candidate
 turning point paired before and not used yet. \code{"nearest"} (default)
-takes the one closest in time, as the OECD package CIF does;
+takes the one closest in time, as CIF (Vraná, 2020) does;
 \code{"maximum"} takes the most pronounced one, the highest peak or deepest
 trough of the candidate cycle, and the closest of equally pronounced
 ones. Unpaired reference turning points are missed and unpaired
@@ -178,7 +193,8 @@ candidate, at the cost of longer leads.}
 \item{twin_threshold}{Candidates whose normalised cycles correlate at
 least this much in absolute value are twins: before the selection loop
 only the one with the higher peak cross-correlation with the reference
-is kept (default 0.99, as in CIF). The twins dropped are listed in the
+is kept (default 0.99, as in CIF, Vraná 2020). The twins dropped are
+listed in the
 audit log and in a warning. 1 drops identical cycles only.}
 }
 \value{
@@ -225,4 +241,8 @@ chapter 10, 271--291. Eurostat, Luxembourg.
 
 Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
 Indicators}. OECD Publishing, Paris.
+
+Vraná, L. (2020). \emph{cif: Composite Indicators Framework for Business
+Cycle Analysis}. Python package version 0.0.6.
+\url{https://pypi.org/project/cif/}
 }

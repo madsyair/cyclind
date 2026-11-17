@@ -131,8 +131,11 @@ spec
 `engine = "tramo"` asks for TRAMO, as the OECD uses. The default,
 `"auto"`, takes TRAMO when RJDemetra is installed and the regARIMA part of
 X-13ARIMA-SEATS (package **seasonal**) otherwise. X-13 is a different
-program: it finds other outliers, so its results differ from those shown
-here.
+program: it may choose another ARIMA model and find other outliers, so its
+results differ from those shown here. Two choices of cyclind keep the
+engines closer: the transformation (`transform`) is decided once and used
+by both, and an additive outlier and a transitory change found on the same
+date are taken together (see `?OutlierTreatment`).
 
 ## Step 4. Cycles
 

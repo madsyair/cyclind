@@ -110,10 +110,12 @@ setClass("CandidateSet", representation(
 #' @slot normalised Normalised cycle (mean 0, mean absolute deviation 1).
 #' @slot steps Character log of the transformations applied.
 #' @slot outliers Data frame of the outliers found: `time`, `period`,
-#'   `type` (`"AO"`, `"TC"` or `"LS"`) and `removed` (was the effect
-#'   removed?). See [outlier_report()].
+#'   `type` (`"AO"`, `"TC"` or `"LS"`), `removed` (was the effect
+#'   removed?) and `collinear` (an AO and a TC on the same date, see
+#'   [OutlierTreatment-class]). See [outlier_report()].
 #' @slot notes Warnings raised while the cycle was extracted (a failed
-#'   X-13 model, a high share of outliers, a doubtful transformation).
+#'   X-13 model or seasonal adjustment, a high share of outliers,
+#'   collinear outliers, a doubtful transformation).
 #' @seealso [cli_cycles()]
 #' @exportClass CycleSeries
 setClass("CycleSeries", representation(
@@ -122,7 +124,8 @@ setClass("CycleSeries", representation(
   notes = "character"
 ), prototype(outliers = data.frame(time = numeric(0), period = character(0),
                                    type = character(0),
-                                   removed = logical(0)),
+                                   removed = logical(0),
+                                   collinear = logical(0)),
              notes = character(0)))
 
 #' Classification of candidate series

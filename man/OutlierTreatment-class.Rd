@@ -108,6 +108,27 @@ movement. \code{remove = c("AO", "TC")} was the default before 0.1.0.9000;
 \code{remove = c("AO", "TC", "LS")} gives the fully linearised series (Gyomai
 and Guidetti 2012, p. 6).
 
+\strong{An AO and a TC on the same date.} Their regressors are nearly
+collinear: after first differencing they correlate
+\eqn{(2 - r)\sqrt{1 + r}/2}{(2 - r) sqrt(1 + r) / 2}, 0.96 for the
+quarterly X-13 decay rate \eqn{r = 0.343}{r = 0.343} and 0.85 for
+\eqn{r = 0.7}{r = 0.7}. The model then cannot tell how the deviation at
+that date splits between them, and the two estimates can be large with
+opposite signs; removing only the AO would leave the TC's value at that
+date in the series, a deviation the data never showed, and can date a
+false turning point. cyclind therefore rewrites the pair, without
+changing the fitted effect, as an AO equal to the whole deviation at that
+date (\eqn{a + c}) and a TC that starts one period later (\eqn{c r}):
+with \code{remove = "AO"} the deviation at that date is removed and the
+transitory change after it is kept. A warning of class
+\code{cyclind_warning_outlier_collinear} names the date and the correlation,
+the \code{collinear} column of the outlier table and of \code{\link[=outlier_report]{outlier_report()}}
+marks the pair, and the \code{steps} record it (ADR-012). Pairs on adjacent
+dates are not rewritten: each regressor then owns a date of its own.
+Several regARIMA programs may also pick different models for the same
+series (for example X-13 levels with ARIMA(1 2 0), TRAMO logarithms);
+setting \code{transform} of the specification fixes the scale for both.
+
 Every treatment reports the outliers it found: \code{\link[=cli_cycles]{cli_cycles()}} keeps
 their dates and types in the \code{outliers} slot of each
 \linkS4class{CycleSeries}, \code{\link[=outlier_report]{outlier_report()}} tabulates them, and the
@@ -127,8 +148,8 @@ New treatments are added by defining a subclass and a method for the
 generic \code{treat_outliers()}, which returns a list with the cleaned series
 \code{x}, the number of outliers \code{n}, a description \code{step}, a numeric vector
 \code{forecast} (possibly empty) and, optionally, a data frame \code{table} of the
-outliers found (\code{index}, \code{type}, \code{removed}) and a character \code{failed}
-(the error message when the model failed).
+outliers found (\code{index}, \code{type}, \code{removed}, optionally \code{collinear}) and a
+character \code{failed} (the error message when the model failed).
 }
 \examples{
 robust_outliers()

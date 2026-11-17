@@ -52,6 +52,7 @@ cli_selection_bias <- function(candidates, spec, cutoffs,
                   "cyclind_error_argument")
   }
   full_cycles <- cli_cycles(candidates, spec)
+  candidates <- drop_excluded(candidates, full_cycles)
   ref <- full_cycles[[candidates@reference]]
   ref_tp <- date_turning_points(spec@dater, ref@normalised, name = ref@name)
   rows <- lapply(sort(cutoffs), function(t0) {

@@ -11,10 +11,13 @@
 #' * `level_form()`: the series itself (default).
 #' * `growth_form(lag, rate)`: growth rate over `lag` periods. For a logged
 #'   series \eqn{z = \log Y}, `rate = "percent"` (default) gives
-#'   the growth rate as BPS-Statistics Indonesia publishes it,
-#'   \eqn{100 (Y_t / Y_{t-k} - 1)}, and `rate = "log"` the log growth rate
-#'   \eqn{100 (z_t - z_{t-k})} (lower by about
-#'   \eqn{50 r^2} points at a rate \eqn{r}: 0.12 points at 5 percent). A
+#'   the growth rate in percent, \eqn{100 (Y_t / Y_{t-k} - 1)}, the formula
+#'   BPS-Statistics Indonesia uses for the growth rates of GDP (for example
+#'   the year-on-year rate of quarterly GDP, \eqn{k = 4}, or the
+#'   quarter-to-quarter rate, \eqn{k = 1}); `rate = "log"` gives the log
+#'   growth rate \eqn{100 (z_t - z_{t-k})}, lower by
+#'   \eqn{100 (r - \log(1 + r)) \approx 50 r^2} points at a growth rate
+#'   \eqn{r} written as a fraction (0.12 points at 5 percent). A
 #'   series in levels (rates, percentages, indices that were not logged) gives
 #'   the difference \eqn{z_t - z_{t-k}} in its own units; so does a
 #'   candidate whose `unit` in the metadata of [cli_candidates()] is
@@ -33,6 +36,14 @@
 #' above to below its trend or back; in a growth rate cycle it marks growth
 #' starting to speed up or to slow down.
 #'
+#' **Growth rate cycles at the OECD.** The OECD selects and optimises the
+#' components of its CLIs on the growth cycle (deviation from trend); the
+#' CLIs for the growth rate cycle and the classical cycle are only
+#' presentations of a CLI built on the growth cycle (Gyomai, Ahmad and
+#' Astolfi 2017, pp. 276--277). Selecting components on the growth rate
+#' cycle with `growth_form()` is therefore an extension of cyclind, not the
+#' OECD method.
+#'
 #' **Experimental.** The thresholds of the classifiers were calibrated on
 #' growth cycles (the level form). Growth rate cycles have
 #' more turning points, so the share of extra turning points and the other
@@ -50,6 +61,11 @@
 #'   `apply_form()` a `ts` like `x`; `default_filter()` a
 #'   [CycleFilter-class].
 #' @references
+#' Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of
+#' composite leading indicators. In G. L. Mazzi and A. Ozyildirim (eds.),
+#' *Handbook on Cyclical Composite Indicators*, chapter 10, 273--291.
+#' Eurostat, Luxembourg. \doi{10.2785/962890}
+#'
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
 #' Indicators*. OECD, Paris.
 #' @seealso [cli_spec()], [hp_smoother()]

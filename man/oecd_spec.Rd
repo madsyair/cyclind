@@ -101,41 +101,77 @@ production system: the steps marked "cyclind" below are not written in
 the OECD documents.
 }
 \details{
-Step by step (OECD rule and source; \code{oecd_spec()}; \code{cli_spec()}):
+\strong{Rules of the OECD} (written in GG12 or GAA17; \code{oecd_spec()} follows
+them):
 \itemize{
-\item outliers: TRAMO, additive outliers replaced, level shifts only on
-expert judgement (GAA17 p. 283); \code{\link[=tramo_outliers]{tramo_outliers()}} with
-\code{outlier_types = "AO"} (transitory changes and level shifts detected
-and reported but kept, ADR-010); robust z-score above 5 of the
-changes;
-\item log or levels: TRAMO test (GG12 p. 7; GAA17 p. 284); \code{transform = "test"}, series in percent kept in levels; \code{"auto"}, logarithm of
-positive series not in percent;
+\item outliers: TRAMO finds them; additive outliers (AO) are filtered out and
+level shifts (LS) are analysed and removed only on expert judgement
+(GAA17 p. 283; transitory changes are not mentioned);
+\item log or levels: the TRAMO log/level test (GG12 p. 7; GAA17 p. 284);
+\code{transform = "test"};
 \item end of the series: 2 to 6 months of TRAMO forecasts (GAA17 p. 284);
-2 months; 12 months of AR forecasts;
 \item cycle: double Hodrick-Prescott filter, 12 to 120 months (GG12 p. 7
-and 15; OECD 2024, question 10); \code{\link[=hp_double_filter]{hp_double_filter()}}; the same;
+and 15; OECD 2024, question 10); \code{\link[=hp_double_filter]{hp_double_filter()}};
+\item the target is the growth cycle (deviation from trend); components are
+selected on it, and CLIs for the growth rate and classical cycles are
+presentations (GAA17 pp. 276--277);
 \item normalisation: mean and mean absolute deviation (GG12 p. 7; GAA17
-p. 284); the same; the same;
-\item turning points: Bry-Boschan with phases of at least 9 and cycles of
-at least 24 months (GAA17 p. 285); \code{\link[=oecd_dater]{oecd_dater()}} (9/24, symmetric
-phase rule); \code{\link[=bry_boschan]{bry_boschan()}} (5/15, as in GG12 annex B);
+p. 284);
+\item turning points: simplified Bry-Boschan with phases of at least 9 and
+cycles of at least 24 months (GAA17 p. 285); \code{\link[=oecd_dater]{oecd_dater()}};
 \item matching window: 24 months lead and 9 months lag (GAA17 p. 285);
-\code{lead_window = c(9, 24)}; \code{c(12, 24)};
-\item classification: median lead, coincident within 2 months (GG12
-p. 8--9); \code{\link[=oecd_classifier]{oecd_classifier()}}; \code{\link[=cyclind_classifier]{cyclind_classifier()}};
+\code{lead_window = c(9, 24)};
+\item evaluation: length and consistency of the lead, cyclical conformity
+(cross-correlation) and missing or extra cycles, named without
+thresholds (GG12 p. 8);
+\item classification: median lead at turning points, coincident within
++/- 2 months (GG12 p. 9); \code{\link[=oecd_classifier]{oecd_classifier()}};
 \item lag-shifting: supported but not used in practice (GAA17 p. 287);
-\code{lag_shift = FALSE}; \code{FALSE};
-\item aggregation: chained mean of the ratios \eqn{c_{i,t}/c_{i,t-1}} with the
-60 percent rule (GAA17 p. 286, note 8); \code{\link[=oecd_aggregate]{oecd_aggregate()}}, chained
-mean log ratio with reciprocal inversion (cyclind, see below);
-\code{\link[=equal_weight]{equal_weight()}};
+\code{lag_shift = FALSE};
+\item aggregation: chained mean of the ratios \eqn{c_{i,t}/c_{i,t-1}} with
+the 60 percent rule (GAA17 p. 286, note 8);
 \item amplitude adjustment: rescaled to the reference cycle, measure not
-given (GG12 p. 9; GAA17 p. 288); standard deviation (cyclind, see
-below); mean absolute deviation;
+given (GG12 p. 9; GAA17 p. 288);
 \item trend restored: trend of the reference times the CLI, not computed
 before GDP is available (GG12 p. 10; OECD 2024, question 6);
-\code{\link[=cli_presentation]{cli_presentation()}}; the same.
+\code{\link[=cli_presentation]{cli_presentation()}}.
 }
+
+\strong{Choices of cyclind} (not written in the OECD documents; each can be
+changed):
+\itemize{
+\item \code{outlier_types = "AO"}: transitory changes are detected and reported
+but kept, as level shifts are (ADR-010), and an AO and a TC found on
+the same date are rewritten so that the AO is the whole deviation at
+that date (ADR-012, \linkS4class{OutlierTreatment}); \code{c("AO", "TC", "LS")}
+gives the fully linearised series of GG12 (p. 6);
+\item forecasts: 2 months, the lower end of the OECD range;
+\item \code{min_matched = 3} in \code{\link[=oecd_classifier]{oecd_classifier()}}: the OECD table of median
+leads sets no minimum number of matched turning points;
+\item the thresholds and tests that make the OECD evaluation criteria
+operational (\code{\link[=oecd_classifier]{oecd_classifier()}}, \code{conformity = TRUE}): at most 40
+percent missed and 40 percent extra turning points (\code{max_missed},
+\code{max_extra}), a positive cross-correlation peak, and a concordance
+significantly above its value under independence, tested with a
+fixed-b HAC test (Kiefer and Vogelsang 2005; see \code{\link[=cli_assess]{cli_assess()}});
+\item aggregation: the mean of log ratios with reciprocal inversion of
+counter-cyclical components (\code{\link[=oecd_aggregate]{oecd_aggregate()}}, see below) instead
+of the written ratio formula;
+\item amplitude: ratio of standard deviations (see below);
+\item phase rule of the dating: the most extreme turning points are kept
+(\code{phase_rule = "symmetric"});
+\item quarterly data: the OECD system is monthly; the month thresholds are
+converted to quarters (phases of 3 and cycles of 8 quarters, a lead
+window of 3 and 8 quarters, a coincident band of 2/3 of a quarter);
+\item the transformation decided by cyclind is also used by the X-13
+seasonal adjustment, and a series that X-13 cannot adjust is handled
+as described under \code{seasonal_adjust} in \code{\link[=cli_spec]{cli_spec()}}.
+}
+
+\code{\link[=cli_spec]{cli_spec()}} uses the package defaults instead: a robust z-score above 5
+for outliers, \code{transform = "auto"}, 12 months of AR forecasts, the
+Bry-Boschan rule with 5/15 months (GG12 annex B), a window of
+\code{c(12, 24)}, \code{\link[=cyclind_classifier]{cyclind_classifier()}} and \code{\link[=equal_weight]{equal_weight()}}.
 
 \strong{Turning points.} The OECD dates with the simplified Bry-Boschan rule
 and phases of at least 9 and cycles of at least 24 months (GAA17,
@@ -214,6 +250,10 @@ Indicators}. OECD Publishing, Paris.
 
 OECD (2024). \emph{Composite Leading Indicators: Frequently Asked Questions}.
 OECD, Paris.
+
+Kiefer, N. M. and Vogelsang, T. J. (2005). A new asymptotic theory for
+heteroskedasticity-autocorrelation robust tests. \emph{Econometric Theory},
+21(6), 1130--1164.
 }
 \seealso{
 \code{\link[=cli_spec]{cli_spec()}} for the package defaults and the reasons they

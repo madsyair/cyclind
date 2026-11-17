@@ -13,7 +13,9 @@
 #' @return A data frame with one row per series: `name`, `n_removed`,
 #'   `n_kept`, `share` (removed outliers per observation), `periods` (type
 #'   and period of each outlier, kept ones in brackets), `types` (counts by
-#'   type) and `note` (warnings, empty when there were none).
+#'   type), `collinear` (additive outliers and transitory changes found on
+#'   the same date, see [OutlierTreatment-class]) and `note` (warnings,
+#'   empty when there were none).
 #' @examples
 #' sim <- simulate_cycles(seed = 1)
 #' meta <- data.frame(name = colnames(sim)[-1], rationale = "early_stage")
@@ -34,12 +36,19 @@ outlier_report <- function(x) {
     lab <- ifelse(ol$removed, paste(ol$type, ol$period),
                   paste0("(", ol$type, " ", ol$period, ")"))
     tps <- table(factor(ol$type, c("AO", "TC", "LS")))
+    pair <- if (is.null(ol$collinear)) logical(nrow(ol)) else
+      ol$collinear & ol$type == "AO"
     data.frame(
       name = cs@name, n_removed = sum(ol$removed),
       n_kept = sum(!ol$removed),
       share = if (n_obs > 0L) sum(ol$removed) / n_obs else NA_real_,
       periods = paste(lab, collapse = ", "),
       types = paste(names(tps)[tps > 0], tps[tps > 0], collapse = ", "),
+      collinear = if (any(pair)) {
+        paste("AO+TC", ol$period[pair], collapse = ", ")
+      } else {
+        ""
+      },
       note = paste(series_notes(cs), collapse = " "),
       stringsAsFactors = FALSE
     )

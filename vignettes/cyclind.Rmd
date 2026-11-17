@@ -502,14 +502,16 @@ where the documents give no formula:
 
 | Step | OECD rule (source) | `oecd_spec()` | `cli_spec()` |
 | --- | --- | --- | --- |
-| Outliers | TRAMO, additive outliers removed (GAA17 p. 283) | `tramo_outliers()`, `outlier_types = "AO"` | robust z-score |
+| Outliers | TRAMO; additive outliers removed, level shifts on expert judgement, transitory changes not mentioned (GAA17 p. 283) | `tramo_outliers()`, `outlier_types = "AO"` (cyclind: TC kept) | robust z-score |
+| Target cycle | growth cycle; growth rate and classical CLIs are presentations (GAA17 pp. 276--277) | `level_form()` | same |
 | Log or levels | TRAMO test (GAA17 p. 284) | `transform = "test"` | `"auto"` |
 | End of series | 2--6 months of TRAMO forecasts (GAA17 p. 284) | 2 months | 12 months, AR |
 | Cycle | double HP, 12--120 months (GG12 pp. 7, 15) | same | same |
 | Normalisation | mean, mean absolute deviation (GG12 p. 7) | same | same |
 | Turning points | Bry-Boschan, phase 9, cycle 24 months (GAA17 p. 285) | `oecd_dater()` | `bry_boschan()`, 5/15 |
 | Matching window | 24 months lead, 9 lag (GAA17 p. 285) | `c(9, 24)` | `c(12, 24)` |
-| Classification | median lead, coincident within 2 months (GG12 p. 9) | `oecd_classifier()` | `cyclind_classifier()` |
+| Evaluation | lead, conformity, missing or extra cycles, no thresholds (GG12 p. 8) | 40 percent, fixed-b test, positive peak (cyclind) | calibrated thresholds |
+| Classification | median lead, coincident within 2 months, no minimum of turning points (GG12 p. 9) | `oecd_classifier()`, `min_matched = 3` (cyclind) | `cyclind_classifier()` |
 | Lag-shifting | not used in practice (GAA17 p. 287) | off | off |
 | Aggregation | chained mean of ratios, 60 percent rule (GAA17 p. 286, note 8) | chained mean log ratio (cyclind) | `equal_weight()` |
 | Amplitude | rescaled to the reference, measure not given (GAA17 p. 288) | standard deviation (cyclind) | mean absolute deviation |
@@ -527,8 +529,33 @@ points. The original 5/15-month rule, which the OECD used before 2008
 documents name a criterion without a threshold or a formula, the choice
 is cyclind's: the thresholds of the conformity criteria (at most 40
 percent missed or extra turning points, concordance significant at 5
-percent, a positive cross-correlation peak), the inversion of
-counter-cyclical components and the amplitude measure.
+percent with the fixed-b test, a positive cross-correlation peak), the
+minimum of three matched turning points (`min_matched = 3`), the
+aggregation by mean log ratios with the inversion of counter-cyclical
+components, and the amplitude measure.
+
+The choices of cyclind, in one list (each can be changed in
+`oecd_spec()` or `oecd_classifier()`):
+
+* `outlier_types = "AO"`: GAA17 (p. 283) filters additive outliers and
+  removes level shifts only on expert judgement; it does not mention
+  transitory changes, which cyclind keeps. When an additive outlier and a
+  transitory change are found on the same date, their regressors are
+  nearly collinear (correlation 0.96 for quarterly X-13), and cyclind
+  takes the additive outlier as the whole deviation at that date and the
+  transitory change as the decay after it, with a warning
+  (`cyclind_warning_outlier_collinear`; `?OutlierTreatment`).
+* `min_matched = 3`, the 40 percent limits of missed and extra turning
+  points and the fixed-b test of concordance (`?oecd_classifier`).
+* aggregation by mean log ratios with reciprocal inversion
+  (`oecd_aggregate()`), and the standard deviation as amplitude measure.
+* quarterly mode: phases of 3 and cycles of 8 quarters, a matching window
+  of 3 and 8 quarters.
+* the transformation decided by cyclind (`transform`) is also passed to
+  the X-13 seasonal adjustment, and a series that X-13 cannot adjust is
+  kept unadjusted when the QS test finds no seasonality, adjusted again
+  without holiday regressors, or left out with its reason
+  (`cyclind_warning_seasonal_failed`, `excluded_series()`).
 
 ```{r oecd, eval = FALSE}
 res_oecd <- cli_build(cand, oecd_spec())
