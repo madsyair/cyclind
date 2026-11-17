@@ -36,12 +36,15 @@
 #'   after the last date with all components adds the average change of the
 #'   available components to the previous value
 #'   (`equal_weight(ragged_edge = "level")` takes the plain mean).
-#' @param transform `"auto"` (logarithm for strictly positive series, except
-#'   series declared `unit = "percent"` in [cli_candidates()], such as
-#'   interest rates, which stay in levels),
+#' @param transform `"auto"` (logarithm for strictly positive series),
 #'   `"log"`, `"none"` or `"test"` (logarithm when the log/level test of a
 #'   regARIMA model prefers it, as TRAMO does at the OECD; needs
-#'   \pkg{RJDemetra} or \pkg{seasonal}).
+#'   \pkg{RJDemetra} or \pkg{seasonal}). With `"auto"` and `"test"`,
+#'   series declared in percent (`unit = "percent"` in the metadata of
+#'   [cli_candidates()]: interest rates, unemployment rates, survey
+#'   balances) stay in levels, since their cycle is additive; `"log"` takes
+#'   the logarithm of every series. Before 0.1.0.9000, `"auto"` also logged
+#'   positive series in percent.
 #' @param seasonal_adjust Seasonally adjust with X-13ARIMA-SEATS (needs the
 #'   \pkg{seasonal} package)?
 #' @param outlier_threshold Robust z-score of period-to-period changes above
@@ -67,6 +70,22 @@
 #'   the reference (default `c(12, 24)` months or `c(4, 8)` quarters; the
 #'   OECD uses 9 months after and 24 before, Gyomai, Ahmad and Astolfi 2017,
 #'   p. 285, which [oecd_spec()] takes).
+#' @param matching Rule that pairs turning points. Reference turning points
+#'   are taken in time order; each is paired with a candidate turning point
+#'   of the same type inside `lead_window` that is later than the candidate
+#'   turning point paired before and not used yet. `"nearest"` (default)
+#'   takes the one closest in time, as the OECD package CIF does;
+#'   `"maximum"` takes the most pronounced one, the highest peak or deepest
+#'   trough of the candidate cycle, and the closest of equally pronounced
+#'   ones. Unpaired reference turning points are missed and unpaired
+#'   candidate turning points are extra. `"maximum"` keeps a small wiggle
+#'   just before the reference turn from replacing the main turn of the
+#'   candidate, at the cost of longer leads.
+#' @param twin_threshold Candidates whose normalised cycles correlate at
+#'   least this much in absolute value are twins: before the selection loop
+#'   only the one with the higher peak cross-correlation with the reference
+#'   is kept (default 0.99, as in CIF). The twins dropped are listed in the
+#'   audit log and in a warning. 1 drops identical cycles only.
 #' @param ccf_lag_max Largest lead or lag of the cross-correlation search
 #'   (default 24 months or 8 quarters).
 #' @param alpha Significance level of the tests (default 0.05).
@@ -97,9 +116,12 @@
 #'   Values moved past the last date of the data are dropped.
 #' @param extension An [Extension-class]; default [ar_extension()]: each
 #'   series is extended by one year of AR forecasts before the cycle filter
-#'   (a choice of cyclind; the OECD extends with 2 to 6 months of TRAMO
-#'   forecasts, Gyomai, Ahmad and Astolfi 2017, p. 284).
-#'   Use [no_extension()] for no extension.
+#'   (a choice of cyclind; `ar_extension(h = 6)` for the six months of
+#'   ARIMA forecasts of CIF; the OECD extends with 2 to 6 months of TRAMO
+#'   forecasts, Gyomai, Ahmad and Astolfi 2017, p. 284, see
+#'   [Extension-class]). Use [no_extension()] for no extension. The
+#'   extension is separate from the outlier treatment: switching outliers
+#'   off with [update()] keeps it.
 #' @param form A [CycleForm-class]: [level_form()] (default, the growth
 #'   cycle) or [growth_form()] (growth rate cycle).
 #'   Without `filter`, the growth form uses [hp_smoother()].
@@ -141,8 +163,11 @@ cli_spec <- function(freq = 12, filter = NULL, dater = NULL,
                      oos_cutoffs = numeric(0), holidays = list(),
                      classifier = NULL, outliers = NULL, lag_shift = FALSE,
                      extension = NULL, form = NULL,
-                     amplitude = c("mad", "sd")) {
+                     amplitude = c("mad", "sd"),
+                     matching = c("nearest", "maximum"),
+                     twin_threshold = 0.99) {
   check_frequency(freq)
+  matching <- match.arg(matching)
   monthly <- freq == 12
   if (is(holidays, "HolidayEffect")) holidays <- list(holidays)
   check_strategy(classifier, "Classifier", "classifier")
@@ -219,7 +244,9 @@ cli_spec <- function(freq = 12, filter = NULL, dater = NULL,
     lag_shift = lag_shift,
     extension = if (is.null(extension)) ar_extension() else extension,
     form = form,
-    amplitude = amplitude
+    amplitude = amplitude,
+    matching = matching,
+    twin_threshold = as.numeric(twin_threshold)
   )
   if (is(spec@outliers, "RobustOutliers")) {
     spec@outlier_threshold <- spec@outliers@threshold
@@ -269,7 +296,8 @@ upgrade_spec <- function(object) {
   old <- list(holidays = list(), classifier = cyclind_classifier(),
               outliers = robust_outliers(object@outlier_threshold),
               lag_shift = FALSE, extension = no_extension(),
-              form = level_form(), amplitude = "mad")
+              form = level_form(), amplitude = "mad", matching = "nearest",
+              twin_threshold = 1)
   for (nm in names(old)) {
     if (!methods::.hasSlot(object, nm)) attr(object, nm) <- old[[nm]]
   }
@@ -366,6 +394,16 @@ setValidity("CliSpec", function(object) {
          !isTRUE(object@amplitude %in% c("mad", "sd")))) {
     msg <- c(msg, "`amplitude` must be \"mad\" or \"sd\".")
   }
+  if (methods::.hasSlot(object, "matching") &&
+      (length(object@matching) != 1L ||
+         !isTRUE(object@matching %in% c("nearest", "maximum")))) {
+    msg <- c(msg, "`matching` must be \"nearest\" or \"maximum\".")
+  }
+  if (methods::.hasSlot(object, "twin_threshold") &&
+      (length(object@twin_threshold) != 1L ||
+         !isTRUE(object@twin_threshold > 0 && object@twin_threshold <= 1))) {
+    msg <- c(msg, "`twin_threshold` must be in (0, 1].")
+  }
   if (length(msg) == 0L) TRUE else msg
 })
 
@@ -395,6 +433,7 @@ setMethod("update", "CliSpec", function(object, ...) {
     args$filter <- default_filter(args$form)
   }
   types <- methods::getSlots("CliSpec")
+  old_outliers <- object@outliers
   for (nm in names(args)) {
     value <- args[[nm]]
     if (is.numeric(value) ||
@@ -409,6 +448,12 @@ setMethod("update", "CliSpec", function(object, ...) {
   }
   if (is(object@outliers, "RobustOutliers")) {
     object@outlier_threshold <- object@outliers@threshold
+  }
+  # switching the outlier treatment off keeps its end extension (butir 2)
+  carried <- carried_extension(old_outliers, object@outliers)
+  if (!is.null(carried) && !"extension" %in% names(args) &&
+      is(object@extension, "NoExtension")) {
+    object@extension <- carried
   }
   check_valid(object)
   check_form_filter(object)
@@ -427,11 +472,14 @@ setMethod("update", "CliSpec", function(object, ...) {
 #'
 #' Step by step (OECD rule and source; `oecd_spec()`; `cli_spec()`):
 #'
-#' * outliers: TRAMO, additive outliers replaced (GAA17 p. 283);
-#'   [tramo_outliers()] (additive outliers and transitory changes); robust
-#'   z-score above 5 of the changes;
+#' * outliers: TRAMO, additive outliers replaced, level shifts only on
+#'   expert judgement (GAA17 p. 283); [tramo_outliers()] with
+#'   `outlier_types = "AO"` (transitory changes and level shifts detected
+#'   and reported but kept, ADR-010); robust z-score above 5 of the
+#'   changes;
 #' * log or levels: TRAMO test (GG12 p. 7; GAA17 p. 284); `transform =
-#'   "test"`; `"auto"`, logarithm of positive series not in percent;
+#'   "test"`, series in percent kept in levels; `"auto"`, logarithm of
+#'   positive series not in percent;
 #' * end of the series: 2 to 6 months of TRAMO forecasts (GAA17 p. 284);
 #'   2 months; 12 months of AR forecasts;
 #' * cycle: double Hodrick-Prescott filter, 12 to 120 months (GG12 p. 7
@@ -505,9 +553,11 @@ setMethod("update", "CliSpec", function(object, ...) {
 #' coincident band (2 months). Other arguments are passed to [cli_spec()].
 #'
 #' From the four component series of Indonesia that are public, the whole
-#' method gives a composite that is compared with the published CLI in
-#' `inst/calibration/oecd-idn-composite.csv` (row B1); the classification
-#' step uses the stricter operationalisation of [oecd_classifier()].
+#' method gives a composite that correlates 0.89 with the published CLI and
+#' finds 10 of the 12 turning points that [oecd_dater()] dates in it over
+#' the common span (row B1 of `inst/calibration/oecd-idn-composite.csv`);
+#' the classification step uses the stricter operationalisation of
+#' [oecd_classifier()].
 #'
 #' @param freq Data frequency, 12 or 4. The OECD system is monthly; for
 #'   quarterly data the month thresholds are converted to quarters (an
@@ -524,6 +574,12 @@ setMethod("update", "CliSpec", function(object, ...) {
 #' @param transform Transformation before the filter (see [cli_spec()]);
 #'   the OECD log/level test (`"test"`) by default. `"none"` suits series
 #'   that are already growth rates or percentages.
+#' @param outlier_types Outlier types whose effects are removed by
+#'   [tramo_outliers()]: any of `"AO"`, `"TC"`, `"LS"`. The default `"AO"`
+#'   follows the OECD practice (Gyomai, Ahmad and Astolfi 2017, p. 283:
+#'   additive outliers are filtered, level shifts only on expert judgement;
+#'   ADR-010); the other types are detected and reported but kept.
+#'   `c("AO", "TC")` was the default before 0.1.0.9000.
 #' @param filter A [CycleFilter-class] in place of the OECD double
 #'   Hodrick-Prescott filter, for example [hp_smoother()] for series that
 #'   are already growth rates (FR-014.8). `NULL` keeps the OECD filter (or
@@ -542,7 +598,8 @@ setMethod("update", "CliSpec", function(object, ...) {
 #' @param min_median_lead Minimum median lead; `NULL` means the coincident
 #'   band of `classifier` (2 months).
 #' @param outliers An [OutlierTreatment-class]; `NULL` means
-#'   `tramo_outliers(engine = engine, forecast = forecast)`.
+#'   `tramo_outliers(engine = engine, forecast = forecast, remove =
+#'   outlier_types)`. When given, `outlier_types` is ignored.
 #' @param extension An [Extension-class]; `NULL` means [no_extension()]
 #'   (the TRAMO forecasts of `outliers` extend the series).
 #' @param ... Further arguments of [cli_spec()]. With `form =`
@@ -579,7 +636,8 @@ oecd_spec <- function(freq = 12, seasonal_adjust = FALSE, holidays = list(),
                       engine = c("auto", "tramo", "x13"),
                       classifier = oecd_classifier(), forecast = NULL,
                       amplitude = c("sd", "mad"), transform = "test",
-                      filter = NULL, dater = NULL, aggregator = NULL,
+                      filter = NULL, outlier_types = "AO",
+                      dater = NULL, aggregator = NULL,
                       lag_shift = FALSE, lead_window = NULL,
                       min_median_lead = NULL, outliers = NULL,
                       extension = NULL, ...) {
@@ -621,7 +679,8 @@ oecd_spec <- function(freq = 12, seasonal_adjust = FALSE, holidays = list(),
            },
            classifier = cls,
            outliers = if (is.null(outliers)) {
-             tramo_outliers(engine = engine, forecast = forecast)
+             tramo_outliers(engine = engine, forecast = forecast,
+                            remove = outlier_types)
            } else {
              outliers
            },

@@ -22,8 +22,13 @@ cli_turning_points <- function(cycles, spec) {
 # Pair reference and candidate turning points of the same type, in time
 # order, when the candidate turns at most `window[2]` periods before and
 # `window[1]` periods after the reference. Leads are positive when the
-# candidate turns first.
-match_turning_points <- function(ref, cand, window, end_exclusion) {
+# candidate turns first. Of several candidate turning points in the window,
+# `matching = "nearest"` takes the closest in time (as CIF does) and
+# `"maximum"` the most pronounced (highest peak, deepest trough of the
+# candidate series), the closest among equals (butir 6).
+match_turning_points <- function(ref, cand, window, end_exclusion,
+                                 matching = "nearest") {
+  cval <- as.numeric(cand@series)[cand@index]
   cspan <- non_na_span(cand@series)
   rspan <- non_na_span(ref@series)
   ok_ref <- ref@index >= cspan[1] + end_exclusion &
@@ -34,6 +39,7 @@ match_turning_points <- function(ref, cand, window, end_exclusion) {
   r_typ <- ref@type[ok_ref]
   c_idx <- cand@index[ok_cand]
   c_typ <- cand@type[ok_cand]
+  c_val <- cval[ok_cand]
   used <- logical(length(c_idx))
   last <- -Inf
   pairs <- data.frame(ref_index = r_idx, type = r_typ,
@@ -43,7 +49,7 @@ match_turning_points <- function(ref, cand, window, end_exclusion) {
     ok <- !used & c_typ == r_typ[k] & c_idx > last &
       lead <= window[2] & lead >= -window[1]
     if (any(ok)) {
-      best <- which(ok)[which.min(abs(lead[ok]))]
+      best <- pick_turning_point(which(ok), lead, c_val, r_typ[k], matching)
       used[best] <- TRUE
       last <- c_idx[best]
       pairs$cand_index[k] <- c_idx[best]
@@ -51,6 +57,25 @@ match_turning_points <- function(ref, cand, window, end_exclusion) {
     }
   }
   list(pairs = pairs, n_extra = sum(!used))
+}
+
+# Index of the candidate turning point paired with a reference one.
+pick_turning_point <- function(ok, lead, value, type, matching) {
+  if (identical(matching, "maximum")) {
+    v <- if (type == "peak") value[ok] else -value[ok]
+    ok <- ok[v >= max(v) - sqrt(.Machine$double.eps)]
+  }
+  ok[which.min(abs(lead[ok]))]
+}
+
+# Matching rule of a specification (objects saved before 0.1.0.9000 have
+# none and match the nearest turning point).
+spec_matching <- function(spec) {
+  if (methods::.hasSlot(spec, "matching") && length(spec@matching) == 1L) {
+    spec@matching
+  } else {
+    "nearest"
+  }
 }
 
 # ---- statistics --------------------------------------------------------------
@@ -280,7 +305,8 @@ warn_short_tests <- function(tab, spec) {
 
 assess_pair <- function(ref_cs, ref_tp, cand_cs, cand_tp, spec) {
   e <- resolve_dater(spec@dater, spec@freq)$end_exclusion
-  m <- match_turning_points(ref_tp, cand_tp, spec@lead_window, e)
+  m <- match_turning_points(ref_tp, cand_tp, spec@lead_window, e,
+                            spec_matching(spec))
   pairs <- m$pairs
   leads <- pairs$lead[!is.na(pairs$lead)]
   n_ref <- nrow(pairs)

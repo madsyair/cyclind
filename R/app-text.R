@@ -214,6 +214,17 @@ app_text <- list(
     cycle_pair = "Siklus seri terpilih dan seri acuan",
     cycles_all = "Siklus ternormalisasi semua seri",
     steps_log = "Langkah pengolahan",
+    outlier_report = paste("Pencilan per seri (diganti, dideteksi tetapi",
+                           "dipertahankan, dan peringatan)"),
+    warn_few_components = paste("Komposit hasil seleksi berisi kurang dari",
+                                "tiga komponen, sehingga hampir sama dengan",
+                                "siklus komponennya."),
+    warn_twins = paste("Kandidat kembar (korelasi mutlak paling sedikit",
+                       "ambang) dibuang sebelum seleksi."),
+    warn_outlier_share = paste("Porsi pencilan yang diganti melewati ambang;",
+                               "periksa seri atau perlakuan pencilannya."),
+    warn_x13 = paste("X-13ARIMA-SEATS gagal untuk seri ini; pencilan tidak",
+                     "diganti."),
     tp_plot = "Titik balik (arsiran: kontraksi seri acuan)",
     tp_counts = "Jumlah titik balik", tp_table = "Daftar titik balik",
     leads_plot = "Lead korelasi silang menurut kelas",
@@ -481,6 +492,18 @@ app_text <- list(
     cycle_pair = "Cycle of the chosen series and the reference",
     cycles_all = "Normalised cycles of all series",
     steps_log = "Processing steps",
+    outlier_report = paste("Outliers by series (replaced, detected but",
+                           "kept, and warnings)"),
+    warn_few_components = paste("The selected composite has fewer than three",
+                                "components, so it is close to the cycles of",
+                                "its components."),
+    warn_twins = paste("Twin candidates (absolute correlation at least the",
+                       "threshold) were dropped before the selection."),
+    warn_outlier_share = paste("The share of outliers replaced exceeds the",
+                               "threshold; check the series or its outlier",
+                               "treatment."),
+    warn_x13 = paste("X-13ARIMA-SEATS failed for this series; its outliers",
+                     "were not replaced."),
     tp_plot = "Turning points (shaded: reference contractions)",
     tp_counts = "Number of turning points", tp_table = "Turning points",
     leads_plot = "Cross-correlation lead by class",
@@ -613,6 +636,10 @@ app_phrases_id <- c(
   series = "seri", start = "awal", end = "akhir", observations = "observasi",
   missing = "hilang", peaks = "puncak", troughs = "lembah",
   period = "periode", type = "jenis", value = "nilai",
+  "outliers replaced" = "pencilan diganti",
+  "outliers kept" = "pencilan dipertahankan",
+  "share replaced" = "porsi diganti",
+  "outlier periods" = "periode pencilan",
   candidate = "kandidat", class = "kelas", rationale = "rasional",
   lead = "lead", median = "median", led = "didahului", missed = "terlewat",
   extra = "ekstra", granger_p = "p Granger", group = "kelompok",
@@ -688,6 +715,9 @@ phrase_translator <- function(language) {
     out <- unname(app_phrases_id[x])
     dropped <- grepl("^dropped ", x)
     out[dropped] <- sub("^dropped ", "dibuang ", x[dropped])
+    twin <- grepl("^twin dropped ", x)
+    out[twin] <- sub(" with ", " dengan ",
+                     sub("^twin dropped ", "kembar dibuang ", x[twin]))
     ifelse(is.na(out), x, out)
   }
 }

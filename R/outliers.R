@@ -28,8 +28,21 @@ setMethod("treat_outliers", "RobustOutliers", function(method, x, ...) {
     character(0)
   }
   out$forecast <- numeric(0)
+  # a one-period spike is an additive outlier
+  idx <- if (is.null(out$index)) integer(0) else out$index
+  out$table <- outlier_table(idx, rep("AO", length(idx)), TRUE)
+  out$index <- NULL
   out
 })
+
+# Outliers found by a treatment: position in the treated series, type and
+# whether the effect was removed.
+outlier_table <- function(index = integer(0), type = character(0),
+                          removed = logical(0)) {
+  data.frame(index = as.integer(index), type = as.character(type),
+             removed = rep_len(as.logical(removed), length(index)),
+             stringsAsFactors = FALSE)
+}
 
 #' @rdname OutlierTreatment-class
 setMethod("treat_outliers", "TramoOutliers", function(method, x, ...) {
@@ -51,9 +64,17 @@ setMethod("treat_outliers", "TramoOutliers", function(method, x, ...) {
   label <- if (engine == "tramo") "TRAMO" else "X-13 regARIMA"
   found <- paste(sprintf("%s %d", names(fit$count), fit$count),
                  collapse = ", ")
+  tab <- if (is.null(fit$table)) outlier_table() else fit$table
+  tab$removed <- tab$type %in% method@remove
+  step <- if (is.null(fit$failed)) {
+    sprintf("outliers (%s): found %s; removed %s", label, found,
+            paste(method@remove, collapse = ", "))
+  } else {
+    sprintf("outliers (%s): model failed, none removed (%s)", label,
+            fit$failed)
+  }
   list(x = as_ts_like(as.numeric(x) - effect, x), n = as.integer(n),
-       step = sprintf("outliers (%s): found %s; removed %s", label, found,
-                      paste(method@remove, collapse = ", ")),
+       step = step, table = tab, failed = fit$failed,
        forecast = if (h > 0) {
          clean_forecast(utils::head(fit$forecast, h), fit$effects,
                         method@remove, fit$tc_rate)
@@ -131,8 +152,9 @@ regarima_tramo <- function(x, h, critical) {
     args <- c(args, list(outlier.usedefcv = FALSE, outlier.cv = critical))
   }
   sp <- do.call(RJDemetra::regarima_spec_tramoseats, args)
-  m <- tryCatch(RJDemetra::regarima(x, sp), error = function(e) NULL)
-  if (is.null(m) || is.null(m$forecast)) return(regarima_failed(x, h))
+  m <- run_x13(RJDemetra::regarima(x, sp))
+  if (inherits(m, "error")) return(regarima_failed(x, h, conditionMessage(m)))
+  if (is.null(m$forecast)) return(regarima_failed(x, h, "no forecasts"))
   rc <- m$regression.coefficients
   nm <- if (is.null(rc)) character(0) else rownames(rc)
   is_out <- grepl("^(AO|TC|LS) \\(", nm)
@@ -141,15 +163,54 @@ regarima_tramo <- function(x, h, critical) {
   list(effects = outlier_effects(nm, coef, x),
        types = c("AO", "TC", "LS"), count = count_types(substr(nm, 1, 2)),
        forecast = as.numeric(m$forecast[, 1]),
-       tc_rate = tc_rate("tramo", stats::frequency(x)))
+       tc_rate = tc_rate("tramo", stats::frequency(x)),
+       table = tramo_outlier_table(nm, x))
+}
+
+# Positions and types of outliers named like "AO (5-2011)" (JDemetra+).
+tramo_outlier_table <- function(names, x) {
+  if (length(names) == 0L) return(outlier_table())
+  f <- stats::frequency(x)
+  st <- stats::start(x)
+  idx <- vapply(names, function(nm) {
+    p <- strsplit(gsub(".*\\((.*)\\).*", "\\1", nm), "-")[[1]]
+    per <- outlier_period(p[1])
+    year <- suppressWarnings(as.integer(p[2]))
+    t0 <- (year - st[1]) * f + (per - st[2]) + 1L
+    if (length(p) != 2L || is.na(t0) || t0 < 1L || t0 > length(x)) {
+      NA_integer_
+    } else {
+      as.integer(t0)
+    }
+  }, integer(1), USE.NAMES = FALSE)
+  outlier_table(idx, substr(names, 1, 2), FALSE)
+}
+
+# Positions and types of the X-13 outlier regressors among the coefficient
+# names, e.g. "AO2012.Jun" (monthly) or "LS2009.4" (quarterly).
+x13_outlier_table <- function(names, x) {
+  names <- names[grepl("^(AO|LS|TC)[0-9]{4}\\.", names)]
+  if (length(names) == 0L) return(outlier_table())
+  f <- stats::frequency(x)
+  st <- stats::start(x)
+  year <- as.integer(substr(names, 3, 6))
+  p <- substring(names, 8)
+  per <- ifelse(grepl("^[0-9]+$", p), suppressWarnings(as.integer(p)),
+                match(tolower(p), tolower(month.abb)))
+  idx <- as.integer((year - st[1]) * f + (per - st[2]) + 1L)
+  idx[!is.na(idx) & (idx < 1L | idx > length(x))] <- NA_integer_
+  outlier_table(idx, toupper(substr(names, 1, 2)), FALSE)
 }
 
 # When the regARIMA model cannot be estimated: no outliers removed, and
-# forecasts from an IMA(1,1) model fitted with stats::arima().
-regarima_failed <- function(x, h) {
-  cyclind_warn(paste("The regARIMA model could not be estimated; no outliers",
-                     "were removed from this series."),
-               "cyclind_warning_outliers")
+# forecasts from an IMA(1,1) model fitted with stats::arima(). The warning
+# carries the error of the program, and the result records it.
+regarima_failed <- function(x, h, message = "estimation failed") {
+  message <- one_line(message)
+  cyclind_warn(paste0("The regARIMA model (X-13 or TRAMO) could not be ",
+                      "estimated (", message, "); no outliers were removed ",
+                      "from this series."),
+               c("cyclind_warning_x13", "cyclind_warning_outliers"))
   fc <- tryCatch({
     fit <- stats::arima(as.numeric(x), order = c(0, 1, 1))
     as.numeric(stats::predict(fit, n.ahead = max(1, h))$pred)
@@ -157,7 +218,40 @@ regarima_failed <- function(x, h) {
   list(effects = matrix(0, length(x), 3,
                         dimnames = list(NULL, c("AO", "TC", "LS"))),
        types = c("AO", "TC", "LS"), count = count_types(character(0)),
-       forecast = fc, tc_rate = 0.7)
+       forecast = fc, tc_rate = 0.7, table = outlier_table(),
+       failed = message)
+}
+
+# The first line of an error message, without the X-13 banner.
+one_line <- function(message) {
+  lines <- trimws(strsplit(message, "\n")[[1]])
+  lines <- lines[nzchar(lines) & !grepl("^(X-13 run failed|Errors:)$", lines)]
+  if (length(lines) == 0L) return("unknown error")
+  sub("^- ", "", lines[1])
+}
+
+# Errors of the system (disk, files, permissions, missing binary) as
+# opposed to errors of the model (no convergence, singular matrices).
+x13_failure_kind <- function(e) {
+  msg <- conditionMessage(e)
+  system <- paste("No space left|cannot open|cannot write|cannot create",
+                  "error writing|Permission denied|Read-only file system",
+                  "not found|could not find|cannot find|binary|disk quota",
+                  "cannot allocate", sep = "|")
+  if (grepl(system, msg, ignore.case = TRUE)) "system" else "model"
+}
+
+# Run an X-13 (or TRAMO) call: system errors stop with
+# `cyclind_error_system`; model errors return the condition.
+run_x13 <- function(expr) {
+  tryCatch(expr, error = function(e) {
+    if (x13_failure_kind(e) == "system") {
+      cyclind_abort(paste0("X-13ARIMA-SEATS could not run because of a ",
+                           "system error: ", one_line(conditionMessage(e))),
+                    "cyclind_error_system")
+    }
+    e
+  })
 }
 
 # regARIMA part of X-13ARIMA-SEATS through 'seasonal'.
@@ -168,16 +262,16 @@ regarima_x13 <- function(x, h, critical) {
                forecast.maxlead = max(1, h), forecast.save = "fct",
                regression.save = c("ao", "ls", "tc"))
   if (!is.na(critical)) args <- c(args, list(outlier.critical = critical))
-  m <- tryCatch(suppressMessages(do.call(seasonal::seas, args)),
-                error = function(e) NULL)
-  if (is.null(m)) {
+  m <- run_x13(suppressMessages(do.call(seasonal::seas, args)))
+  if (inherits(m, "error")) {
     # automatic model identification can fail to converge; retry with the
     # IMA(1,1) model, then give up on outliers with a warning
     args$arima.model <- "(0 1 1)"
-    m <- tryCatch(suppressMessages(do.call(seasonal::seas, args)),
-                  error = function(e) NULL)
+    m <- run_x13(suppressMessages(do.call(seasonal::seas, args)))
   }
-  if (is.null(m)) return(regarima_failed(x, h))
+  if (inherits(m, "error")) {
+    return(regarima_failed(x, h, conditionMessage(m)))
+  }
   n <- length(x)
   get_tab <- function(nm) {
     v <- tryCatch(suppressMessages(seasonal::series(m, nm)),
@@ -196,22 +290,31 @@ regarima_x13 <- function(x, h, critical) {
   fc <- suppressMessages(seasonal::series(m, "forecast.forecasts"))
   list(effects = eff, types = c("AO", "TC", "LS"),
        count = count_types(types), forecast = as.numeric(fc[, 1]),
-       tc_rate = tc_rate("x13", stats::frequency(x)))
+       tc_rate = tc_rate("x13", stats::frequency(x)),
+       table = x13_outlier_table(cf, x))
 }
 
-# Log/level test of the regARIMA model (TRAMO or X-13); TRUE for logs.
+# Log/level test of the regARIMA model (TRAMO or X-13); TRUE for logs. When
+# the model fails the result is NA with the error message as attribute
+# "failed"; system errors stop.
 log_test <- function(x, engine = "auto") {
   engine <- resolve_engine(engine)
   if (engine == "tramo") {
     sp <- RJDemetra::regarima_spec_tramoseats(spec = "TR3",
                                               transform.function = "Auto")
-    m <- RJDemetra::regarima(x, sp)
+    m <- run_x13(RJDemetra::regarima(x, sp))
+    if (inherits(m, "error")) return(failed_test(m))
     isTRUE(as.logical(m$model$spec_rslt[["Log transformation"]]))
   } else {
-    m <- suppressMessages(seasonal::seas(x, x11 = NULL, seats = NULL,
-                                         transform.function = "auto",
-                                         regression.aictest = NULL,
-                                         outlier = NULL))
+    m <- run_x13(suppressMessages(seasonal::seas(x, x11 = NULL, seats = NULL,
+                                                 transform.function = "auto",
+                                                 regression.aictest = NULL,
+                                                 outlier = NULL)))
+    if (inherits(m, "error")) return(failed_test(m))
     identical(seasonal::transformfunction(m), "log")
   }
+}
+
+failed_test <- function(e) {
+  structure(NA, failed = one_line(conditionMessage(e)))
 }

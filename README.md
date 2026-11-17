@@ -42,8 +42,8 @@ composite, following the OECD system of composite leading indicators:
     reference series.
 
 `oecd_spec()` follows the OECD documents (Gyomai and Guidetti 2012;
-Gyomai, Ahmad and Astolfi 2017) where they state a rule: TRAMO outliers
-with two months of forecasts, the log/level test, the double
+Gyomai, Ahmad and Astolfi 2017) where they state a rule: TRAMO additive
+outliers with two months of forecasts, the log/level test, the double
 Hodrick-Prescott filter, Bry-Boschan turning points with phases of at
 least 9 and cycles of at least 24 months, the median-lead classification,
 no lag-shifting and the chained average growth of the components. Where
@@ -161,7 +161,7 @@ Shiny Server or Posit Connect (`system.file("app", package = "cyclind")`).
   tuned on the same simulation design, so these rates are optimistic.
 * `oecd_spec()` reproduces the published OECD CLI of Indonesia from the
   OECD's own component cycles (correlation 0.9998); from the public
-  original series the whole method gives 0.88 (`vignette("cyclind")`,
+  original series the whole method gives 0.89 (`vignette("cyclind")`,
   section 8).
 * `R CMD check --as-cran` runs on Windows, macOS and Linux in GitHub Actions.
 

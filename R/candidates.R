@@ -39,7 +39,8 @@ oecd_rationales <- c(
 #'   [cli_assess()]), and `unit`: `"level"` (default) or `"percent"` for a
 #'   series that is already a rate, a percentage or a balance (an interest
 #'   rate, an unemployment rate), whose growth rate form
-#'   ([growth_form()]) is a difference in percentage points. `meta` may hold a
+#'   ([growth_form()]) is a difference in percentage points and which
+#'   `transform = "auto"` keeps in levels (see [cli_spec()]). `meta` may hold a
 #'   row for the reference; only its `unit` is used. When `data` comes from
 #'   [cli_align()], the types,
 #'   source frequencies and conversion steps recorded there are kept as

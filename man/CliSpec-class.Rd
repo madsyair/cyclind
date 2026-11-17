@@ -82,6 +82,12 @@ rate of each series.}
 \item{\code{amplitude}}{Measure that matches the amplitude of the composite index
 to that of the reference cycle: \code{"mad"} (mean absolute deviation) or
 \code{"sd"} (standard deviation).}
+
+\item{\code{matching}}{Which candidate turning point in the matching window is
+paired with a reference turning point: \code{"nearest"} or \code{"maximum"}.}
+
+\item{\code{twin_threshold}}{Absolute correlation of two candidate cycles from
+which the weaker one is dropped before aggregation.}
 }}
 
 \seealso{

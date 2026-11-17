@@ -14,6 +14,7 @@ oecd_spec(
   amplitude = c("sd", "mad"),
   transform = "test",
   filter = NULL,
+  outlier_types = "AO",
   dater = NULL,
   aggregator = NULL,
   lag_shift = FALSE,
@@ -52,6 +53,13 @@ Hodrick-Prescott filter, for example \code{\link[=hp_smoother]{hp_smoother()}} f
 are already growth rates (FR-014.8). \code{NULL} keeps the OECD filter (or
 the default filter of the cycle form).}
 
+\item{outlier_types}{Outlier types whose effects are removed by
+\code{\link[=tramo_outliers]{tramo_outliers()}}: any of \code{"AO"}, \code{"TC"}, \code{"LS"}. The default \code{"AO"}
+follows the OECD practice (Gyomai, Ahmad and Astolfi 2017, p. 283:
+additive outliers are filtered, level shifts only on expert judgement;
+ADR-010); the other types are detected and reported but kept.
+\code{c("AO", "TC")} was the default before 0.1.0.9000.}
+
 \item{dater}{A \linkS4class{Dater}; \code{NULL} means \code{\link[=oecd_dater]{oecd_dater()}} (phases of 9
 and cycles of 24 months, or 3 and 8 quarters). \code{bry_boschan()} gives
 the original 5/15-month rule.}
@@ -71,7 +79,7 @@ quarters).}
 band of \code{classifier} (2 months).}
 
 \item{outliers}{An \linkS4class{OutlierTreatment}; \code{NULL} means
-\code{tramo_outliers(engine = engine, forecast = forecast)}.}
+\code{tramo_outliers(engine = engine, forecast = forecast, remove = outlier_types)}. When given, \code{outlier_types} is ignored.}
 
 \item{extension}{An \linkS4class{Extension}; \code{NULL} means \code{\link[=no_extension]{no_extension()}}
 (the TRAMO forecasts of \code{outliers} extend the series).}
@@ -95,10 +103,13 @@ the OECD documents.
 \details{
 Step by step (OECD rule and source; \code{oecd_spec()}; \code{cli_spec()}):
 \itemize{
-\item outliers: TRAMO, additive outliers replaced (GAA17 p. 283);
-\code{\link[=tramo_outliers]{tramo_outliers()}} (additive outliers and transitory changes); robust
-z-score above 5 of the changes;
-\item log or levels: TRAMO test (GG12 p. 7; GAA17 p. 284); \code{transform = "test"}; \code{"auto"}, logarithm of positive series not in percent;
+\item outliers: TRAMO, additive outliers replaced, level shifts only on
+expert judgement (GAA17 p. 283); \code{\link[=tramo_outliers]{tramo_outliers()}} with
+\code{outlier_types = "AO"} (transitory changes and level shifts detected
+and reported but kept, ADR-010); robust z-score above 5 of the
+changes;
+\item log or levels: TRAMO test (GG12 p. 7; GAA17 p. 284); \code{transform = "test"}, series in percent kept in levels; \code{"auto"}, logarithm of
+positive series not in percent;
 \item end of the series: 2 to 6 months of TRAMO forecasts (GAA17 p. 284);
 2 months; 12 months of AR forecasts;
 \item cycle: double Hodrick-Prescott filter, 12 to 120 months (GG12 p. 7
@@ -173,9 +184,11 @@ The minimum median lead of the out-of-sample check is set to the
 coincident band (2 months). Other arguments are passed to \code{\link[=cli_spec]{cli_spec()}}.
 
 From the four component series of Indonesia that are public, the whole
-method gives a composite that is compared with the published CLI in
-\code{inst/calibration/oecd-idn-composite.csv} (row B1); the classification
-step uses the stricter operationalisation of \code{\link[=oecd_classifier]{oecd_classifier()}}.
+method gives a composite that correlates 0.89 with the published CLI and
+finds 10 of the 12 turning points that \code{\link[=oecd_dater]{oecd_dater()}} dates in it over
+the common span (row B1 of \code{inst/calibration/oecd-idn-composite.csv});
+the classification step uses the stricter operationalisation of
+\code{\link[=oecd_classifier]{oecd_classifier()}}.
 }
 \examples{
 oecd_spec()

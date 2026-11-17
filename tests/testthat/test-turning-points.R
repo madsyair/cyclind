@@ -112,6 +112,72 @@ test_that("turning points convert to a data frame", {
   expect_equal(df$period[1], "2000-12")
 })
 
+# Piecewise-linear path through the given turning points (positions and
+# values), so that the dated turning points are known exactly.
+path_through <- function(at, value, n) {
+  stats::approx(c(1, at, n), c(0, value, 0), xout = seq_len(n))$y
+}
+
+test_that("a phase of exactly min_phase is kept (inclusive bound)", {
+  # troughs and peaks alternate every 5 and 10 months: phases of 5 months
+  # exactly, cycles of 15 months exactly
+  at <- c(12, 17, 27, 32, 42, 47, 57, 62)
+  value <- rep(c(-1, 1), 4)
+  y <- path_through(at, value, 75)
+  x <- ts(y, frequency = 12, start = 2000)
+  tp <- date_turning_points(bry_boschan(), x)
+  expect_equal(tp@index, as.integer(at))
+  expect_true(any(diff(tp@index) == 5L))
+  # one month more and the short phases go
+  longer <- date_turning_points(bry_boschan(min_phase = 6), x)
+  expect_false(any(diff(longer@index) < 6L))
+  expect_lt(length(longer@index), length(at))
+})
+
+test_that("a cycle of exactly min_cycle is kept (inclusive bound)", {
+  at <- c(12, 17, 27, 32, 42, 47, 57, 62)
+  y <- path_through(at, rep(c(-1, 1), 4), 75)
+  x <- ts(y, frequency = 12, start = 2000)
+  tp <- date_turning_points(bry_boschan(), x)
+  peaks <- tp@index[tp@type == "peak"]
+  troughs <- tp@index[tp@type == "trough"]
+  expect_equal(unique(diff(peaks)), 15L)
+  expect_equal(unique(diff(troughs)), 15L)
+  shorter <- date_turning_points(bry_boschan(min_cycle = 16), x)
+  p2 <- shorter@index[shorter@type == "peak"]
+  expect_true(all(diff(p2) >= 16L))
+})
+
+test_that("quarterly bounds are inclusive too (BBQ 2/5)", {
+  # phases of 2 and 3 quarters, cycles of 5 quarters
+  at <- c(5, 7, 10, 12, 15, 17, 20, 22)
+  y <- path_through(at, rep(c(-1, 1), 4), 28)
+  x <- ts(y, frequency = 4, start = 2000)
+  tp <- date_turning_points(bbq(), x)
+  expect_equal(tp@index, as.integer(at))
+  expect_equal(unique(diff(tp@index[tp@type == "peak"])), 5L)
+})
+
+test_that("the OECD 9/24 bounds are inclusive too", {
+  # phases of exactly 9 and 15 months: cycles of exactly 24 months
+  at <- c(12, 21, 36, 45, 60, 69, 84, 93)
+  y <- path_through(at, rep(c(-1, 1), 4), 110)
+  x <- ts(y, frequency = 12, start = 2000)
+  oecd <- bry_boschan(min_phase = 9, min_cycle = 24)
+  tp <- date_turning_points(oecd, x)
+  expect_equal(tp@index, as.integer(at))
+  expect_equal(min(diff(tp@index)), 9L)
+  expect_equal(unique(diff(tp@index[tp@type == "peak"])), 24L)
+  # the dater of oecd_spec() (symmetric phase rule) keeps them as well
+  expect_equal(date_turning_points(oecd_dater(), x)@index, as.integer(at))
+  expect_lt(length(date_turning_points(bry_boschan(min_phase = 10,
+                                                   min_cycle = 24),
+                                       x)@index), length(at))
+  expect_lt(length(date_turning_points(bry_boschan(min_phase = 9,
+                                                   min_cycle = 25),
+                                       x)@index), length(at))
+})
+
 # ---- phase rule (audit P2) --------------------------------------------------
 # The audit example: a moderate trough (t = 30), a small peak (t = 60), the
 # deepest trough five months later (t = 66) and a peak (t = 100); the phase

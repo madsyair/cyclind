@@ -18,10 +18,11 @@ A named list of \linkS4class{CycleSeries}, reference first.
 Applies, series by series on its own non-missing span: interpolation of
 internal gaps, optional seasonal adjustment of the original series with
 X-13ARIMA-SEATS, the transformation (\code{"auto"} takes logarithms of strictly
-positive series that are not declared in percent), outlier replacement,
-the cycle form of the specification (the level by default, or the growth
-rate, see \code{\link[=growth_form]{growth_form()}}), the extension of the series end with
-forecasts (\code{\link[=ar_extension]{ar_extension()}} by default), the cycle filter and the OECD
+positive series, except series in percent such as interest rates, see
+\code{unit} in \code{\link[=cli_candidates]{cli_candidates()}}), outlier replacement, the cycle form of the
+specification (the level by default, or the growth rate, see
+\code{\link[=growth_form]{growth_form()}}), the extension of the series end with forecasts
+(\code{\link[=ar_extension]{ar_extension()}} by default), the cycle filter and the OECD
 normalisation (subtract the mean, divide by the mean absolute deviation).
 Every step is recorded in the \code{steps} slot.
 }

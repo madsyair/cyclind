@@ -6,15 +6,20 @@
 \alias{Extension}
 \alias{ArExtension-class}
 \alias{NoExtension-class}
+\alias{RegarimaExtension-class}
 \alias{ar_extension}
+\alias{regarima_extension}
 \alias{no_extension}
 \alias{extend_series}
 \alias{extend_series,NoExtension-method}
 \alias{extend_series,ArExtension-method}
+\alias{extend_series,RegarimaExtension-method}
 \alias{show,Extension-method}
 \title{Extension of the end of a series before the cycle filter}
 \usage{
 ar_extension(h = NULL, order_max = NULL)
+
+regarima_extension(h = NULL, engine = c("auto", "tramo", "x13"))
 
 no_extension()
 
@@ -23,6 +28,8 @@ extend_series(extension, x, ...)
 \S4method{extend_series}{NoExtension}(extension, x, ...)
 
 \S4method{extend_series}{ArExtension}(extension, x, ...)
+
+\S4method{extend_series}{RegarimaExtension}(extension, x, ...)
 
 \S4method{show}{Extension}(object)
 }
@@ -34,6 +41,9 @@ or 4 quarters).}
 the frequency of the data. Any value is further bounded by
 \verb{10 log10(m)} (the default bound of \code{\link[stats:ar]{stats::ar()}}) and by \code{m - 2},
 where \code{m = n - 1} is the number of changes.}
+
+\item{engine}{\code{"auto"}, \code{"tramo"} (RJDemetra) or \code{"x13"} (seasonal), as
+in \code{\link[=tramo_outliers]{tramo_outliers()}}.}
 
 \item{extension}{An \code{Extension}.}
 
@@ -69,11 +79,32 @@ simulations behind this default (\code{data-raw/realtime_defaults.R},
 vignette section 8) it cut the revision of the last value of the
 composite by 18 to 23 percent. With the O(n) HP solver it
 costs about 1 ms per series of 30 years.
+\item \code{regarima_extension()}: forecasts of a regARIMA model (TRAMO through
+\pkg{RJDemetra} or X-13ARIMA-SEATS through \pkg{seasonal}) with
+automatic outlier detection, but without removing any outlier. This is
+the extension of \code{\link[=oecd_spec]{oecd_spec()}} once its outlier treatment is switched
+off (\code{update(oecd_spec(), outlier_threshold = Inf)}).
 \item \code{no_extension()}: no forecasts.
 }
 
 When the outlier treatment already gives forecasts (\code{\link[=tramo_outliers]{tramo_outliers()}}),
-those are used and the extension is ignored.
+those are used and the extension is ignored. Switching the outlier
+treatment off with \code{\link[=update]{update()}} does not switch the end extension off: a
+specification whose forecasts came from \code{\link[=tramo_outliers]{tramo_outliers()}} gets
+\code{regarima_extension()} with the same horizon and engine (unless
+\code{extension} is given in the same call).
+
+\strong{Length of the extension.} The default of \code{\link[=cli_spec]{cli_spec()}} is one year of
+AR forecasts (12 months or 4 quarters; \code{h} and \code{order_max} change it).
+The OECD appends 2 to 6 months of TRAMO forecasts (Gyomai, Ahmad and
+Astolfi 2017, p. 284; \code{\link[=oecd_spec]{oecd_spec()}} uses 2 months), and the OECD Python
+package CIF extends each series with six months of ARIMA forecasts
+before its filter. A longer extension moves more of the end-point
+revision of the two-sided filter into the forecast error, at the cost
+of a cycle end that leans more on the AR model. Shorter extensions
+(\code{ar_extension(h = 6)} as in CIF, or \code{h = 2} as at the OECD) are
+closer to the published practice; the real-time simulations behind the
+default are in \code{data-raw/realtime_defaults.R}.
 
 New strategies are added with a subclass of \code{Extension} and a method for
 the generic \code{extend_series()}, which returns the numeric vector of
@@ -93,6 +124,10 @@ Methods}, 2nd edition. Springer, New York.
 
 Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
 Indicators}. OECD Publishing, Paris.
+
+Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+leading indicators. In \emph{Handbook on Cyclical Composite Indicators},
+chapter 10, 271--291. Eurostat, Luxembourg.
 
 Kaiser, R. and Maravall, A. (2001). \emph{Measuring Business Cycles in
 Economic Time Series}. Lecture Notes in Statistics 154. Springer, New

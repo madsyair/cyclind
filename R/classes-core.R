@@ -50,6 +50,10 @@
 #' @slot amplitude Measure that matches the amplitude of the composite index
 #'   to that of the reference cycle: `"mad"` (mean absolute deviation) or
 #'   `"sd"` (standard deviation).
+#' @slot matching Which candidate turning point in the matching window is
+#'   paired with a reference turning point: `"nearest"` or `"maximum"`.
+#' @slot twin_threshold Absolute correlation of two candidate cycles from
+#'   which the weaker one is dropped before aggregation.
 #' @seealso [cli_spec()]
 #' @exportClass CliSpec
 setClass("CliSpec", representation(
@@ -65,11 +69,12 @@ setClass("CliSpec", representation(
   max_iter = "numeric", min_components = "numeric", horizon = "numeric",
   oos_cutoffs = "numeric", holidays = "list", classifier = "Classifier",
   outliers = "OutlierTreatment", lag_shift = "logical",
-  extension = "Extension", form = "CycleForm", amplitude = "character"
+  extension = "Extension", form = "CycleForm", amplitude = "character",
+  matching = "character", twin_threshold = "numeric"
 ), prototype(holidays = list(), classifier = cyclind_classifier(),
              outliers = robust_outliers(5), lag_shift = FALSE,
              extension = no_extension(), form = level_form(),
-             amplitude = "mad"))
+             amplitude = "mad", matching = "nearest", twin_threshold = 0.99))
 
 #' Reference and candidate series
 #'
@@ -104,12 +109,21 @@ setClass("CandidateSet", representation(
 #' @slot cycle Filtered cycle (`ts`).
 #' @slot normalised Normalised cycle (mean 0, mean absolute deviation 1).
 #' @slot steps Character log of the transformations applied.
+#' @slot outliers Data frame of the outliers found: `time`, `period`,
+#'   `type` (`"AO"`, `"TC"` or `"LS"`) and `removed` (was the effect
+#'   removed?). See [outlier_report()].
+#' @slot notes Warnings raised while the cycle was extracted (a failed
+#'   X-13 model, a high share of outliers, a doubtful transformation).
 #' @seealso [cli_cycles()]
 #' @exportClass CycleSeries
 setClass("CycleSeries", representation(
   name = "character", original = "ts", transformed = "ts", cycle = "ts",
-  normalised = "ts", steps = "character"
-))
+  normalised = "ts", steps = "character", outliers = "data.frame",
+  notes = "character"
+), prototype(outliers = data.frame(time = numeric(0), period = character(0),
+                                   type = character(0),
+                                   removed = logical(0)),
+             notes = character(0)))
 
 #' Classification of candidate series
 #'

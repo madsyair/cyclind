@@ -316,3 +316,39 @@ test_that("the scorecard row for a disaggregated reference is translated", {
                "seri acuan hasil disagregasi data triwulanan")
   expect_match(p("turning points +/- 1 month"), "1 bulan")
 })
+
+test_that("step 4 shows the outliers of each series in both languages", {
+  skip_if_not_installed("shiny")
+  shiny::testServer(cyclind:::app_server("id"), {
+    session$userData$data <- function() rv$data
+    run_all_steps(session)
+    expect_match(output$outlier_table, "pencilan diganti")
+    expect_match(output$outlier_table, "lead_6")
+  })
+  cand <- sim_candidates(seed = 2)
+  cyc <- cli_cycles(cand, cli_spec(12))
+  en <- cyclind:::outlier_table_app(cyc, cyclind:::phrase_translator("en"))
+  expect_named(en, c("series", "outliers replaced", "outliers kept",
+                     "share replaced", "outlier periods", "note"))
+  id <- cyclind:::outlier_table_app(cyc, cyclind:::phrase_translator("id"))
+  expect_named(id, c("seri", "pencilan diganti", "pencilan dipertahankan",
+                     "porsi diganti", "periode pencilan", "catatan"))
+  expect_match(cyclind:::app_text$en$outlier_report, "Outliers")
+  expect_match(cyclind:::app_text$id$outlier_report, "Pencilan")
+})
+
+test_that("new warnings are translated in the interface", {
+  w <- structure(class = c("cyclind_warning_few_components",
+                           "cyclind_warning", "warning", "condition"),
+                 list(message = "The selected composite has 2", call = NULL))
+  t_id <- function(k) cyclind:::app_text$id[[k]]
+  t_en <- function(k) cyclind:::app_text$en[[k]]
+  expect_match(cyclind:::app_warning_text(w, t_id), "kurang dari tiga")
+  expect_match(cyclind:::app_warning_text(w, t_en), "fewer than three")
+  expect_match(cyclind:::app_warning_text(w, t_id), "has 2", fixed = TRUE)
+  plain <- simpleWarning("other")
+  expect_equal(cyclind:::app_warning_text(plain, t_id), "other")
+  for (k in c("warn_twins", "warn_outlier_share", "warn_x13")) {
+    expect_true(nzchar(t_id(k)) && nzchar(t_en(k)))
+  }
+})

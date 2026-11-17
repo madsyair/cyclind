@@ -296,7 +296,7 @@ with the source of each step:
 
 | Step | OECD rule (source) | `oecd_spec()` | `cli_spec()` |
 | --- | --- | --- | --- |
-| Outliers | TRAMO (GAA17 p. 283) | `tramo_outliers()` | robust z-score |
+| Outliers | TRAMO, additive outliers removed (GAA17 p. 283) | `tramo_outliers()`, `outlier_types = "AO"` | robust z-score |
 | Log or levels | TRAMO test (GAA17 p. 284) | `transform = "test"` | `"auto"` |
 | End of series | 2--6 months of TRAMO forecasts (GAA17 p. 284) | 2 months | 12 months, AR |
 | Cycle | double HP, 12--120 months (GG12 p. 7, 15) | same | same |
@@ -388,6 +388,28 @@ cli_spec(aggregator = equal_weight(ragged_edge = "level"),
          extension = no_extension())
 ```
 
+The length of the extension differs between programs. cyclind appends one
+year of AR forecasts of the changes (12 months or 4 quarters,
+`ar_extension(h = )` changes it); the OECD appends 2 to 6 months of TRAMO
+forecasts (GAA17 p. 284; `oecd_spec()` uses 2); the OECD Python package
+CIF appends six months of ARIMA forecasts. A longer extension moves more of the end-point
+revision of the two-sided filter into the forecast error, so the end of
+the cycle leans more on the model. `ar_extension(h = 6)` is the CIF
+choice. Switching the outliers of `oecd_spec()` off
+(`update(spec, outlier_threshold = Inf)`) keeps its forecasts through
+`regarima_extension()`, so the two options stay separate.
+
+Every outlier treatment reports what it found. `outlier_report()` lists,
+series by series, the outliers replaced and those detected but kept, with
+their dates and types, and the warnings recorded on the way (a failed
+X-13 model, more than `max_share` of the observations replaced).
+`oecd_spec()` replaces additive outliers only (`outlier_types = "AO"`, as
+in the 2017 OECD documentation); transitory changes and level shifts are
+reported but kept. `cycle_agreement()` compares a composite with the
+reference by Pearson and Spearman correlations outside crisis periods
+(`exclude = `), with paired block-bootstrap intervals from an explicit
+`seed`.
+
 TRAMO-type outliers and the robust default classify the candidates
 equally well when spikes and a level shift are injected:
 
@@ -466,12 +488,14 @@ cmp_idn[, c("component", "A_class_oecd_rule", "A_class_oecd_median_rule",
 ```
 
 From quarterly GDP (Denton-Cholette to months) and the original series,
-`oecd_spec()` gives cycles that correlate 0.90 to 0.99 with the OECD
+`oecd_spec()` gives cycles that correlate 0.92 to 0.99 with the OECD
 cycles; the GDP cycle matches all 10 reference turning points. The
-composite of the four (B1) correlates 0.88 with the published CLI and
-finds 9 of its 12 turning points in the common span; it leads GDP by
-three months at the cross-correlation peak, the OECD cycles of the same
-four (A5) by four. Classification differs most. By the median lead alone,
+composite of the four (B1) correlates 0.89 with the published CLI and
+finds 10 of its 12 turning points in the common span; it leads GDP by
+four months at the cross-correlation peak, as do the OECD cycles of the
+same four (A5). (With transitory changes also removed, the default of
+`tramo_outliers()` before 0.1.0.9000, the figures were 0.88 and 9 of 12.)
+Classification differs most. By the median lead alone,
 six of the seven OECD components are leading and one coincident; with the
 conformity criteria of the OECD rule none passes, mainly because the
 dating finds more cycles in the components than in GDP and several fail

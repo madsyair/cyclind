@@ -27,19 +27,43 @@
 #'   procedure (Chen and Liu 1993); `"auto"` takes TRAMO when \pkg{RJDemetra}
 #'   is installed and X-13 otherwise.
 #'
-#' By default only AO and TC (temporary shocks) are removed. Level shifts
-#' are detected, so that they are not mistaken for other outliers, but kept:
-#' in monthly activity data the automatic procedure often labels the onset
-#' of a recession a level shift, and removing it would erase a genuine
-#' cyclical movement. Use `remove = c("AO", "TC", "LS")` for the fully
-#' linearised series.
+#' By default only additive outliers (AO) are removed, as the OECD
+#' describes its practice (Gyomai, Ahmad and Astolfi 2017, p. 283: additive
+#' outliers are filtered, level shifts are analysed and removed only on
+#' expert judgement; ADR-010). Transitory changes (TC) and level shifts
+#' (LS) are detected, so that they are not mistaken for other outliers,
+#' and reported, but kept: in monthly activity data the automatic
+#' procedure often labels the onset of a recession a level shift or a
+#' transitory change, and removing it would erase a genuine cyclical
+#' movement. `remove = c("AO", "TC")` was the default before 0.1.0.9000;
+#' `remove = c("AO", "TC", "LS")` gives the fully linearised series (Gyomai
+#' and Guidetti 2012, p. 6).
+#'
+#' Every treatment reports the outliers it found: [cli_cycles()] keeps
+#' their dates and types in the `outliers` slot of each
+#' [CycleSeries-class], [outlier_report()] tabulates them, and the
+#' `show()` methods print them. When the outliers removed from a series
+#' exceed `max_share` of its observations, a warning of class
+#' `cyclind_warning_outlier_share` is given and recorded in the `notes`
+#' slot: so many replaced values change the cycle itself, and the series or
+#' the threshold deserve a look.
+#'
+#' When X-13ARIMA-SEATS cannot estimate the model, the series keeps its
+#' outliers, a warning of class `cyclind_warning_x13` names the series and
+#' the error, and the `notes` slot records it. Errors of the system (a full
+#' disk, a missing X-13 binary, a file that cannot be written) stop the run
+#' with an error of class `cyclind_error_system`.
 #'
 #' New treatments are added by defining a subclass and a method for the
 #' generic `treat_outliers()`, which returns a list with the cleaned series
-#' `x`, the number of outliers `n`, a description `step` and a numeric
-#' vector `forecast` (possibly empty).
+#' `x`, the number of outliers `n`, a description `step`, a numeric vector
+#' `forecast` (possibly empty) and, optionally, a data frame `table` of the
+#' outliers found (`index`, `type`, `removed`) and a character `failed`
+#' (the error message when the model failed).
 #'
 #' @param threshold Robust z-score above which a change is extreme.
+#' @param max_share Share of the observations of a series above which the
+#'   outliers removed give a warning (default 0.05, one month in twenty).
 #' @param engine `"auto"`, `"tramo"` (RJDemetra) or `"x13"` (seasonal).
 #' @param remove Outlier types whose effects are removed: any of `"AO"`,
 #'   `"TC"`, `"LS"`.
@@ -68,7 +92,7 @@
 #'
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
 #' Indicators*. OECD Publishing, Paris.
-#' @seealso [cli_spec()], [oecd_spec()]
+#' @seealso [cli_spec()], [oecd_spec()], [outlier_report()]
 #' @examples
 #' robust_outliers()
 #' tramo_outliers(engine = "x13")
@@ -77,7 +101,25 @@
 #' @exportClass OutlierTreatment
 NULL
 
-setClass("OutlierTreatment", representation("VIRTUAL", label = "character"))
+setClass("OutlierTreatment", representation("VIRTUAL", label = "character",
+                                            max_share = "numeric"),
+         prototype(max_share = 0.05))
+
+check_max_share <- function(max_share) {
+  if (!is.numeric(max_share) || length(max_share) != 1L ||
+      is.na(max_share) || !(max_share > 0 && max_share <= 1)) {
+    cyclind_abort("`max_share` must be a share in (0, 1].",
+                  "cyclind_error_argument")
+  }
+  invisible(TRUE)
+}
+
+# Warning threshold of a treatment (objects saved before 0.1.0.9000 have
+# none).
+outlier_max_share <- function(method) {
+  if (methods::.hasSlot(method, "max_share") &&
+      length(method@max_share) == 1L) method@max_share else 0.05
+}
 
 #' @rdname OutlierTreatment-class
 setClass("RobustOutliers", contains = "OutlierTreatment",
@@ -90,21 +132,22 @@ setClass("TramoOutliers", contains = "OutlierTreatment",
 
 #' @rdname OutlierTreatment-class
 #' @export
-robust_outliers <- function(threshold = 5) {
+robust_outliers <- function(threshold = 5, max_share = 0.05) {
   if (!is.numeric(threshold) || length(threshold) != 1L || is.na(threshold) ||
       !(threshold > 0)) {
     cyclind_abort("`threshold` must be a positive number (Inf disables).",
                   "cyclind_error_argument")
   }
+  check_max_share(max_share)
   new("RobustOutliers", label = sprintf("robust z-score > %s", threshold),
-      threshold = as.numeric(threshold))
+      threshold = as.numeric(threshold), max_share = as.numeric(max_share))
 }
 
 #' @rdname OutlierTreatment-class
 #' @export
 tramo_outliers <- function(engine = c("auto", "tramo", "x13"),
-                           remove = c("AO", "TC"), forecast = NULL,
-                           critical = NULL) {
+                           remove = "AO", forecast = NULL,
+                           critical = NULL, max_share = 0.05) {
   engine <- match.arg(engine)
   remove <- toupper(remove)
   if (length(remove) == 0L || !all(remove %in% c("AO", "TC", "LS"))) {
@@ -115,12 +158,14 @@ tramo_outliers <- function(engine = c("auto", "tramo", "x13"),
     check_number(forecast, "forecast", lower = 0, integer = TRUE)
   }
   if (!is.null(critical)) check_number(critical, "critical", lower = 1)
+  check_max_share(max_share)
   new("TramoOutliers",
       label = sprintf("TRAMO-type regARIMA (%s), remove %s", engine,
                       paste(unique(remove), collapse = ", ")),
       engine = engine, remove = unique(remove),
       forecast = if (is.null(forecast)) NA_real_ else as.numeric(forecast),
-      critical = if (is.null(critical)) NA_real_ else as.numeric(critical))
+      critical = if (is.null(critical)) NA_real_ else as.numeric(critical),
+      max_share = as.numeric(max_share))
 }
 
 #' @rdname OutlierTreatment-class

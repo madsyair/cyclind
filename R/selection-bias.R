@@ -96,7 +96,8 @@ one_cutoff <- function(candidates, spec, t0, full_cycles, ref, ref_tp,
   comp_cs <- composite_as_cycle(comp)
   comp_tp <- date_turning_points(spec@dater, comp_cs@normalised, name = "CLI")
   e <- resolve_dater(spec@dater, spec@freq)$end_exclusion
-  pairs <- match_turning_points(ref_tp, comp_tp, spec@lead_window, e)$pairs
+  pairs <- match_turning_points(ref_tp, comp_tp, spec@lead_window, e,
+                                spec_matching(spec))$pairs
   times <- stats::time(ref@normalised)
   after <- pairs[times[pairs$ref_index] > t0, , drop = FALSE]
   leads <- after$lead[!is.na(after$lead)]

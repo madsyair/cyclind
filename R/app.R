@@ -403,6 +403,7 @@ app_ui <- function(language = "en") {
         shiny::selectInput("cyc_series", t("series"), choices = NULL),
         shiny::h4(t("cycle_pair")), shiny::plotOutput("cycle_pair"),
         shiny::h4(t("steps_log")), shiny::verbatimTextOutput("cycle_steps"),
+        shiny::h4(t("outlier_report")), shiny::tableOutput("outlier_table"),
         shiny::h4(t("cycles_all")), shiny::plotOutput("cycles_grid",
                                                      height = "auto")
       ),
@@ -610,6 +611,29 @@ quality_display <- function(q, p = function(x) x) {
   translate_names(out, p)
 }
 
+# Warnings of the package shown in the interface: a translated sentence
+# for the warnings added from the CIF comparison, followed by the details.
+app_warning_text <- function(w, t) {
+  keys <- c(cyclind_warning_few_components = "warn_few_components",
+            cyclind_warning_twins = "warn_twins",
+            cyclind_warning_outlier_share = "warn_outlier_share",
+            cyclind_warning_x13 = "warn_x13")
+  hit <- keys[names(keys) %in% class(w)]
+  if (length(hit) == 0L) return(conditionMessage(w))
+  paste0(t(hit[[1]]), " (", conditionMessage(w), ")")
+}
+
+# The outlier report of step 4 with translated headers.
+outlier_table_app <- function(cycles, p) {
+  rep <- outlier_report(cycles)
+  out <- data.frame(series = rep$name, "outliers replaced" = rep$n_removed,
+                    "outliers kept" = rep$n_kept,
+                    "share replaced" = sprintf("%.1f%%", 100 * rep$share),
+                    "outlier periods" = rep$periods, note = rep$note,
+                    check.names = FALSE, stringsAsFactors = FALSE)
+  translate_names(out, p)
+}
+
 verdict_colour <- c(good = "#1b7837", acceptable = "#b35806",
                     weak = "#b2182b")
 
@@ -627,11 +651,19 @@ app_script <- function(state) {
     if (isTRUE(state$cand_rebuilt)) {
       lines <- c(lines, "", candidate_lines(state, "cand@data"))
     }
-    return(paste(c(lines, analysis_lines(state)), collapse = "\n"))
+    return(paste(c(lines, analysis_lines(state), provenance_lines()),
+                 collapse = "\n"))
   }
   lines <- c("library(cyclind)", "", data_lines(state))
   lines <- c(lines, "", candidate_lines(state, "data"))
-  paste(c(lines, analysis_lines(state)), collapse = "\n")
+  paste(c(lines, analysis_lines(state), provenance_lines()),
+        collapse = "\n")
+}
+
+# Last lines of the script: versions and checksum of the input (butir 10).
+provenance_lines <- function() {
+  c("", "# Provenance: versions of cyclind, R and X-13, checksum of the data",
+    "print(cyclind_provenance(cand))")
 }
 
 # Step 1 of the script: the data as loaded, with the column separator and
@@ -821,7 +853,7 @@ app_server <- function(language = "en") {
     safely <- function(expr) {
       tryCatch(
         withCallingHandlers(expr, warning = function(w) {
-          shiny::showNotification(conditionMessage(w), type = "warning",
+          shiny::showNotification(app_warning_text(w, t), type = "warning",
                                   duration = 8)
           invokeRestart("muffleWarning")
         }),
@@ -1257,6 +1289,10 @@ app_server <- function(language = "en") {
       need(4L)
       shiny::req(input$cyc_series %in% names(rv$cycles))
       show(rv$cycles[[input$cyc_series]])
+    })
+    output$outlier_table <- shiny::renderTable({
+      need(4L)
+      outlier_table_app(rv$cycles, p)
     })
     output$cycles_grid <- shiny::renderPlot({
       need(4L)

@@ -20,10 +20,31 @@
 #'   vignette section 8) it cut the revision of the last value of the
 #'   composite by 18 to 23 percent. With the O(n) HP solver it
 #'   costs about 1 ms per series of 30 years.
+#' * `regarima_extension()`: forecasts of a regARIMA model (TRAMO through
+#'   \pkg{RJDemetra} or X-13ARIMA-SEATS through \pkg{seasonal}) with
+#'   automatic outlier detection, but without removing any outlier. This is
+#'   the extension of [oecd_spec()] once its outlier treatment is switched
+#'   off (`update(oecd_spec(), outlier_threshold = Inf)`).
 #' * `no_extension()`: no forecasts.
 #'
 #' When the outlier treatment already gives forecasts ([tramo_outliers()]),
-#' those are used and the extension is ignored.
+#' those are used and the extension is ignored. Switching the outlier
+#' treatment off with [update()] does not switch the end extension off: a
+#' specification whose forecasts came from [tramo_outliers()] gets
+#' `regarima_extension()` with the same horizon and engine (unless
+#' `extension` is given in the same call).
+#'
+#' **Length of the extension.** The default of [cli_spec()] is one year of
+#' AR forecasts (12 months or 4 quarters; `h` and `order_max` change it).
+#' The OECD appends 2 to 6 months of TRAMO forecasts (Gyomai, Ahmad and
+#' Astolfi 2017, p. 284; [oecd_spec()] uses 2 months), and the OECD Python
+#' package CIF extends each series with six months of ARIMA forecasts
+#' before its filter. A longer extension moves more of the end-point
+#' revision of the two-sided filter into the forecast error, at the cost
+#' of a cycle end that leans more on the AR model. Shorter extensions
+#' (`ar_extension(h = 6)` as in CIF, or `h = 2` as at the OECD) are
+#' closer to the published practice; the real-time simulations behind the
+#' default are in `data-raw/realtime_defaults.R`.
 #'
 #' New strategies are added with a subclass of `Extension` and a method for
 #' the generic `extend_series()`, which returns the numeric vector of
@@ -45,6 +66,10 @@
 #'
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
 #' Indicators*. OECD Publishing, Paris.
+#'
+#' Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+#' leading indicators. In *Handbook on Cyclical Composite Indicators*,
+#' chapter 10, 271--291. Eurostat, Luxembourg.
 #'
 #' Kaiser, R. and Maravall, A. (2001). *Measuring Business Cycles in
 #' Economic Time Series*. Lecture Notes in Statistics 154. Springer, New
@@ -69,6 +94,10 @@ setClass("ArExtension", contains = "Extension",
 setClass("NoExtension", contains = "Extension")
 
 #' @rdname Extension-class
+setClass("RegarimaExtension", contains = "Extension",
+         representation(h = "numeric", engine = "character"))
+
+#' @rdname Extension-class
 #' @export
 ar_extension <- function(h = NULL, order_max = NULL) {
   if (!is.null(h)) check_number(h, "h", lower = 1, integer = TRUE)
@@ -80,6 +109,19 @@ ar_extension <- function(h = NULL, order_max = NULL) {
                       if (is.null(h)) "one year" else paste(h, "periods")),
       h = if (is.null(h)) NA_real_ else as.numeric(h),
       order_max = if (is.null(order_max)) NA_real_ else as.numeric(order_max))
+}
+
+#' @rdname Extension-class
+#' @param engine `"auto"`, `"tramo"` (RJDemetra) or `"x13"` (seasonal), as
+#'   in [tramo_outliers()].
+#' @export
+regarima_extension <- function(h = NULL, engine = c("auto", "tramo", "x13")) {
+  engine <- match.arg(engine)
+  if (!is.null(h)) check_number(h, "h", lower = 1, integer = TRUE)
+  new("RegarimaExtension",
+      label = sprintf("regARIMA forecasts (%s), %s", engine,
+                      if (is.null(h)) "one year" else paste(h, "periods")),
+      h = if (is.null(h)) NA_real_ else as.numeric(h), engine = engine)
 }
 
 #' @rdname Extension-class
@@ -123,6 +165,28 @@ setMethod("extend_series", "ArExtension", function(extension, x, ...) {
   fd <- ar_forecast(d, max(0, pmax), h)
   if (is.null(fd) || any(!is.finite(fd))) drift else last + cumsum(fd)
 })
+
+#' @rdname Extension-class
+setMethod("extend_series", "RegarimaExtension", function(extension, x, ...) {
+  engine <- resolve_engine(extension@engine)
+  h <- if (is.na(extension@h)) stats::frequency(x) else extension@h
+  fit <- if (engine == "tramo") {
+    regarima_tramo(x, h, NA_real_)
+  } else {
+    regarima_x13(x, h, NA_real_)
+  }
+  utils::head(as.numeric(fit$forecast), h)
+})
+
+# The extension that replaces the forecasts of an outlier treatment that
+# is switched off (butir 2): the same horizon and engine, no outliers
+# removed. NULL when the old treatment gave no forecasts.
+carried_extension <- function(old, new) {
+  if (!is(old, "TramoOutliers") || identical(old@forecast, 0)) return(NULL)
+  if (is(new, "TramoOutliers") && !identical(new@forecast, 0)) return(NULL)
+  regarima_extension(h = if (is.na(old@forecast)) NULL else old@forecast,
+                     engine = old@engine)
+}
 
 # Forecasts of the changes from stats::ar(); NULL when the fit fails.
 ar_forecast <- function(d, order_max, h) {

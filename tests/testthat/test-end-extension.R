@@ -182,3 +182,43 @@ test_that("NFR-003: recalibrated thresholds keep false leaders rare", {
   expect_true(all(new$revision < old$revision))
   expect_true(all(new$direction_right > old$direction_right))
 })
+
+# ---- butir 2: outliers and the end extension are separate options ----------
+
+test_that("switching outliers off keeps the end extension of oecd_spec()", {
+  s <- oecd_spec(engine = "x13")
+  off <- update(s, outlier_threshold = Inf)
+  expect_s4_class(off@outliers, "RobustOutliers")
+  expect_s4_class(off@extension, "RegarimaExtension")
+  expect_equal(off@extension@h, 2)
+  expect_equal(off@extension@engine, "x13")
+  # the same through `outliers`
+  off2 <- update(s, outliers = robust_outliers(Inf))
+  expect_s4_class(off2@extension, "RegarimaExtension")
+  # an extension given by hand wins
+  none <- update(s, outlier_threshold = Inf, extension = no_extension())
+  expect_s4_class(none@extension, "NoExtension")
+  # the package defaults are untouched: the AR extension stays
+  expect_s4_class(update(cli_spec(12), outlier_threshold = Inf)@extension,
+                  "ArExtension")
+  # forecasts of the outlier model of one year: h = NA means one year
+  y <- update(cli_spec(12, outliers = tramo_outliers(engine = "x13"),
+                       extension = no_extension()), outlier_threshold = Inf)
+  expect_true(is.na(y@extension@h))
+  expect_output(show(regarima_extension(h = 2)), "regARIMA forecasts")
+  expect_error(regarima_extension(h = 0), class = "cyclind_error_argument")
+})
+
+test_that("the regARIMA extension forecasts without removing outliers", {
+  skip_if_not_installed("seasonal")
+  skip_on_cran()
+  cand <- sim_candidates(seed = 2)
+  s <- update(oecd_spec(engine = "x13", transform = "auto"),
+              outlier_threshold = Inf)
+  cs <- cli_cycles(cand, s)$lead_6
+  expect_true(any(grepl("2-period forecasts: regARIMA", cs@steps)))
+  expect_false(any(grepl("outliers \\(", cs@steps)))
+  x <- ts(cumsum(rnorm(120, 0.01, 0.02)), frequency = 12)
+  expect_length(extend_series(regarima_extension(h = 3, engine = "x13"), x),
+                3L)
+})

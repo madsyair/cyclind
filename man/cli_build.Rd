@@ -37,6 +37,16 @@ Composites are ranked by the score
 (\textrm{missed share} + \textrm{extra share}),}
 where the lead is that of the cross-correlation peak.
 
+Before the loop, twin candidates whose normalised cycles correlate at
+least \code{spec@twin_threshold} (0.99) in absolute value are reduced to the
+one with the higher peak cross-correlation with the reference; the twins
+dropped are listed in a warning (\code{cyclind_warning_twins}) and in the
+audit log (iteration 0). Twins add the same information twice and give
+it double weight. A selected composite of fewer than three components
+gives a warning (\code{cyclind_warning_few_components}): it is little more
+than the cycle of its components and is fragile when one of them is
+revised.
+
 When \code{spec@oos_cutoffs} is not empty the selection-bias harness
 (\code{\link[=cli_selection_bias]{cli_selection_bias()}}) is run as well and stored in the validation.
 }

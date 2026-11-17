@@ -35,7 +35,9 @@ cli_spec(
   lag_shift = FALSE,
   extension = NULL,
   form = NULL,
-  amplitude = c("mad", "sd")
+  amplitude = c("mad", "sd"),
+  matching = c("nearest", "maximum"),
+  twin_threshold = 0.99
 )
 }
 \arguments{
@@ -51,12 +53,15 @@ after the last date with all components adds the average change of the
 available components to the previous value
 (\code{equal_weight(ragged_edge = "level")} takes the plain mean).}
 
-\item{transform}{\code{"auto"} (logarithm for strictly positive series, except
-series declared \code{unit = "percent"} in \code{\link[=cli_candidates]{cli_candidates()}}, such as
-interest rates, which stay in levels),
+\item{transform}{\code{"auto"} (logarithm for strictly positive series),
 \code{"log"}, \code{"none"} or \code{"test"} (logarithm when the log/level test of a
 regARIMA model prefers it, as TRAMO does at the OECD; needs
-\pkg{RJDemetra} or \pkg{seasonal}).}
+\pkg{RJDemetra} or \pkg{seasonal}). With \code{"auto"} and \code{"test"},
+series declared in percent (\code{unit = "percent"} in the metadata of
+\code{\link[=cli_candidates]{cli_candidates()}}: interest rates, unemployment rates, survey
+balances) stay in levels, since their cycle is additive; \code{"log"} takes
+the logarithm of every series. Before 0.1.0.9000, \code{"auto"} also logged
+positive series in percent.}
 
 \item{seasonal_adjust}{Seasonally adjust with X-13ARIMA-SEATS (needs the
 \pkg{seasonal} package)?}
@@ -135,9 +140,12 @@ Values moved past the last date of the data are dropped.}
 
 \item{extension}{An \linkS4class{Extension}; default \code{\link[=ar_extension]{ar_extension()}}: each
 series is extended by one year of AR forecasts before the cycle filter
-(a choice of cyclind; the OECD extends with 2 to 6 months of TRAMO
-forecasts, Gyomai, Ahmad and Astolfi 2017, p. 284).
-Use \code{\link[=no_extension]{no_extension()}} for no extension.}
+(a choice of cyclind; \code{ar_extension(h = 6)} for the six months of
+ARIMA forecasts of CIF; the OECD extends with 2 to 6 months of TRAMO
+forecasts, Gyomai, Ahmad and Astolfi 2017, p. 284, see
+\linkS4class{Extension}). Use \code{\link[=no_extension]{no_extension()}} for no extension. The
+extension is separate from the outlier treatment: switching outliers
+off with \code{\link[=update]{update()}} keeps it.}
 
 \item{form}{A \linkS4class{CycleForm}: \code{\link[=level_form]{level_form()}} (default, the growth
 cycle) or \code{\link[=growth_form]{growth_form()}} (growth rate cycle).
@@ -154,6 +162,24 @@ the reference cycle (in percent deviation from trend): \code{"mad"}
 cycle; \code{"sd"} gives it the standard deviation of the reference cycle
 over their common dates, which reproduces the OECD amplitude-adjusted
 CLI (see \code{\link[=oecd_spec]{oecd_spec()}}). Only the index changes, not the cycle.}
+
+\item{matching}{Rule that pairs turning points. Reference turning points
+are taken in time order; each is paired with a candidate turning point
+of the same type inside \code{lead_window} that is later than the candidate
+turning point paired before and not used yet. \code{"nearest"} (default)
+takes the one closest in time, as the OECD package CIF does;
+\code{"maximum"} takes the most pronounced one, the highest peak or deepest
+trough of the candidate cycle, and the closest of equally pronounced
+ones. Unpaired reference turning points are missed and unpaired
+candidate turning points are extra. \code{"maximum"} keeps a small wiggle
+just before the reference turn from replacing the main turn of the
+candidate, at the cost of longer leads.}
+
+\item{twin_threshold}{Candidates whose normalised cycles correlate at
+least this much in absolute value are twins: before the selection loop
+only the one with the higher peak cross-correlation with the reference
+is kept (default 0.99, as in CIF). The twins dropped are listed in the
+audit log and in a warning. 1 drops identical cycles only.}
 }
 \value{
 A \linkS4class{CliSpec} object.
