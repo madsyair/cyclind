@@ -465,8 +465,23 @@ setMethod("classify_candidate", "OecdClassifier", function(classifier, row,
   if (lead <= -band[["coincident"]]) {
     return(list(class = "lagging", reasons = "lead"))
   }
+  # a coincident series also moves with the reference over the whole cycle:
+  # its cross-correlation peak lies in the same band as its median lead
+  if (!oecd_ccf_coincident(classifier, row, spec)) {
+    return(list(class = "rejected", reasons = "ccf lag"))
+  }
   list(class = "coincident", reasons = "lead")
 })
+
+# Cross-correlation condition of an OECD coincident series: with the
+# conformity criteria, a positive peak strictly inside the coincident band
+# (at lag 0 for quarterly data); TRUE without them (the median-lead table).
+oecd_ccf_coincident <- function(classifier, row, spec) {
+  if (!oecd_conformity(classifier)) return(TRUE)
+  band <- oecd_band(classifier, spec)[["coincident"]]
+  isTRUE(in_timing_band(classifier, row$ccf_lag, band)) &&
+    isTRUE(row$ccf_r > 0)
+}
 
 # Where the direction came from; assessments made before 0.6.0 have none.
 sign_sources <- function(tab) {

@@ -16,7 +16,11 @@
 #'   reference.
 #' * `OecdClassifier`: at least `min_matched` matched turning points and a
 #'   median lead strictly inside +/- `coincident` months, the OECD
-#'   definition of a coincident series.
+#'   definition of a coincident series. With `conformity = TRUE` (the
+#'   default) the cross-correlation peak must also be positive and lie
+#'   strictly inside the same band (lags -1 to 1 for monthly data, lag 0 for
+#'   quarterly data), so that an index whose median lead is coincident but
+#'   which moves with the reference several periods later is not accepted.
 #' * any other `Classifier`: at least three matched turning points and a
 #'   median lead within the timing band.
 #'
@@ -84,7 +88,10 @@ setMethod("coincident_criteria", "CyclindClassifier", function(classifier, row,
 setMethod("coincident_criteria", "OecdClassifier", function(classifier, row,
                                                             spec) {
   band <- timing_band(classifier, spec)
-  c(matched = isTRUE(row$n_matched >= classifier@min_matched),
+  ccf <- if (oecd_conformity(classifier)) {
+    c(ccf = oecd_ccf_coincident(classifier, row, spec))
+  }
+  c(matched = isTRUE(row$n_matched >= classifier@min_matched), ccf,
     timing = isTRUE(in_timing_band(classifier, row$median_lead, band)))
 })
 
@@ -97,7 +104,11 @@ coincident_quality <- function(classifier, row, spec) {
   known <- list(
     matched = list("matched turning points", row$n_matched, rules$matched),
     ccf = list("cross-correlation lag", row$ccf_lag,
-               sprintf("within +/- %s, positive", spec@coincident_band)),
+               if (is.null(rules$ccf)) {
+                 sprintf("within +/- %s, positive", spec@coincident_band)
+               } else {
+                 rules$ccf
+               }),
     timing = list("median lead at turning points", row$median_lead,
                   rules$timing),
     missed = list("share of missed turning points", share(row$missed),

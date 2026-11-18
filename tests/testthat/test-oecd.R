@@ -62,6 +62,40 @@ test_that("OECD thresholds are in months and follow the frequency", {
                class = "cyclind_error_argument")
 })
 
+test_that("an OECD coincident series needs its cross-correlation peak near 0", {
+  # audit: a quarterly index with a coincident median lead but its
+  # cross-correlation peak at lag -8 was accepted as coincident
+  s <- update(spec, classifier = oecd_classifier())
+  sq <- cli_spec(4, classifier = oecd_classifier())
+  far <- transform(row_with(0), ccf_lag = -8)
+  out <- cyclind:::classify_row(far, sq)
+  expect_equal(out$class, "rejected")
+  expect_match(out$reasons, "ccf lag")
+  expect_equal(cyclind:::classify_row(far, s)$class, "rejected")
+  expect_equal(cyclind:::classify_row(transform(far, ccf_lag = 1), s)$class,
+               "coincident")
+  expect_equal(cyclind:::classify_row(transform(far, ccf_lag = 1), sq)$class,
+               "rejected")
+  # the median-lead table taken literally keeps the old rule
+  lit <- update(sq, classifier = oecd_classifier(conformity = FALSE))
+  expect_equal(cyclind:::classify_row(far, lit)$class, "coincident")
+  # the leading and lagging rules are unchanged
+  expect_equal(cyclind:::classify_row(transform(row_with(6), ccf_lag = -8),
+                                      s)$class, "leading")
+  expect_equal(cyclind:::classify_row(transform(row_with(-6), ccf_lag = 8),
+                                      s)$class, "lagging")
+  # the same condition in the validation of a coincident index
+  chk <- coincident_criteria(sq@classifier, far, sq)
+  expect_named(chk, c("matched", "ccf", "timing"))
+  expect_false(chk[["ccf"]])
+  expect_true(chk[["timing"]])
+  expect_true(coincident_criteria(sq@classifier, row_with(0), sq)[["ccf"]])
+  expect_false(coincident_criteria(
+    sq@classifier, transform(row_with(0), ccf_r = -0.5), sq)[["ccf"]])
+  expect_named(coincident_criteria(lit@classifier, far, lit),
+               c("matched", "timing"))
+})
+
 test_that("the default classifier is unchanged", {
   expect_s4_class(spec@classifier, "CyclindClassifier")
   r <- row_with(6)
