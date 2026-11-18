@@ -24,7 +24,7 @@ hp_double_filter(trend_period = NA, smooth_period = NA)
 
 hp_smoother(period = NA)
 
-cf_filter(pl = NA, pu = NA)
+cf_filter(pl = NA, pu = NA, drift = TRUE)
 
 bk_filter(pl = NA, pu = NA, k = NA)
 
@@ -41,6 +41,9 @@ two HP filters, or \code{NA} for the defaults.}
 
 \item{pl, pu}{Lower and upper period (in observations) of the pass band, or
 \code{NA} for the defaults.}
+
+\item{drift}{Logical; remove the drift (the line through the first and
+last observations) before the Christiano-Fitzgerald filter?}
 
 \item{k}{Number of leads and lags of the Baxter-King filter, or \code{NA}.}
 
@@ -73,7 +76,12 @@ The OECD filters monthly series only; for quarterly data the same
 cut-offs in years (40 and 4 quarters) are an extension of cyclind.
 \item \code{cf_filter()}: Christiano-Fitzgerald asymmetric band-pass filter for a
 random walk (Christiano and Fitzgerald 2003), keeping periods between \code{pl}
-and \code{pu} (defaults 1.5 and 8 years).
+and \code{pu} (defaults 1.5 and 8 years). With \code{drift = TRUE} (the default)
+the line through the first and last observations is subtracted first,
+as Christiano and Fitzgerald (2003, sec. 4) prescribe for a random walk
+with drift and as \code{mFilter::cffilter(drift = TRUE)} does; without it, a
+trending series gets a spurious cycle at both ends. Filters saved
+before the argument existed also remove the drift.
 \item \code{bk_filter()}: Baxter-King symmetric band-pass filter with \code{k} leads and
 lags (default 3 years); the first and last \code{k} values are missing.
 \item \code{hp_smoother()}: the HP trend at a short cut-off of \code{period}

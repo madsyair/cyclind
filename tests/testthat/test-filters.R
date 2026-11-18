@@ -17,8 +17,12 @@ test_that("HP filter replicates mFilter", {
 
 test_that("Christiano-Fitzgerald filter replicates mFilter (random walk)", {
   skip_if_not_installed("mFilter")
-  ours <- extract_cycle(cf_filter(6, 32), xq)
+  ours <- extract_cycle(cf_filter(6, 32, drift = FALSE), xq)
   ref <- mFilter::cffilter(xq, pl = 6, pu = 32, root = TRUE)$cycle
+  expect_equal(as.numeric(ours), as.numeric(ref), tolerance = 1e-8)
+  ours <- extract_cycle(cf_filter(6, 32), xq)
+  ref <- mFilter::cffilter(xq, pl = 6, pu = 32, root = TRUE,
+                           drift = TRUE)$cycle
   expect_equal(as.numeric(ours), as.numeric(ref), tolerance = 1e-8)
 })
 

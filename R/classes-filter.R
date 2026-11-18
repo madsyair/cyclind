@@ -22,7 +22,12 @@
 #'   cut-offs in years (40 and 4 quarters) are an extension of cyclind.
 #' * `cf_filter()`: Christiano-Fitzgerald asymmetric band-pass filter for a
 #'   random walk (Christiano and Fitzgerald 2003), keeping periods between `pl`
-#'   and `pu` (defaults 1.5 and 8 years).
+#'   and `pu` (defaults 1.5 and 8 years). With `drift = TRUE` (the default)
+#'   the line through the first and last observations is subtracted first,
+#'   as Christiano and Fitzgerald (2003, sec. 4) prescribe for a random walk
+#'   with drift and as `mFilter::cffilter(drift = TRUE)` does; without it, a
+#'   trending series gets a spurious cycle at both ends. Filters saved
+#'   before the argument existed also remove the drift.
 #' * `bk_filter()`: Baxter-King symmetric band-pass filter with `k` leads and
 #'   lags (default 3 years); the first and last `k` values are missing.
 #' * `hp_smoother()`: the HP trend at a short cut-off of `period`
@@ -39,6 +44,8 @@
 #'   two HP filters, or `NA` for the defaults.
 #' @param pl,pu Lower and upper period (in observations) of the pass band, or
 #'   `NA` for the defaults.
+#' @param drift Logical; remove the drift (the line through the first and
+#'   last observations) before the Christiano-Fitzgerald filter?
 #' @param k Number of leads and lags of the Baxter-King filter, or `NA`.
 #' @param h,p Horizon and number of lags of the Hamilton filter, or `NA`.
 #' @param period Cut-off period (in observations) of the HP smoother, or
@@ -87,7 +94,8 @@ setClass("HPSmoother", contains = "CycleFilter",
 
 #' @rdname CycleFilter-class
 setClass("CFFilter", contains = "CycleFilter",
-         representation(pl = "numeric", pu = "numeric"))
+         representation(pl = "numeric", pu = "numeric", drift = "logical"),
+         prototype(drift = TRUE))
 
 #' @rdname CycleFilter-class
 setClass("BKFilter", contains = "CycleFilter",
@@ -138,12 +146,13 @@ hp_smoother <- function(period = NA) {
 
 #' @rdname CycleFilter-class
 #' @export
-cf_filter <- function(pl = NA, pu = NA) {
+cf_filter <- function(pl = NA, pu = NA, drift = TRUE) {
   check_number(pl, "pl", lower = 2, allow_na = TRUE)
   check_number(pu, "pu", lower = 2, allow_na = TRUE)
   check_band(pl, pu)
+  check_flag(drift, "drift")
   new("CFFilter", label = "Christiano-Fitzgerald",
-      pl = as.numeric(pl), pu = as.numeric(pu))
+      pl = as.numeric(pl), pu = as.numeric(pu), drift = drift)
 }
 
 #' @rdname CycleFilter-class
