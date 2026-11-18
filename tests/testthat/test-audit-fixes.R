@@ -195,6 +195,100 @@ test_that("E6: trailing blank rows (Excel) are dropped", {
   expect_error(read_cli_data(f), class = "cyclind_error_dates")
 })
 
+# ---- E7: leads of simulate_cycles() ----------------------------------------
+
+test_that("E7: leads must be named whole numbers", {
+  for (bad in list(c(6, 3), c(a = 1.5), c(a = NA), list(a = 1),
+                   c(a = "1"), c(a = 1, a = 2), c(a = Inf),
+                   stats::setNames(1, ""))) {
+    expect_error(simulate_cycles(leads = bad, seed = 1),
+                 "`leads` must be", class = "cyclind_error_argument")
+  }
+  expect_error(simulate_cycles(counter = c(2.5), seed = 1),
+               "`counter` must be", class = "cyclind_error_argument")
+  expect_error(simulate_cycles(leads = c(a = 1), counter = c(a = 2),
+                               seed = 1),
+               "names", class = "cyclind_error_argument")
+  sim <- simulate_cycles(leads = c(a = 2L), counter = c(b = 1), seed = 1)
+  expect_equal(colnames(sim)[1:3], c("reference", "a", "b"))
+  sim <- simulate_cycles(leads = c(a = 2), counter = numeric(0), n_noise = 0,
+                         seed = 1)
+  expect_equal(colnames(sim), c("reference", "a"))
+})
+
+# ---- nits ------------------------------------------------------------------
+
+test_that("shift_vec() needs a whole number of periods", {
+  expect_equal(cyclind:::shift_vec(1:4 + 0, 1), c(NA, 1, 2, 3))
+  expect_error(cyclind:::shift_vec(1:4, 1.5), class = "cyclind_error_argument")
+  expect_error(cyclind:::shift_vec(1:4, NA), class = "cyclind_error_argument")
+})
+
+test_that("cli_composite() names unknown components", {
+  sim <- simulate_cycles(seed = 1)
+  meta <- data.frame(name = colnames(sim)[-1], rationale = "early_stage")
+  spec <- cli_spec(12)
+  cyc <- cli_cycles(cli_candidates(sim, "reference", meta = meta), spec)
+  expect_error(cli_composite(cyc, c("lead_6", "lead_9", "foo"), spec),
+               "Unknown component\\(s\\): lead_9, foo",
+               class = "cyclind_error_argument")
+  expect_error(cli_composite(cyc, character(0), spec),
+               class = "cyclind_error_argument")
+})
+
+test_that("duplicated names in `meta` are an error", {
+  sim <- simulate_cycles(seed = 1)
+  meta <- data.frame(name = c(colnames(sim)[-1], "lead_6"),
+                     rationale = "early_stage")
+  expect_error(cli_candidates(sim, "reference", meta = meta),
+               "lead_6", class = "cyclind_error_argument")
+  meta <- data.frame(name = c("reference", "reference"), unit = "level")
+  expect_error(cli_candidates(sim, "reference", meta = meta),
+               "reference", class = "cyclind_error_argument")
+})
+
+test_that("the script writes the seed and frequency as R values", {
+  lines <- cyclind:::data_lines(list(source = "example_m", frequency = 12,
+                                     seed = "1); system('x'"))
+  expect_true(any(grepl("seed = \"1); system('x'\")", lines, fixed = TRUE)))
+  lines <- cyclind:::data_lines(list(source = "example_m", frequency = 12,
+                                     seed = 7))
+  expect_true(any(grepl("simulate_cycles(freq = 12, seed = 7)", lines,
+                        fixed = TRUE)))
+})
+
+# ---- E8: validity of the core classes --------------------------------------
+
+test_that("E8: CandidateSet, CompositeIndex and CycleSeries are validated", {
+  sim <- simulate_cycles(seed = 1)
+  meta <- data.frame(name = colnames(sim)[-1], rationale = "early_stage")
+  cand <- cli_candidates(sim, "reference", meta = meta)
+  expect_true(validObject(cand))
+  bad <- cand
+  bad@reference <- "gdp"
+  expect_error(validObject(bad), "reference")
+  bad <- cand
+  bad@meta$name[1] <- "foo"
+  expect_error(validObject(bad), "meta\\$name")
+  bad <- cand
+  bad@meta <- rbind(bad@meta, bad@meta[1, ])
+  expect_error(validObject(bad), "duplicated")
+  spec <- cli_spec(12)
+  cyc <- cli_cycles(cand, spec)
+  expect_true(validObject(cyc$lead_6))
+  bad <- cyc$lead_6
+  bad@cycle <- ts(1:3)
+  expect_error(validObject(bad), "same length")
+  comp <- cli_composite(cyc, c("lead_6", "lead_3"), spec, cyc$reference)
+  expect_true(validObject(comp))
+  bad <- comp
+  bad@weights <- c(lead_6 = 1)
+  expect_error(validObject(bad), "one value per component")
+  bad <- comp
+  names(bad@weights) <- c("a", "b")
+  expect_error(validObject(bad), "names of `weights`")
+})
+
 # ---- E1, E9: uploads and malformed inputs of the interface -----------------
 
 test_that("E1: an upload path outside shiny's upload directory is refused", {

@@ -280,8 +280,15 @@ cli_composite <- function(cycles, components, spec, reference = NULL,
   if (!is(spec, "CliSpec")) {
     cyclind_abort("`spec` must be a CliSpec.", "cyclind_error_argument")
   }
-  if (length(components) == 0L || !all(components %in% names(cycles))) {
+  if (!is.character(components) || length(components) == 0L) {
     cyclind_abort("`components` must name at least one element of `cycles`.",
+                  "cyclind_error_argument")
+  }
+  unknown <- setdiff(components, names(cycles))
+  if (length(unknown) > 0L) {
+    cyclind_abort(sprintf(paste("Unknown component(s): %s. `components` must",
+                                "name elements of `cycles`."),
+                          paste(unknown, collapse = ", ")),
                   "cyclind_error_argument")
   }
   if (!is.null(reference) && !is(reference, "CycleSeries")) {

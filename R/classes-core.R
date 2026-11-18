@@ -97,7 +97,23 @@ setClass("CliSpec", representation(
 setClass("CandidateSet", representation(
   data = "ts", reference = "character", meta = "data.frame",
   vintages = "list", alignment = "data.frame", units = "character"
-), prototype(alignment = data.frame(), units = character(0)))
+), prototype(alignment = data.frame(), units = character(0)),
+validity = function(object) {
+  # cheap consistency checks (audit E8)
+  if (length(object@reference) != 1L ||
+      !object@reference %in% colnames(object@data)) {
+    return("`reference` must name one column of `data`.")
+  }
+  if (nrow(object@meta) > 0L) {
+    nm <- object@meta$name
+    if (is.null(nm)) return("`meta` needs a `name` column.")
+    if (anyDuplicated(nm) > 0L) return("`meta` has duplicated names.")
+    if (!all(nm %in% setdiff(colnames(object@data), object@reference))) {
+      return("`meta$name` must name candidate columns of `data`.")
+    }
+  }
+  TRUE
+})
 
 #' Cyclical component of one series
 #'
@@ -126,7 +142,17 @@ setClass("CycleSeries", representation(
                                    type = character(0),
                                    removed = logical(0),
                                    collinear = logical(0)),
-             notes = character(0)))
+             notes = character(0)),
+validity = function(object) {
+  if (length(object@name) != 1L) return("`name` must be one string.")
+  n <- length(object@original)
+  if (length(object@transformed) != n || length(object@cycle) != n ||
+      length(object@normalised) != n) {
+    return(paste("`original`, `transformed`, `cycle` and `normalised`",
+                 "must have the same length."))
+  }
+  TRUE
+})
 
 #' Classification of candidate series
 #'
@@ -158,7 +184,23 @@ setClass("LeadAssessment", representation(
 setClass("CompositeIndex", representation(
   index = "ts", cycle = "ts", components = "character", weights = "numeric",
   aggregator = "Aggregator", amplitude = "numeric", shifts = "numeric"
-), prototype(shifts = numeric(0)))
+), prototype(shifts = numeric(0)),
+validity = function(object) {
+  if (length(object@weights) != length(object@components)) {
+    return("`weights` must have one value per component.")
+  }
+  w_names <- names(object@weights)
+  if (!is.null(w_names) && !identical(w_names, object@components)) {
+    return("The names of `weights` must be the components.")
+  }
+  if (!all(names(object@shifts) %in% object@components)) {
+    return("`shifts` must be named by components.")
+  }
+  if (length(object@index) != length(object@cycle)) {
+    return("`index` and `cycle` must have the same length.")
+  }
+  TRUE
+})
 
 #' Validation of a composite index
 #'

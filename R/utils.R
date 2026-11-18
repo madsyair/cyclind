@@ -103,6 +103,8 @@ normalise_cycle <- function(x) {
 
 # Shift a vector forward by k positions (positive k moves values later).
 shift_vec <- function(x, k) {
+  check_number(k, "k", integer = TRUE)
+  k <- as.integer(round(k))
   n <- length(x)
   if (k == 0L) return(x)
   out <- rep(NA_real_, n)

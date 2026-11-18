@@ -21,10 +21,12 @@ simulate_cycles(
 
 \item{freq}{12 (monthly) or 4 (quarterly).}
 
-\item{leads}{Named vector of leads in periods (negative values lag).
+\item{leads}{Named vector of leads in periods (whole numbers; negative
+values lag).
 \code{NULL} gives leads of 6, 3, 0 and -3 months, or 2, 1, 0 and -1 quarters.}
 
-\item{counter}{Named vector of leads of counter-cyclical candidates;
+\item{counter}{Named vector of leads (whole numbers) of
+counter-cyclical candidates;
 \code{NULL} gives 4 months or 1 quarter.}
 
 \item{n_noise}{Number of candidates without cyclical signal.}
