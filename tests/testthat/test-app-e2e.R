@@ -2,6 +2,8 @@
 # through the ten steps as a user would, with clicks on the step buttons
 # and the "Next step" buttons. Skipped on CRAN and when Chrome is missing.
 
+chrome_before <- chrome_temp_dirs()
+
 test_that("a user completes the ten steps in the browser", {
   skip_if_no_browser()
   # no language set: the interface is in English by default
@@ -408,3 +410,6 @@ test_that("the coincident index becomes the reference in the browser", {
                utils::read.csv(app$get_download("dl_cli"))$index)
   expect_no_browser_errors(app)
 })
+
+# no Chrome directories left behind (detritus NOTE of R CMD check)
+remove_chrome_temp_dirs(chrome_before)
