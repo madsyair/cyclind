@@ -118,7 +118,7 @@ test_that("a spec given with a CliResult reruns the classification", {
   expect_s4_class(cci@spec@classifier, "OecdClassifier")
   expect_named(coincident_criteria(cci@spec@classifier,
                                    validation(cci)@turning_points, cci@spec),
-               c("matched", "timing"))
+               c("matched", "ccf", "timing"))
 })
 
 test_that("the OECD timing band is strict and the cyclind band inclusive", {
@@ -142,7 +142,8 @@ test_that("the OECD timing band is strict and the cyclind band inclusive", {
     cyclind:::coincident_quality(cl, row, spec)$threshold
   }
   expect_true(all(c(">= 3", "within +/- 2") %in% rule(plain, spec_r)))
-  expect_true(all(c(">= 3", "within (-2, 2)") %in%
+  expect_true(all(c(">= 3", "within (-2, 2)",
+                    "within (-2, 2), positive") %in%
                     rule(spec_o@classifier, spec_o)))
   expect_true(">= 1" %in% rule(oecd_classifier(min_matched = 1), spec_o))
 })

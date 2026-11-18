@@ -68,8 +68,13 @@ hp_trend_core <- function(x, lambda) {
   tau
 }
 
-cf_core <- function(x, pl, pu) {
+# Christiano-Fitzgerald random-walk filter. With `drift`, the line through
+# x[1] and x[n] is subtracted first (Christiano and Fitzgerald 2003, sec. 4;
+# `undrift()` in mFilter); the weights sum to zero, so only its slope
+# matters.
+cf_core <- function(x, pl, pu, drift = TRUE) {
   n <- length(x)
+  if (drift && n > 1L) x <- x - (seq_len(n) - 1) * (x[n] - x[1]) / (n - 1)
   a <- 2 * pi / pu
   b <- 2 * pi / pl
   j <- seq_len(n)
@@ -167,8 +172,18 @@ setMethod("extract_cycle", "CFFilter", function(filter, x, ...) {
   pl <- resolve_default(filter@pl, 1.5 * f)
   pu <- resolve_default(filter@pu, 8 * f)
   check_band(pl, pu)
-  as_ts_like(cf_core(as.numeric(x), pl, pu), x)
+  as_ts_like(cf_core(as.numeric(x), pl, pu, cf_drift(filter)), x)
 })
+
+# Drift removal of a CF filter; filters saved before the slot existed
+# remove the drift too (the audit of 2026-11-18 found the old filter wrong).
+cf_drift <- function(filter) {
+  if (methods::.hasSlot(filter, "drift") && length(filter@drift) == 1L) {
+    isTRUE(filter@drift)
+  } else {
+    TRUE
+  }
+}
 
 #' @rdname extract_cycle
 setMethod("extract_cycle", "BKFilter", function(filter, x, ...) {

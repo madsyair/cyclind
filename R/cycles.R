@@ -16,9 +16,11 @@
 #' @param candidates A [CandidateSet-class].
 #' @param spec A [CliSpec-class].
 #' @return A named list of [CycleSeries-class], reference first. Candidates
-#'   whose seasonal adjustment failed beyond repair are left out; the
+#'   whose seasonal adjustment failed beyond repair, and candidates too
+#'   short for the cycle (fewer than four years of observations, or fewer
+#'   than three in the growth rate form), are left out with a warning; the
 #'   attribute `"excluded"` (see [excluded_series()]) gives their names and
-#'   the reason.
+#'   the reason. A reference series that is too short stops the run.
 #' @examples
 #' sim <- simulate_cycles(seed = 1)
 #' meta <- data.frame(name = colnames(sim)[-1], rationale = "early_stage")
@@ -34,36 +36,60 @@ cli_cycles <- function(candidates, spec) {
   out <- list()
   excluded <- data.frame(name = character(0), reason = character(0),
                          stringsAsFactors = FALSE)
+  # one warning for all series whose holiday dates miss the X-13 horizon
+  horizon <- list()
   for (nm in nms) {
-    cs <- tryCatch(
+    cs <- withCallingHandlers(tryCatch(
       cycle_one(data[, nm], nm, spec, unit = series_unit(candidates, nm)),
-      cyclind_error_seasonal_failed = function(e) e
-    )
+      cyclind_error_seasonal_failed = function(e) e,
+      cyclind_error_short_series = function(e) e
+    ), cyclind_warning_holiday_horizon = function(w) {
+      horizon[[nm]] <<- w$info
+      invokeRestart("muffleWarning")
+    })
     if (!inherits(cs, "error")) {
       out[[nm]] <- cs
       next
     }
     reason <- conditionMessage(cs)
+    short <- inherits(cs, "cyclind_error_short_series")
     if (identical(nm, ref)) {
       # without the reference there is nothing to compare with
+      if (short) stop(cs)
       cyclind_abort(sprintf("Series '%s' (the reference): %s", nm, reason),
                     c("cyclind_error_seasonal_failed", "cyclind_error_x13"))
     }
+    # a candidate that is too short is left out like one that X-13 cannot
+    # adjust (audit E2), instead of stopping the whole build
     cyclind_warn(sprintf(paste("Series '%s': %s; the series is excluded",
-                               "from the candidates."), nm, reason),
-                 "cyclind_warning_seasonal_failed")
+                               "from the candidates."), nm,
+                         sub("\\.$", "",
+                             sub("^Series '[^']*' ", "it ", reason))),
+                 if (short) "cyclind_warning_short_series" else
+                   "cyclind_warning_seasonal_failed")
     excluded[nrow(excluded) + 1L, ] <- list(nm, reason)
   }
+  if (length(horizon) > 0L) warn_holiday_horizon_all(horizon)
   if (nrow(excluded) > 0L) attr(out, "excluded") <- excluded
   out
+}
+
+# The holiday-horizon warning of cli_cycles(), for every series at once.
+warn_holiday_horizon_all <- function(horizon) {
+  last <- horizon[[which.max(vapply(horizon, function(h) h$needed_year,
+                                    numeric(1)))]]
+  cyclind_warn(holiday_horizon_text(
+    names(horizon), last$dates_from, last$dates_to, last$needed,
+    last$needed_year), "cyclind_warning_holiday_horizon", info = last)
 }
 
 #' Series excluded from the cycles
 #'
 #' A candidate whose seasonal adjustment fails, and cannot be replaced by
-#' the unadjusted series or by an adjustment without holiday regressors,
-#' is left out of [cli_cycles()] (see [cli_spec()], `seasonal_adjust`).
-#' This function lists such series and the reason.
+#' the unadjusted series or by an adjustment without holiday regressors
+#' (see [cli_spec()], `seasonal_adjust`), or that is too short for its
+#' cycle, is left out of [cli_cycles()]. This function lists such series
+#' and the reason.
 #'
 #' @param cycles The output of [cli_cycles()], or a [CliResult-class].
 #' @return A data frame with columns `name` and `reason` (no rows when
@@ -91,9 +117,11 @@ drop_excluded <- function(candidates, cycles) {
   if (length(ex) == 0L) return(candidates)
   keep <- setdiff(candidate_names(candidates), ex)
   if (length(keep) == 0L) {
-    cyclind_abort(paste("No candidate is left: the seasonal adjustment of",
-                        "every candidate failed (see the warnings)."),
-                  "cyclind_error_seasonal_failed")
+    cyclind_abort(paste("No candidate is left: every candidate was excluded",
+                        "(failed seasonal adjustment or too short; see the",
+                        "warnings and excluded_series())."),
+                  c("cyclind_error_seasonal_failed",
+                    "cyclind_error_short_series"))
   }
   candidates[keep]
 }
@@ -152,7 +180,8 @@ cycle_one <- function(x, name, spec, unit = "level") {
 }
 
 cycle_one_body <- function(x, name, spec, unit) {
-  steps <- character(0)
+  # the unit is recorded for the Conference Board changes (audit S5)
+  steps <- if (identical(unit, "percent")) "unit: percent" else character(0)
   span <- non_na_span(x)
   if (anyNA(span) || span[2] - span[1] + 1L < 4L * spec@freq) {
     cyclind_abort(
@@ -408,9 +437,47 @@ seasonal_adjust_x13 <- function(x, holidays = list(), log = NULL,
     return(seasonal_fallback(x, one_line(conditionMessage(fit)), reg,
                              hol_names, tf, scale, alpha))
   }
+  if (!is.null(reg) && !covered) warn_holiday_horizon(x, holidays)
   out <- as_ts_like(as.numeric(seasonal::final(fit)), x)
   attr(out, "step") <- step
   out
+}
+
+# Warn that the holiday dates stop before the X-13 forecast horizon (three
+# years past the data end), so the series was adjusted with X-11 without
+# forecasts. The fields let cli_cycles() report all series in one warning.
+warn_holiday_horizon <- function(x, holidays) {
+  dates <- do.call(c, lapply(holidays, function(h) h@dates))
+  end <- stats::time(x)[length(x)]
+  info <- list(dates_from = as.integer(format(min(dates), "%Y")),
+               dates_to = max(dates),
+               needed = period_label(end + 3, stats::frequency(x)),
+               needed_year = as.integer(floor(end + 1e-8)) + 3L)
+  cyclind_warn(do.call(holiday_horizon_text, c(list(series = NULL), info)),
+               "cyclind_warning_holiday_horizon", info = info)
+}
+
+holiday_horizon_text <- function(series, dates_from, dates_to, needed,
+                                 needed_year) {
+  who <- if (is.null(series)) {
+    "the series"
+  } else {
+    shown <- if (length(series) > 10L) {
+      paste0(paste(series[1:10], collapse = ", "), ", ...")
+    } else {
+      paste(series, collapse = ", ")
+    }
+    sprintf("%d series (%s)", length(series), shown)
+  }
+  sprintf(paste(
+    "The holiday dates end on %s, but X-13ARIMA-SEATS needs the holiday",
+    "regressors up to %s (three years past the data end) for its",
+    "forecasts; %s %s adjusted with X-11 without forecast extension.",
+    "Supply holiday dates up to %d or later, e.g.",
+    "holiday_effect(idulfitri_dates(%d, %d)) for Idulfitri."),
+    format(dates_to), needed, who,
+    if (length(series) > 1L || is.null(series)) "were" else "was",
+    needed_year, dates_from, needed_year)
 }
 
 # What to do when X-13 could not adjust a series (FR-019).
@@ -460,7 +527,8 @@ seasonal_fallback <- function(x, error, reg, hol_names, tf, scale, alpha) {
 # QS test for seasonality (F-13): Ljung-Box statistic on the positive
 # autocorrelations at the seasonal lags s and 2s of the first differences
 # (of the logarithms when `log`), with a chi-squared(2) p-value, as the
-# `qsori` diagnostic of X-13ARIMA-SEATS.
+# `qsori` diagnostic of X-13ARIMA-SEATS; zero when the autocorrelation at
+# lag s is not positive.
 qs_test <- function(x, log = FALSE) {
   s <- stats::frequency(x)
   v <- as.numeric(x)
@@ -471,7 +539,10 @@ qs_test <- function(x, log = FALSE) {
   none <- list(statistic = 0, p_value = 1)
   if (m <= 2L * s + 1L || !(stats::sd(z) > 0)) return(none)
   r <- stats::acf(z, lag.max = 2L * s, plot = FALSE)$acf[-1]
-  rs <- max(0, r[s])
+  # X-13ARIMA-SEATS sets QS to zero when the autocorrelation at lag s is
+  # not positive, whatever the one at lag 2s (audit S3)
+  if (!(r[s] > 0)) return(none)
+  rs <- r[s]
   r2 <- max(0, r[2L * s])
   q <- m * (m + 2) * (rs^2 / (m - s) + r2^2 / (m - 2L * s))
   list(statistic = q, p_value = stats::pchisq(q, 2, lower.tail = FALSE))

@@ -6,6 +6,13 @@ adalah `data-raw/oecd_idn_validate.R`. Hasil:
 `inst/calibration/oecd-idn-*.csv`. Uji regresi: dua uji di `test-oecd.R`
 dengan *fixture* `tests/testthat/fixtures/oecd-idn.rds`.
 
+Mesin pencilan (audit 2026-11-18): angka eksperimen B dibuat dengan TRAMO
+(RJDemetra 0.2.8). Skrip kini memakai `oecd_spec(engine = "tramo")` dan
+berhenti bila RJDemetra tidak terpasang; sebelumnya `engine = "auto"`
+diam-diam beralih ke X-13 sehingga hasil B berubah antarmesin (korelasi
+siklus PDB dengan siklus acuan OECD 0,992 → 0,912, titik balik 10/10 →
+9/10, `aa_gap` B1 0,814 → 0,766).
+
 ## Data OECD untuk Indonesia
 
 | Dataflow | Isi |

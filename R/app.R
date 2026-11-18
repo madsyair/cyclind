@@ -2,13 +2,17 @@
 #'
 #' Reads a CSV file with one column per series. If the first column holds
 #' dates (`2001-01`, `2001-01-15` or `2001Q1`), the frequency and start are
-#' taken from it; otherwise give `frequency` and `start`. Non-numeric
-#' columns other than the date column are dropped with a warning (often a
-#' wrong decimal mark or thousands separators). A UTF-8 byte-order mark at
-#' the start of the file is ignored.
+#' taken from it (a `frequency` given as well must agree with the dates);
+#' otherwise give `frequency` and `start`. Rows at the end of the file in
+#' which every cell is empty, as Excel often leaves them, are dropped.
+#' Non-numeric columns other than the date column are dropped with a
+#' warning (often a wrong decimal mark or thousands separators). A UTF-8
+#' byte-order mark at the start of the file is ignored.
 #'
 #' @param file Path to a CSV file, or a data frame already read.
-#' @param frequency `NULL` (detect from dates), 12 or 4.
+#' @param frequency `NULL` (detect from dates), 12 or 4. With a date
+#'   column, 4 also reads monthly dates of quarterly data (`2001-01`,
+#'   `2001-04`, ...); a frequency that contradicts the dates is an error.
 #' @param start Start as `c(year, period)` when there is no date column.
 #' @param ... Passed to [utils::read.csv()], e.g. `sep = ";", dec = ","` for
 #'   a file saved by Excel with Indonesian settings.
@@ -33,6 +37,7 @@ read_cli_data <- function(file, frequency = NULL, start = NULL, ...) {
     cyclind_abort("The data need at least two columns.",
                   "cyclind_error_argument")
   }
+  df <- drop_trailing_blank_rows(df)
   first <- df[[1]]
   if (!is.numeric(first)) {
     tm <- parse_dates(as.character(first), frequency)
@@ -65,6 +70,17 @@ read_cli_data <- function(file, frequency = NULL, start = NULL, ...) {
   stats::ts(as.matrix(df[num]), start = start, frequency = frequency)
 }
 
+# Rows at the end in which every cell is empty, as Excel often leaves them
+# (audit E6). Blank rows inside the data are kept, and fail later.
+drop_trailing_blank_rows <- function(df) {
+  if (nrow(df) == 0L) return(df)
+  blank <- Reduce(`&`, lapply(df, function(v) {
+    is.na(v) | !nzchar(trimws(as.character(v)))
+  }))
+  n_keep <- nrow(df) - sum(cumprod(rev(blank)))
+  df[seq_len(n_keep), , drop = FALSE]
+}
+
 has_bom <- function(file) {
   is.character(file) && length(file) == 1L && file.exists(file) &&
     identical(readBin(file, "raw", 3L), as.raw(c(0xef, 0xbb, 0xbf)))
@@ -83,6 +99,11 @@ parse_dates <- function(x, frequency = NULL) {
     year <- as.integer(vapply(m, `[`, "", 2))
     per <- as.integer(vapply(m, `[`, "", 3))
     freq <- 12
+    if (!all(per %in% 1:12)) {
+      cyclind_abort(sprintf(paste("Date '%s': months must lie between 1 and",
+                                  "12."), x[!per %in% 1:12][1]),
+                    "cyclind_error_dates")
+    }
     if (identical(as.numeric(frequency), 4)) {
       per <- (per - 1L) %/% 3L + 1L
       freq <- 4
@@ -90,6 +111,15 @@ parse_dates <- function(x, frequency = NULL) {
   } else {
     cyclind_abort("Dates must look like 2001-01, 2001-01-15 or 2001Q1.",
                   "cyclind_error_dates")
+  }
+  # a frequency given with dates must agree with them (audit E5)
+  if (!is.null(frequency) && !identical(as.numeric(frequency), freq)) {
+    cyclind_abort(sprintf(paste("The dates are %s, but `frequency` is %s;",
+                                "leave `frequency` NULL to take it from the",
+                                "dates."),
+                          if (freq == 4) "quarterly" else "monthly",
+                          paste(format(frequency), collapse = ", ")),
+                  "cyclind_error_frequency")
   }
   pos <- year * freq + per
   if (any(diff(pos) != 1)) {
@@ -169,6 +199,44 @@ detect_decimal <- function(path, sep) {
   "."
 }
 
+# Data source of step 1, as sent by the browser.
+check_source <- function(source) {
+  sources <- c("example_m", "example_q", "upload", "upload_multi")
+  if (!is.character(source) || length(source) != 1L ||
+      !source %in% sources) {
+    cyclind_abort("Unknown data source.", "cyclind_error_argument")
+  }
+  invisible(source)
+}
+
+# Uploaded files of a fileInput() (audit E1). Shiny writes each upload to
+# a new directory under tempdir() as 0.csv, 1.csv, ...; the value is a data
+# frame with columns `name` and `datapath`. A crafted websocket message can
+# put any path in `datapath`, so only paths of that form are accepted:
+# otherwise the server would read any CSV file the R process can read.
+checked_upload <- function(value) {
+  ok <- is.data.frame(value) && nrow(value) > 0L &&
+    all(c("name", "datapath") %in% names(value)) &&
+    is.character(value$name) && is.character(value$datapath) &&
+    !anyNA(value$name) && !anyNA(value$datapath)
+  if (!ok) {
+    cyclind_abort("The uploaded files are not valid; upload them again.",
+                  "cyclind_error_argument")
+  }
+  root <- normalizePath(tempdir(), winslash = "/", mustWork = TRUE)
+  path <- normalizePath(value$datapath, winslash = "/", mustWork = FALSE)
+  inside <- file.exists(path) &
+    normalizePath(dirname(dirname(path)), winslash = "/",
+                  mustWork = FALSE) == root &
+    grepl("^[0-9]+(\\.[[:alnum:]]+)?$", basename(path))
+  if (!all(inside)) {
+    cyclind_abort("The uploaded files are not valid; upload them again.",
+                  "cyclind_error_argument")
+  }
+  value$datapath <- path
+  value
+}
+
 # Value of a separator or decimal-mark choice of the interface.
 csv_choice <- function(value, kind) {
   if (is.null(value) || identical(value, "auto")) return("auto")
@@ -177,7 +245,8 @@ csv_choice <- function(value, kind) {
   } else {
     c(point = ".", comma = ",")
   }
-  if (!value %in% names(map)) {
+  if (!is.character(value) || length(value) != 1L ||
+      !value %in% names(map)) {
     cyclind_abort("Unknown column separator or decimal mark.",
                   "cyclind_error_argument")
   }
@@ -231,18 +300,15 @@ cyclind_app <- function(language = c("en", "id")) {
 
 # ---- user interface ----------------------------------------------------------
 
-filter_choices <- c("hp_double", "hp", "hp_smoother", "cf", "bk",
-                    "hamilton")
-names(filter_choices) <- c("OECD double Hodrick-Prescott", "Hodrick-Prescott",
-                           "HP smoother (no detrending)",
-                           "Christiano-Fitzgerald", "Baxter-King",
-                           "Hamilton regression")
-aggregator_choices <- c("equal", "equal_level", "oecd", "pca", "cb", "dfm")
-names(aggregator_choices) <- c("Equal weights, chained at the ragged edge",
-                               "Equal weights, plain mean",
-                               "Chained average log growth (OECD chain)",
-                               "First principal component",
-                               "Conference Board", "Dynamic factor model")
+filter_keys <- c("hp_double", "hp", "hp_smoother", "cf", "bk", "hamilton")
+aggregator_keys <- c("equal", "equal_level", "oecd", "pca", "cb", "dfm")
+transform_keys <- c("auto", "log", "none", "test")
+
+# Choices of a select input: the keys, labelled by the text of
+# `prefix` + key in the language of the interface.
+labelled_choices <- function(keys, prefix, t) {
+  stats::setNames(keys, vapply(paste0(prefix, keys), t, character(1)))
+}
 
 step_panel <- function(t, k, ...) {
   shiny::tabPanel(
@@ -357,11 +423,17 @@ app_ui <- function(language = "en") {
                                    c("annual", "period"),
                                    c(t("lag_annual"), t("lag_period")))),
               shiny::helpText(t("form_help"))),
-            shiny::selectInput("filter", t("filter"), filter_choices),
-            shiny::selectInput("aggregator", t("aggregator"),
-                               aggregator_choices),
-            shiny::selectInput("transform", t("transform"),
-                               c("auto", "log", "none", "test")),
+            # options of the cyclind method only; oecd_spec() fixes them
+            shiny::conditionalPanel(
+              "input.method == 'cyclind'",
+              shiny::selectInput("filter", t("filter"),
+                                 labelled_choices(filter_keys, "flt_", t)),
+              shiny::selectInput("aggregator", t("aggregator"),
+                                 labelled_choices(aggregator_keys, "agg_",
+                                                  t)),
+              shiny::selectInput("transform", t("transform"),
+                                 labelled_choices(transform_keys, "tr_",
+                                                  t))),
             shiny::checkboxInput("seasonal", paste(
               t("seasonal"), if (!has_seasonal) t("seasonal_missing")),
               FALSE),
@@ -371,19 +443,24 @@ app_ui <- function(language = "en") {
             shiny::conditionalPanel(
               "input.method == 'cyclind' && input.outlier_method != 'tramo'",
               shiny::numericInput("outlier", t("outlier"), 5, min = 1)),
-            shiny::checkboxInput("extend", t("extend"), TRUE),
+            shiny::conditionalPanel(
+              "input.method == 'cyclind'",
+              shiny::checkboxInput("extend", t("extend"), TRUE)),
             shiny::textInput("oos_cutoffs", t("oos_cutoffs"), "")
           ),
           shiny::column(6,
-            shiny::numericInput("min_lead", t("min_lead"), 3, min = 0),
-            shiny::numericInput("min_median_lead", t("min_median_lead"), 1,
-                                min = 0, step = 0.5),
-            shiny::numericInput("min_consistency", t("min_consistency"), 0.5,
-                                min = 0, max = 1, step = 0.05),
-            shiny::numericInput("max_missed", t("max_missed"), 0.4, min = 0,
-                                max = 1, step = 0.05),
-            shiny::numericInput("max_extra", t("max_extra"), 0.4, min = 0,
-                                max = 1, step = 0.05),
+            # classification thresholds of the cyclind method only
+            shiny::conditionalPanel(
+              "input.method == 'cyclind'",
+              shiny::numericInput("min_lead", t("min_lead"), 3, min = 0),
+              shiny::numericInput("min_median_lead", t("min_median_lead"), 1,
+                                  min = 0, step = 0.5),
+              shiny::numericInput("min_consistency", t("min_consistency"),
+                                  0.5, min = 0, max = 1, step = 0.05),
+              shiny::numericInput("max_missed", t("max_missed"), 0.4,
+                                  min = 0, max = 1, step = 0.05),
+              shiny::numericInput("max_extra", t("max_extra"), 0.4, min = 0,
+                                  max = 1, step = 0.05)),
             shiny::numericInput("alpha", t("alpha"), 0.05, min = 0.001,
                                 max = 0.5, step = 0.01),
             shiny::numericInput("min_auc", t("min_auc"), 0.7, min = 0.5,
@@ -582,7 +659,7 @@ assessment_display <- function(tab, p = function(x) x) {
       sign_sources(tab) == "none", "undetermined",
       paste0(ifelse(tab$inverted, "countercyclical", "procyclical"),
              ifelse(sign_sources(tab) == "meta", " (declared)", ""))),
-    rationale = ifelse(is.na(tab$rationale), "", tab$rationale),
+    rationale = ifelse(is.na(tab$rationale), "", p(tab$rationale)),
     lead = tab$ccf_lag,
     median = tab$median_lead,
     led = sprintf("%.2f", tab$pct_led),
@@ -623,6 +700,32 @@ app_warning_text <- function(w, t) {
   hit <- keys[names(keys) %in% class(w)]
   if (length(hit) == 0L) return(conditionMessage(w))
   paste0(t(hit[[1]]), " (", conditionMessage(w), ")")
+}
+
+# Errors while reading uploaded files, followed by a hint on the file
+# format: a wrong column separator or decimal mark gives errors of
+# utils::read.csv() such as "more columns than column names".
+with_read_hint <- function(expr, hint) {
+  tryCatch(expr, error = function(e) {
+    cyclind_abort(paste(conditionMessage(e), hint), "cyclind_error_read")
+  })
+}
+
+# The note of a quality verdict: the translated note of `key` and, when
+# the scorecard has the information row of a disaggregated reference (see
+# cli_quality()), the uncertainty of its turning-point dates.
+verdict_note <- function(q, key, t, p) {
+  note <- t(key)
+  crit <- as.character(q@table$criterion)
+  pattern <- "^reference disaggregated from (.*) data$"
+  hit <- which(grepl(pattern, crit))
+  if (length(hit) == 0L) return(note)
+  from <- sub(pattern, "\\1", crit[hit[1]])
+  months <- as.integer(sub("^turning points \\+/- ([0-9]+) months?$", "\\1",
+                           q@table$threshold[hit[1]]))
+  about <- if (identical(months, 1L)) t("one_month") else
+    sprintf(t("n_months"), months)
+  paste(note, sprintf(t("disagg_note"), p(from), about))
 }
 
 # The outlier report of step 4 with translated headers.
@@ -675,7 +778,8 @@ data_lines <- function(state) {
   if (!identical(state$source, "upload")) {
     return(c("# 1. Data",
              sprintf("data <- simulate_cycles(freq = %s, seed = %s)",
-                     state$frequency, state$seed)))
+                     deparse_value(state$frequency),
+                     deparse_value(state$seed))))
   }
   fmt <- ""
   sep <- if (is.null(state$sep)) "," else state$sep
@@ -799,8 +903,17 @@ analysis_lines <- function(state) {
       "cli <- cli_composite(cycles(res), %s, spec, cycles(res)[[%s]]%s)",
       chr_text(unname(state$components)), ref, shift_arg),
       sprintf("val <- cli_validate(cli, cycles(res)[[%s]], spec)", ref),
-      "pres <- cli_presentation(res, composite = cli)  # three OECD forms",
-      "", "# 8. Validation and quality", "cli_quality(val, spec)")
+      if (isTRUE(state$oos)) {
+        c("# the out-of-sample check of step 8",
+          paste0("val@out_of_sample <- cli_selection_bias(cand, spec, ",
+                 "spec@oos_cutoffs)"))
+      },
+      "# the result with the manual composite",
+      "res_manual <- res",
+      "res_manual@composite <- cli",
+      "res_manual@validation <- val",
+      "pres <- cli_presentation(res_manual)  # three OECD forms",
+      "", "# 8. Validation and quality", "cli_quality(res_manual)")
   } else {
     lines <- c(lines, "audit_log(res)", "plot(res)",
                "pres <- cli_presentation(res)  # three OECD forms", "",
@@ -830,7 +943,7 @@ app_server <- function(language = "en") {
   function(input, output, session) {
     rv <- shiny::reactiveValues(
       data = NULL, cand = NULL, spec = NULL, cycles = NULL, tps = NULL,
-      assessment = NULL, cycles_used = NULL, composite = NULL,
+      tps_used = NULL, assessment = NULL, cycles_used = NULL, composite = NULL,
       validation = NULL, audit = NULL, done = integer(0), meta = NULL,
       spec_call = NULL, mode = "auto", components = character(0),
       cci = NULL, cci_mode = NULL, prelude = NULL, cand_rebuilt = FALSE,
@@ -839,7 +952,7 @@ app_server <- function(language = "en") {
     fields <- list(`1` = c("data", "series"),
                    `2` = c("cand", "meta", "align"),
                    `3` = c("spec", "spec_call"), `4` = "cycles", `5` = "tps",
-                   `6` = c("assessment", "cycles_used"),
+                   `6` = c("assessment", "cycles_used", "tps_used"),
                    `7` = c("composite", "validation", "audit", "cci",
                            "cci_mode", "mode", "components"))
     reset_from <- function(k) {
@@ -852,11 +965,16 @@ app_server <- function(language = "en") {
       reset_from(k + 1L)
       rv$done <- sort(unique(c(rv$done, k)))
     }
-    safely <- function(expr) {
+    # warnings of the classes in `quiet` are not shown again: the
+    # out-of-sample checks of steps 8 and 9 extract the cycles again and
+    # repeat the outlier warnings of step 4
+    safely <- function(expr, quiet = character(0)) {
       tryCatch(
         withCallingHandlers(expr, warning = function(w) {
-          shiny::showNotification(app_warning_text(w, t), type = "warning",
-                                  duration = 8)
+          if (!inherits(w, quiet)) {
+            shiny::showNotification(app_warning_text(w, t),
+                                    type = "warning", duration = 8)
+          }
           invokeRestart("muffleWarning")
         }),
         error = function(e) {
@@ -911,53 +1029,55 @@ app_server <- function(language = "en") {
     # the reference series whose type the step-2 entry holds
     ref_type_for <- NULL
     shiny::observeEvent(input$run1, {
-      sep <- csv_choice(input$csv_sep, "sep")
-      dec <- csv_choice(input$csv_dec, "dec")
-      if (input$source == "upload_multi") {
-        shiny::req(input$files)
-        series <- safely(read_cli_series(
-          stats::setNames(input$files$datapath, input$files$name),
-          sep = sep, dec = dec))
-        if (is.null(series)) return()
-        data <- NULL
-        fmt <- list(sep = sep, dec = dec)
-        freq <- as.numeric(input$target_freq)
-      } else {
-        data <- safely({
-          if (input$source == "upload") {
-            shiny::req(input$file)
-            f <- if (input$freq == "auto") NULL else as.numeric(input$freq)
-            fmt <- csv_format(input$file$datapath, sep = sep, dec = dec)
-            out <- read_cli_data(input$file$datapath, frequency = f,
-                                 start = parse_start(input$start),
-                                 check.names = FALSE, sep = fmt$sep,
-                                 dec = fmt$dec)
-            attr(out, "csv_format") <- fmt
-            out
-          } else {
-            f <- if (input$source == "example_m") 12 else 4
-            simulate_cycles(freq = f, seed = input$seed)
-          }
-        })
-        if (is.null(data)) return()
-        series <- NULL
-        fmt <- attr(data, "csv_format")
-        attr(data, "csv_format") <- NULL
-        freq <- stats::frequency(data)
-      }
-      rv$data <- data
-      rv$series <- series
+      # every input is checked inside safely(): a malformed message from
+      # the browser gives an error notification, not a crashed session
+      # (audit E9)
+      src <- input$source
+      if (identical(src, "upload")) shiny::req(input$file)
+      if (identical(src, "upload_multi")) shiny::req(input$files)
+      loaded <- safely({
+        check_source(src)
+        sep <- csv_choice(input$csv_sep, "sep")
+        dec <- csv_choice(input$csv_dec, "dec")
+        if (identical(src, "upload_multi")) {
+          up <- checked_upload(input$files)
+          freq <- as.numeric(input$target_freq)
+          check_frequency(freq)
+          series <- with_read_hint(
+            read_cli_series(stats::setNames(up$datapath, up$name),
+                            sep = sep, dec = dec), t("read_hint"))
+          list(series = series,
+               data = NULL, fmt = list(sep = sep, dec = dec), freq = freq,
+               file_name = up$name, start = NULL)
+        } else if (identical(src, "upload")) {
+          up <- checked_upload(input$file)[1L, , drop = FALSE]
+          f <- if (identical(input$freq, "auto")) NULL else
+            as.numeric(input$freq)
+          start <- parse_start(input$start)
+          fmt <- csv_format(up$datapath, sep = sep, dec = dec)
+          data <- with_read_hint(
+            read_cli_data(up$datapath, frequency = f, start = start,
+                          check.names = FALSE, sep = fmt$sep, dec = fmt$dec),
+            t("read_hint"))
+          list(series = NULL, data = data, fmt = fmt,
+               freq = stats::frequency(data), file_name = up$name,
+               start = start)
+        } else {
+          f <- if (identical(src, "example_m")) 12 else 4
+          data <- simulate_cycles(freq = f, seed = input$seed)
+          list(series = NULL, data = data, fmt = NULL, freq = f,
+               file_name = "data.csv", start = NULL)
+        }
+      })
+      if (is.null(loaded)) return()
+      rv$data <- loaded$data
+      rv$series <- loaded$series
+      freq <- loaded$freq
       # the script reproduces the data as loaded, not later edits of step 1
-      file_name <- switch(input$source,
-                          upload = if (is.null(input$file)) "data.csv" else
-                            input$file$name,
-                          upload_multi = input$files$name,
-                          "data.csv")
       rv$loaded <- list(
-        source = input$source, file_name = file_name,
-        start = if (input$source == "upload") parse_start(input$start) else
-          NULL,
-        seed = input$seed, sep = fmt$sep, dec = fmt$dec, frequency = freq
+        source = src, file_name = loaded$file_name, start = loaded$start,
+        seed = input$seed, sep = loaded$fmt$sep, dec = loaded$fmt$dec,
+        frequency = freq
       )
       rv$meta_known <- NULL
       rv$prelude <- NULL
@@ -1252,7 +1372,8 @@ app_server <- function(language = "en") {
       }
       freq <- stats::frequency(rv$cand@data)
       # the interface runs the code it writes into the script
-      code <- safely(spec_call(input, freq))
+      code <- safely(spec_call(input, freq,
+                               range(stats::time(rv$cand@data))))
       spec <- if (!is.null(code)) {
         safely(eval_code(code, "spec", functions = spec_functions))
       }
@@ -1344,13 +1465,20 @@ app_server <- function(language = "en") {
         shiny::showNotification(t("need_prev"), type = "warning")
         return()
       }
-      a <- shiny::withProgress(message = t("run6"),
-                               safely(cli_assess(rv$cand, rv$spec, rv$cycles)))
-      if (is.null(a)) return()
-      used <- rv$cycles
-      for (nm in a@inverted) used[[nm]] <- invert_cycle(used[[nm]])
+      out <- shiny::withProgress(message = t("run6"), safely({
+        a <- cli_assess(rv$cand, rv$spec, rv$cycles)
+        used <- rv$cycles
+        for (nm in a@inverted) used[[nm]] <- invert_cycle(used[[nm]])
+        # inverted candidates are dated again, as in cli_build()
+        tps <- rv$tps
+        tps[a@inverted] <- cli_turning_points(used[a@inverted], rv$spec)
+        list(a = a, used = used, tps = tps)
+      }))
+      if (is.null(out)) return()
+      a <- out$a
       rv$assessment <- a
-      rv$cycles_used <- used
+      rv$cycles_used <- out$used
+      rv$tps_used <- out$tps
       finish(6L)
       shiny::updateCheckboxGroupInput(
         session, "manual_components", choices = a@table$name,
@@ -1410,7 +1538,7 @@ app_server <- function(language = "en") {
         } else {
           comps <- input$manual_components
           if (length(comps) == 0L) {
-            cyclind_abort(t("components"), "cyclind_error_argument")
+            cyclind_abort(t("need_component"), "cyclind_error_argument")
           }
           shifts <- if (isTRUE(rv$spec@lag_shift)) {
             lag_shifts(comps, rv$assessment)
@@ -1458,9 +1586,11 @@ app_server <- function(language = "en") {
     })
 
     # 8. Validation and quality ---------------------------------------------
+    # from the result, as in the script: the scorecard then notes a
+    # disaggregated reference
     quality <- shiny::reactive({
       need(7L)
-      cli_quality(rv$validation, rv$spec)
+      cli_quality(result())
     })
     shiny::observeEvent(input$run8, {
       if (!7L %in% rv$done) {
@@ -1473,7 +1603,8 @@ app_server <- function(language = "en") {
       }
       sb <- shiny::withProgress(
         message = t("run8"),
-        safely(cli_selection_bias(rv$cand, rv$spec, rv$spec@oos_cutoffs))
+        safely(cli_selection_bias(rv$cand, rv$spec, rv$spec@oos_cutoffs),
+               quiet = "cyclind_warning_outlier_share")
       )
       if (is.null(sb)) return()
       val <- rv$validation
@@ -1489,7 +1620,8 @@ app_server <- function(language = "en") {
                         verdict_colour[[q@verdict]]),
         shiny::h3(style = "margin: 0;",
                   paste0(t("verdict"), ": ", t(q@verdict))),
-        shiny::p(style = "margin: 6px 0 0 0;", t(paste0(q@verdict, "_note")))
+        shiny::p(style = "margin: 6px 0 0 0;",
+                 verdict_note(q, paste0(q@verdict, "_note"), t, p))
       )
     })
     output$scorecard <- shiny::renderTable({
@@ -1538,7 +1670,7 @@ app_server <- function(language = "en") {
         return()
       }
       base <- new("CliResult", spec = rv$spec, candidates = rv$cand,
-                  cycles = rv$cycles_used, turning_points = rv$tps,
+                  cycles = rv$cycles_used, turning_points = rv$tps_used,
                   assessment = rv$assessment, composite = NULL,
                   validation = NULL, audit = data.frame())
       cci <- shiny::withProgress(message = t("run9"), safely({
@@ -1550,11 +1682,11 @@ app_server <- function(language = "en") {
         } else {
           comps <- input$cci_components
           if (length(comps) == 0L) {
-            cyclind_abort(t("components"), "cyclind_error_argument")
+            cyclind_abort(t("need_component"), "cyclind_error_argument")
           }
           cci_build(base, components = comps, select = FALSE)
         }
-      }))
+      }, quiet = "cyclind_warning_outlier_share"))
       if (is.null(cci) || is.null(cci@composite)) return()
       rv$cci <- cci
       rv$cci_mode <- input$cci_mode
@@ -1599,7 +1731,7 @@ app_server <- function(language = "en") {
                         verdict_colour[[q@verdict]]),
         shiny::h3(style = "margin: 0;",
                   paste0(t("verdict"), ": ", t(q@verdict))),
-        shiny::p(style = "margin: 6px 0 0 0;", t(note))
+        shiny::p(style = "margin: 6px 0 0 0;", verdict_note(q, note, t, p))
       )
     })
     output$cci_plot <- shiny::renderPlot({
@@ -1635,7 +1767,7 @@ app_server <- function(language = "en") {
     result <- shiny::reactive({
       need(7L)
       new("CliResult", spec = rv$spec, candidates = rv$cand,
-          cycles = rv$cycles_used, turning_points = rv$tps,
+          cycles = rv$cycles_used, turning_points = rv$tps_used,
           assessment = rv$assessment, composite = rv$composite,
           validation = rv$validation, audit = rv$audit)
     })
@@ -1652,6 +1784,8 @@ app_server <- function(language = "en") {
           series_unit(rv$cand, rv$cand@reference),
         spec_call = rv$spec_call, mode = rv$mode,
         components = rv$components,
+        oos = !is.null(rv$validation) &&
+          nrow(rv$validation@out_of_sample) > 0L,
         lag_shift = !is.null(rv$spec) && isTRUE(rv$spec@lag_shift),
         cci_mode = rv$cci_mode,
         cci_components = if (is.null(rv$cci)) NULL else

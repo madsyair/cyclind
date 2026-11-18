@@ -11,7 +11,11 @@
 #' ones used to classify candidates (see [cli_assess()]).
 #'
 #' **Prediction**, from the out-of-sample forecasts of [cli_validate()] at
-#' the horizon fixed in advance:
+#' the horizon fixed in advance. These are pseudo out-of-sample forecasts:
+#' only the logit is re-estimated recursively, while the cycles, the
+#' contraction states it is trained on and the components come from the
+#' full sample (see [cli_validate()]), so the scores are optimistic and do
+#' not measure real-time accuracy:
 #' * at least 20 out-of-sample forecasts of the contraction probability;
 #' * their area under the ROC curve is at least `min_auc` (0.7 is
 #'   "acceptable discrimination", Hosmer and Lemeshow 2000; Berge and Jordà

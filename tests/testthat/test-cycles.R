@@ -44,9 +44,15 @@ test_that("input problems are reported", {
   short <- simulate_cycles(seed = 1, n_years = 10)
   short[1:100, "lead_6"] <- NA
   meta <- data.frame(name = colnames(short)[-1], rationale = "early_stage")
-  expect_error(cli_cycles(cli_candidates(short, "reference", meta = meta),
-                          cli_spec(12)),
-               class = "cyclind_error_short_series")
+  # a short candidate is excluded (audit E2); a short reference stops
+  expect_warning(cyc <- cli_cycles(cli_candidates(short, "reference",
+                                                  meta = meta), cli_spec(12)),
+                 class = "cyclind_warning_short_series")
+  expect_equal(excluded_series(cyc)$name, "lead_6")
+  short[1:100, "reference"] <- NA
+  expect_error(suppressWarnings(cli_cycles(cli_candidates(
+    short, "reference", meta = meta), cli_spec(12))),
+    class = "cyclind_error_short_series")
 })
 
 test_that("X-13 seasonal adjustment removes a seasonal pattern", {

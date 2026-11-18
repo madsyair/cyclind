@@ -161,6 +161,10 @@ test_that("AC-FR-012.4: OECD classifier checks cyclical conformity", {
   # coincident and lagging series need conformity too
   co <- row
   co$median_lead <- 0
+  # a coincident series also needs its cross-correlation peak near lag 0
+  expect_equal(classify_candidate(spec@classifier, co, spec)$class,
+               "rejected")
+  co$ccf_lag <- 0
   expect_equal(classify_candidate(spec@classifier, co, spec)$class,
                "coincident")
   co$ccf_r <- -0.3

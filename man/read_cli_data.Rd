@@ -9,7 +9,9 @@ read_cli_data(file, frequency = NULL, start = NULL, ...)
 \arguments{
 \item{file}{Path to a CSV file, or a data frame already read.}
 
-\item{frequency}{\code{NULL} (detect from dates), 12 or 4.}
+\item{frequency}{\code{NULL} (detect from dates), 12 or 4. With a date
+column, 4 also reads monthly dates of quarterly data (\code{2001-01},
+\code{2001-04}, ...); a frequency that contradicts the dates is an error.}
 
 \item{start}{Start as \code{c(year, period)} when there is no date column.}
 
@@ -22,10 +24,12 @@ A multivariate \code{ts}.
 \description{
 Reads a CSV file with one column per series. If the first column holds
 dates (\code{2001-01}, \code{2001-01-15} or \verb{2001Q1}), the frequency and start are
-taken from it; otherwise give \code{frequency} and \code{start}. Non-numeric
-columns other than the date column are dropped with a warning (often a
-wrong decimal mark or thousands separators). A UTF-8 byte-order mark at
-the start of the file is ignored.
+taken from it (a \code{frequency} given as well must agree with the dates);
+otherwise give \code{frequency} and \code{start}. Rows at the end of the file in
+which every cell is empty, as Excel often leaves them, are dropped.
+Non-numeric columns other than the date column are dropped with a
+warning (often a wrong decimal mark or thousands separators). A UTF-8
+byte-order mark at the start of the file is ignored.
 }
 \examples{
 df <- data.frame(date = c("2001Q1", "2001Q2", "2001Q3"),

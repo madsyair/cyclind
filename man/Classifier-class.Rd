@@ -106,7 +106,11 @@ evaluation criteria are made operational: a positive cross-correlation
 peak, at most \code{max_missed} and \code{max_extra} (40 percent) missed and
 extra turning points, and a concordance significantly above its value
 under independence at level \code{alpha}, tested with a fixed-b HAC test
-(Kiefer and Vogelsang 2005; see \code{\link[=cli_assess]{cli_assess()}}). (3) Thresholds are
+(Kiefer and Vogelsang 2005; see \code{\link[=cli_assess]{cli_assess()}}). A coincident series
+must, in addition, have its cross-correlation peak strictly inside the
+coincident band (lags -1 to 1 for monthly data, lag 0 for quarterly
+data); otherwise it is rejected ("ccf lag"). The leading and lagging
+rules do not use the lag of the peak. (3) Thresholds are
 given in months and converted to quarters for quarterly data (the OECD
 system is monthly).
 

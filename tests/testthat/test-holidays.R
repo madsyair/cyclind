@@ -50,7 +50,8 @@ test_that("X-13 removes a simulated Idulfitri effect", {
   expect_lt(sd(log(adj) - log(x)), sd(log(y) - log(x)))
   # dates that end with the data: X-11 without forecasts
   short <- holiday_effect(idulfitri_dates(1994, 2024), name = "idulfitri")
-  adj2 <- cyclind:::seasonal_adjust_x13(y, list(short))
+  expect_warning(adj2 <- cyclind:::seasonal_adjust_x13(y, list(short)),
+                 class = "cyclind_warning_holiday_horizon")
   expect_match(attr(adj2, "step"), "X-11 without forecasts")
   late <- holiday_effect(idulfitri_dates(2000, 2030), name = "idulfitri")
   expect_error(cyclind:::seasonal_adjust_x13(y, list(late)),
@@ -67,4 +68,39 @@ test_that("cli_cycles records the holiday adjustment", {
   e <- holiday_effect(idulfitri_dates(1990, 2030), name = "idulfitri")
   cyc <- cli_cycles(cand, cli_spec(seasonal_adjust = TRUE, holidays = e))
   expect_match(cyc$lead_6@steps[1], "holidays: idulfitri")
+})
+
+test_that("cli_cycles warns once when the holidays miss the X-13 horizon", {
+  # audit: holiday dates ending before the X-13 forecast horizon switched
+  # every series silently to X-11 without forecasts
+  skip_on_cran()
+  skip_if_not_installed("seasonal")
+  sim <- simulate_cycles(seed = 1, n_years = 10, freq = 4)
+  meta <- data.frame(name = c("lead_2", "lead_1"), rationale = "early_stage")
+  cand <- cli_candidates(sim[, c("reference", "lead_2", "lead_1")],
+                         "reference", meta = meta)
+  end_year <- floor(stats::time(sim)[nrow(sim)])
+  short <- holiday_effect(idulfitri_dates(1990, end_year + 1),
+                          name = "idulfitri")
+  spec <- cli_spec(4, seasonal_adjust = TRUE, holidays = short)
+  caught <- list()
+  cyc <- withCallingHandlers(cli_cycles(cand, spec), warning = function(w) {
+    caught[[length(caught) + 1L]] <<- w
+    invokeRestart("muffleWarning")
+  })
+  horizon <- Filter(function(w) {
+    inherits(w, "cyclind_warning_holiday_horizon")
+  }, caught)
+  expect_length(horizon, 1L)
+  msg <- conditionMessage(horizon[[1]])
+  expect_match(msg, "3 series (reference, lead_2, lead_1)", fixed = TRUE)
+  expect_match(msg, "X-11 without forecast", fixed = TRUE)
+  expect_match(msg, sprintf("idulfitri_dates(1990, %d)", end_year + 3),
+               fixed = TRUE)
+  expect_match(cyc$lead_2@steps[1], "X-11 without forecasts")
+  # dates far enough ahead: no warning
+  long <- holiday_effect(idulfitri_dates(1990, end_year + 3),
+                         name = "idulfitri")
+  expect_no_warning(cli_cycles(cand, update(spec, holidays = list(long))),
+                    class = "cyclind_warning_holiday_horizon")
 })

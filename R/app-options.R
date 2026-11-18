@@ -284,20 +284,30 @@ extension_text <- function(input) {
                                  order_max = num_in(input, "ar_order_max")))
 }
 
-holidays_text <- function(input) {
-  if (isTRUE(input$seasonal) && isTRUE(input$idulfitri)) {
-    "holiday_effect(idulfitri_dates(), name = \"idulfitri\")"
+# `span`: first and last time of the data. The Idulfitri dates then run from
+# the first year of the data to three years past its end, the forecast
+# horizon of X-13ARIMA-SEATS; without it, the default years of
+# idulfitri_dates().
+holidays_text <- function(input, span = NULL) {
+  if (!(isTRUE(input$seasonal) && isTRUE(input$idulfitri))) return(NULL)
+  years <- if (!is.null(span)) {
+    sprintf("%d, %d", as.integer(floor(span[1] + 1e-8)),
+            as.integer(floor(span[2] + 1e-8)) + 3L)
+  } else {
+    ""
   }
+  sprintf("holiday_effect(idulfitri_dates(%s), name = \"idulfitri\")", years)
 }
 
 # Code of step 3: `spec <- cli_spec(...)` or `spec <- oecd_spec(...)`.
-spec_call <- function(input, freq) {
+# `span`: first and last time of the data (see holidays_text()).
+spec_call <- function(input, freq, span = NULL) {
   cuts <- parse_cutoffs(input$oos_cutoffs)
   cut <- if (length(cuts) > 0L) deparse_value(cuts)
   if (identical(input$method, "oecd")) {
     return(assign_text("spec", "oecd_spec", list(
       freq = freq, seasonal_adjust = deparse_value(isTRUE(input$seasonal)),
-      holidays = holidays_text(input), alpha = num_in(input, "alpha"),
+      holidays = holidays_text(input, span), alpha = num_in(input, "alpha"),
       min_auc = num_in(input, "min_auc"),
       min_components = num_in(input, "min_components"),
       max_iter = num_in(input, "max_iter"), oos_cutoffs = cut,
@@ -318,7 +328,7 @@ spec_call <- function(input, freq) {
     transform = choice_text(input$transform, c("auto", "log", "none",
                                                 "test"), "transform"),
     seasonal_adjust = deparse_value(isTRUE(input$seasonal)),
-    holidays = holidays_text(input),
+    holidays = holidays_text(input, span),
     outlier_threshold = if (!tramo) num_in(input, "outlier"),
     outliers = if (tramo) "tramo_outliers()",
     min_lead = num_in(input, "min_lead"),

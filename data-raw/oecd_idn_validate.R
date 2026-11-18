@@ -24,7 +24,22 @@
 #   oecd-idn-turning-points.csv  turning points of the CLI and composites
 #   oecd-idn-gaps.csv         C. sources of the remaining differences
 #                             (aggregation formula, amplitude, ragged edge)
+#
+# Engine: experiment B uses TRAMO (package RJDemetra, which needs Java),
+# as the OECD does. engine = "auto" would fall back to X-13 regARIMA on a
+# machine without RJDemetra and give other numbers (with X-13 the GDP cycle
+# correlates 0.912 instead of 0.992 with the OECD reference cycle, 9 of 10
+# turning points instead of 10 of 10, and the B1 aa_gap is 0.766 instead
+# of 0.814), so the script stops instead.
 devtools::load_all(quiet = TRUE)
+if (!requireNamespace("RJDemetra", quietly = TRUE)) {
+  stop("data-raw/oecd_idn_validate.R needs RJDemetra (TRAMO): the files in ",
+       "inst/calibration/oecd-idn-*.csv were made with TRAMO, and X-13 ",
+       "gives different numbers. Install RJDemetra (and Java) first.",
+       call. = FALSE)
+}
+message("Outlier engine: TRAMO (RJDemetra ",
+        utils::packageVersion("RJDemetra"), ")")
 d <- utils::read.csv("data-raw/oecd-idn/oecd-idn.csv",
                      stringsAsFactors = FALSE)
 
@@ -183,7 +198,7 @@ data_b <- cli_align(orig, type = c(gdp = "flow", LOCOST = "average"),
                     reference = "gdp")
 meta_b <- data.frame(name = names(orig)[-1], rationale = "early_stage")
 cand_b <- cli_candidates(data_b, "gdp", meta = meta_b)
-spec_b <- oecd_spec(engine = "auto")
+spec_b <- oecd_spec(engine = "tramo")
 res_b <- cli_build(cand_b, spec_b)
 cyc_b <- cli_cycles(cand_b, spec_b)
 

@@ -43,8 +43,14 @@ test_that("AC-FR-010.1: the Idulfitri effect in seasonal adjustment", {
       expect_true(3L %in% rv$done)
       expect_length(rv$spec@holidays, 1L)
       expect_equal(rv$spec@holidays[[1]]@name, "idulfitri")
-      expect_match(rv$spec_call, "holiday_effect(idulfitri_dates()",
-                   fixed = TRUE)
+      # the dates cover the data and the X-13 forecast horizon (audit)
+      tm <- stats::time(rv$cand@data)
+      years <- c(floor(min(tm)), floor(max(tm) + 1e-8) + 3)
+      expect_match(rv$spec_call, sprintf(
+        "holiday_effect(idulfitri_dates(%d, %d)", years[1], years[2]),
+        fixed = TRUE)
+      dates <- rv$spec@holidays[[1]]@dates
+      expect_gte(as.numeric(format(max(dates), "%Y")), max(tm) + 3 - 1)
       expect_script_spec(rv)
     })
   }
@@ -263,8 +269,11 @@ test_that("R1: names from files cannot run as code", {
              file.path(dir, "q.csv"))
   writeLines(c("date,a,b", paste0(m, ",", sim[, "lead_6"], ",",
                                   sim[, "lead_3"])), file.path(dir, "m.csv"))
+  # shiny stores uploads as 0.csv, 1.csv, ... (see as_upload())
+  file.copy(file.path(dir, c("q.csv", "m.csv")),
+            file.path(dir, c("0.csv", "1.csv")))
   files <- data.frame(name = c(bad, "m.csv"), size = 1, type = "text/csv",
-                      datapath = file.path(dir, c("q.csv", "m.csv")))
+                      datapath = file.path(dir, c("0.csv", "1.csv")))
   old <- setwd(dir)
   on.exit(setwd(old), add = TRUE)
   shiny::testServer(cyclind:::app_server("en"), {

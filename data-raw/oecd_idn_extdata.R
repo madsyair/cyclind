@@ -46,7 +46,23 @@ wide <- wide[, c("date", "cli_amplitude_adjusted", "cli_normalised",
                  sort(grep("^LOCO", names(wide), value = TRUE)))]
 utils::write.csv(wide, file.path(out, "oecd_cli.csv"), row.names = FALSE,
                  quote = FALSE, na = "")
-writeLines(c(readLines("data-raw/oecd-idn/SNAPSHOT")[1],
-             "Source: OECD Data Explorer (SDMX API), Indonesia; see data-raw/oecd_idn_fetch.R"),
-           file.path(out, "SOURCE.txt"))
+# data-raw/ is not in the tarball: name the script by its URL, and the
+# licence of the data (audit E12)
+src <- "https://github.com/madsyair/cyclind/blob/main/data-raw"
+terms <- "https://www.oecd.org/en/about/terms-conditions.html"
+writeLines(c(
+  readLines("data-raw/oecd-idn/SNAPSHOT")[1],
+  "Source: OECD Data Explorer (SDMX API, https://data-explorer.oecd.org),",
+  "  Indonesia: composite leading indicator and its components, GDP.",
+  "Fetch script (not in the package tarball):",
+  paste0("  ", src, "/oecd_idn_fetch.R"),
+  "  (the files are written by data-raw/oecd_idn_extdata.R in the same folder)",
+  paste0("Licence: OECD Terms and Conditions (", terms, "):"),
+  "  OECD data are made available under the Creative Commons Attribution 4.0",
+  "  International licence (CC BY 4.0,",
+  "  https://creativecommons.org/licenses/by/4.0/), unless stated otherwise.",
+  "Attribution: OECD (2026), OECD Data Explorer, Indonesia, accessed",
+  "  2026-11-13. The files are reshaped (one CSV per series); values are as",
+  "  published."
+), file.path(out, "SOURCE.txt"))
 print(list.files(out))

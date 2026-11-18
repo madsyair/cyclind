@@ -16,12 +16,14 @@ holiday_effect(
 }
 \arguments{
 \item{dates}{Dates of the holiday (class \code{Date}), covering every year of
-the data.}
+the data and at least three years past its end (the X-13 forecast
+horizon).}
 
 \item{name}{Short name, used for the regressors (\verb{<name>_<window>}).}
 
 \item{windows}{Named list of windows, each \code{c(first, last)} in days
-relative to the holiday (negative = before).}
+relative to the holiday (negative = before). The default suits
+Idulfitri in Indonesia (see Details).}
 
 \item{center}{Centring of the regressors, passed to \code{\link[seasonal:genhol]{seasonal::genhol()}}.}
 
@@ -31,24 +33,58 @@ relative to the holiday (negative = before).}
 A \code{HolidayEffect} object.
 }
 \description{
-A moving holiday, such as Eid al-Fitr (Idulfitri) in Indonesia, falls in a
-different month from year to year, so fixed monthly seasonal factors
-cannot remove it. \code{holiday_effect()} describes such a holiday by its dates
-and by one or more windows of days around it; each window becomes one
-regressor of the regARIMA model of X-13ARIMA-SEATS (built with
-\code{\link[seasonal:genhol]{seasonal::genhol()}}), and the estimated effect is removed from the
-seasonally adjusted series. Pass the effects to \code{\link[=cli_spec]{cli_spec()}} through
-\code{holidays}, together with \code{seasonal_adjust = TRUE}.
+A moving holiday falls in a different month from year to year, so fixed
+monthly seasonal factors cannot remove it. \code{holiday_effect()} describes
+such a holiday by its dates and by one or more windows of days around it;
+each window becomes one regressor of the regARIMA model of
+X-13ARIMA-SEATS (built with \code{\link[seasonal:genhol]{seasonal::genhol()}}), and the estimated
+effect is removed from the seasonally adjusted series.
 }
 \details{
-The default windows suit Idulfitri in Indonesia: demand rises in the two
-weeks before the holiday, production falls during the week of collective
-leave that starts on it. Centring with \code{"mean"} follows the advice of the
-'seasonal' package for Ramadan-type holidays.
+Holiday effects are optional: \code{\link[=cli_spec]{cli_spec()}} and \code{\link[=oecd_spec]{oecd_spec()}} use none by
+default (\code{holidays = list()}), and they apply only with
+\code{seasonal_adjust = TRUE}. Pass the effects through \code{holidays}. Any moving
+holiday can be described, such as Easter, Chinese New Year (Imlek),
+Diwali or Eid al-Adha, from dates you supply; \code{\link[=idulfitri_dates]{idulfitri_dates()}} is a
+helper for Eid al-Fitr (Idulfitri), the holiday that matters most for
+Indonesian data.
+
+\strong{Horizon.} X-13ARIMA-SEATS extends the series with three years of
+forecasts, and the holiday regressors must cover them: give dates from
+the first year of the data to at least three years past its last
+observation. When the dates stop earlier, the series is adjusted with
+X-11 without forecast extension and \code{\link[=cli_cycles]{cli_cycles()}} warns
+(\code{cyclind_warning_holiday_horizon}) once, naming the series. Dates that
+do not cover the data themselves are an error.
+
+\strong{Country-specific dates and windows.} The date and the effect of a
+holiday depend on the country. The official date of 1 Syawal is set by
+each country: in Indonesia by the Ministry of Religious Affairs
+(Kementerian Agama) after the \emph{sidang isbat}; in Malaysia, Saudi Arabia
+and elsewhere by their own authorities, by moon sighting (\emph{rukyat}) or
+by calculation (\emph{hisab}). Official dates can therefore differ from the
+arithmetic calendar of \code{\link[=idulfitri_dates]{idulfitri_dates()}}, and from one country to
+another, by one or two days; use the official dates of the country of
+the data when you have them. The default windows describe Idulfitri in
+Indonesia: demand rises in the two weeks before the holiday, when
+households travel home (\emph{mudik}), and production falls during the week
+of collective leave (\emph{cuti bersama}) that starts on it. Other countries
+and holidays need their own windows, set through \code{windows}. Centring
+with \code{"mean"} follows the advice of the 'seasonal' package for
+Ramadan-type holidays.
 }
 \examples{
+# Idulfitri, data from 1990 to 2027: dates up to 2030
 eid <- holiday_effect(idulfitri_dates(1990, 2030), name = "idulfitri")
 eid
+# a country's own official dates and windows: replace the dates below
+# (the arithmetic ones, for illustration) by the official ones, e.g. as
+# Date strings read from the authority's announcements
+own <- idulfitri_dates(2010, 2030)
+eid_own <- holiday_effect(own, name = "eid",
+                          windows = list(before = c(-7, -1),
+                                         after = c(0, 2)))
+eid_own
 \donttest{
 if (requireNamespace("seasonal", quietly = TRUE)) {
   sim <- simulate_cycles(seed = 1)

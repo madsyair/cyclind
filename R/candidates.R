@@ -120,6 +120,14 @@ cli_candidates <- function(data, reference, meta = NULL, vintages = list(),
       alignment <- alignment[!alignment$name %in% empty, , drop = FALSE]
     }
   }
+  if (is.data.frame(meta) && "name" %in% names(meta)) {
+    twice <- unique(meta$name[duplicated(meta$name)])
+    if (length(twice) > 0L) {
+      cyclind_abort(sprintf("`meta` has more than one row for: %s.",
+                            paste(twice, collapse = ", ")),
+                    "cyclind_error_argument")
+    }
+  }
   # a row of `meta` for the reference only gives its unit (FR-015)
   ref_unit <- NA_character_
   if (is.data.frame(meta) && "name" %in% names(meta) &&

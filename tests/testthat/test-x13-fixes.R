@@ -229,7 +229,8 @@ test_that("a series that cannot be adjusted is excluded with its reason", {
   res <- suppressWarnings(cli_build(cand, s))
   expect_false("lead_2" %in% res@assessment@table$name)
   expect_match(audit_log(res)$action[1], "^excluded lead_2")
-  expect_output(show(res), "excluded \\(seasonal adjustment failed\\): lead_2")
+  expect_output(show(res), paste0("excluded \\(failed seasonal adjustment",
+                                  " or too short\\): lead_2"))
   expect_equal(excluded_series(res)$name, "lead_2")
   a <- suppressWarnings(cli_assess(cand, s, cyc))
   expect_false("lead_2" %in% a@table$name)

@@ -51,6 +51,25 @@ multi_files <- function() {
   writeLines(c("date,nilai", paste0(qd, ",", num(q4))),
              file.path(dir, "counter.csv"))
   names <- c("pdb.csv", "indikator.csv", "counter.csv")
+  # shiny stores uploads as 0.csv, 1.csv, ... (see as_upload())
+  datapath <- file.path(dir, paste0(seq_along(names) - 1L, ".csv"))
+  file.copy(file.path(dir, names), datapath)
   data.frame(name = names, size = 1, type = "text/csv",
-             datapath = file.path(dir, names), stringsAsFactors = FALSE)
+             datapath = datapath, stringsAsFactors = FALSE)
+}
+
+# The value of a fileInput() for files written by a test. Shiny stores
+# uploads as 0.csv, 1.csv, ... in a new directory under tempdir(), and the
+# server accepts only such paths (audit E1); the files are copied there,
+# and also under their own names for scripts that read them by name.
+as_upload <- function(paths, names = basename(paths)) {
+  dir <- tempfile("upload")
+  dir.create(dir)
+  ext <- ifelse(grepl("\\.[[:alnum:]]+$", paths),
+                sub("^.*(\\.[[:alnum:]]+)$", "\\1", paths), "")
+  datapath <- file.path(dir, paste0(seq_along(paths) - 1L, ext))
+  file.copy(paths, datapath)
+  file.copy(paths, file.path(dir, names))
+  data.frame(name = names, size = file.size(datapath), type = "text/csv",
+             datapath = datapath, stringsAsFactors = FALSE)
 }

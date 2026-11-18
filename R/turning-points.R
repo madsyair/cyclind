@@ -107,26 +107,33 @@ tp_enforce_ends <- function(tp, n, e) {
   tp[keep, , drop = FALSE]
 }
 
-# First (last) peak must exceed the first (last) value; troughs likewise.
-tp_enforce_extremes <- function(tp, y) {
+# First (last) peak must exceed the values before (after) it; troughs
+# likewise. With `strict` (Bry and Boschan 1971, step "eliminate peaks
+# (troughs) at both ends of the series which are lower (higher) than values
+# closer to the end") every value between the turning point and the end
+# counts; otherwise only the end value y[1] or y[n], as the BBQ program in
+# 'BCDating' (BCDating.enfvc) does.
+tp_enforce_extremes <- function(tp, y, strict = TRUE) {
   n <- length(y)
+  beyond <- function(i, first, is_peak) {
+    ends <- if (strict) {
+      if (first) y[seq_len(i - 1L)] else y[seq.int(i + 1L, length.out = n - i)]
+    } else {
+      if (first) y[1] else y[n]
+    }
+    if (length(ends) == 0L) return(FALSE)
+    if (is_peak) any(ends > y[i]) else any(ends < y[i])
+  }
   repeat {
     changed <- FALSE
-    if (nrow(tp) > 0L) {
-      f <- 1L
-      if ((tp$peak[f] && y[1] > y[tp$i[f]]) ||
-          (!tp$peak[f] && y[1] < y[tp$i[f]])) {
-        tp <- tp[-f, , drop = FALSE]
-        changed <- TRUE
-      }
+    if (nrow(tp) > 0L && beyond(tp$i[1], TRUE, tp$peak[1])) {
+      tp <- tp[-1L, , drop = FALSE]
+      changed <- TRUE
     }
-    if (nrow(tp) > 0L) {
-      l <- nrow(tp)
-      if ((tp$peak[l] && y[n] > y[tp$i[l]]) ||
-          (!tp$peak[l] && y[n] < y[tp$i[l]])) {
-        tp <- tp[-l, , drop = FALSE]
-        changed <- TRUE
-      }
+    l <- nrow(tp)
+    if (l > 0L && beyond(tp$i[l], FALSE, tp$peak[l])) {
+      tp <- tp[-l, , drop = FALSE]
+      changed <- TRUE
     }
     if (!changed) break
   }
@@ -189,6 +196,9 @@ tp_enforce_phase <- function(tp, y, min_phase, rule = "symmetric") {
 tp_core <- function(y, window, min_phase, min_cycle, end_exclusion,
                     phase_rule = "symmetric") {
   n <- length(y)
+  # the end rule of Bry and Boschan (1971) with the symmetric phase rule,
+  # the one of 'BCDating' with the BBQ rule that replicates it (audit S4)
+  strict <- !identical(phase_rule, "bbq")
   tp <- tp_alternate(tp_candidates(y, window), y)
   for (iter in seq_len(100L)) {
     before <- tp
@@ -198,9 +208,9 @@ tp_core <- function(y, window, min_phase, min_cycle, end_exclusion,
       tp_cycle_symmetric(tp, y, min_cycle)
     }
     tp <- tp_alternate(tp_enforce_ends(tp, n, end_exclusion), y)
-    tp <- tp_alternate(tp_enforce_extremes(tp, y), y)
+    tp <- tp_alternate(tp_enforce_extremes(tp, y, strict), y)
     tp <- tp_enforce_phase(tp, y, min_phase, phase_rule)
-    tp <- tp_alternate(tp_enforce_extremes(tp, y), y)
+    tp <- tp_alternate(tp_enforce_extremes(tp, y, strict), y)
     if (identical(before, tp)) break
   }
   tp

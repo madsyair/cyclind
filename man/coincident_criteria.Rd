@@ -42,7 +42,11 @@ causality is not required: a coincident series need not predict the
 reference.
 \item \code{OecdClassifier}: at least \code{min_matched} matched turning points and a
 median lead strictly inside +/- \code{coincident} months, the OECD
-definition of a coincident series.
+definition of a coincident series. With \code{conformity = TRUE} (the
+default) the cross-correlation peak must also be positive and lie
+strictly inside the same band (lags -1 to 1 for monthly data, lag 0 for
+quarterly data), so that an index whose median lead is coincident but
+which moves with the reference several periods later is not accepted.
 \item any other \code{Classifier}: at least three matched turning points and a
 median lead within the timing band.
 }

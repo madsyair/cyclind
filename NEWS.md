@@ -1,7 +1,115 @@
 # cyclind (development version)
 
+## Bug fixes
+
+* `cf_filter()` removes the drift (the line through the first and last
+  observations) before the Christiano-Fitzgerald random-walk filter, as
+  Christiano and Fitzgerald (2003) and `mFilter::cffilter(drift = TRUE)`
+  do. Before, a trending series got a spurious cycle at both ends.
+  `cf_filter(drift = FALSE)` gives the old filter; filters saved before
+  the argument existed also remove the drift. Results with `cf_filter()`
+  change.
+* Daters with the default `phase_rule = "symmetric"` apply the end rule of
+  Bry and Boschan (1971) in full: a first (last) peak is dropped when any
+  value between it and the start (end) of the series is higher, and
+  likewise for troughs; before, only the first (last) value counted.
+  `phase_rule = "bbq"` keeps the rule of the 'BCDating' implementation
+  of BBQ (the golden-file replication is unchanged: 46 and 45 of 50
+  series).
+* The QS seasonality statistic, used when X-13 fails, is 0 when the
+  autocorrelation at the seasonal lag is not positive, as in X-13ARIMA-SEATS.
+* The Conference Board aggregator takes simple differences of components
+  declared `unit = "percent"`, and leaves the index and its cycle missing at
+  dates without enough components instead of assuming no change.
+* A candidate too short for its cycle (fewer than four years) is excluded
+  with a warning, like a candidate whose seasonal adjustment failed (see
+  `excluded_series()`), instead of stopping `cli_cycles()` and
+  `cli_build()`; a short reference still stops the run.
+* `read_cli_data()` rejects months outside 1 to 12, stops when `frequency`
+  contradicts the dates, and drops blank rows at the end of a file (Excel).
+* `simulate_cycles()` checks that `leads` and `counter` are named whole
+  numbers; `cli_composite()` names unknown components; `cli_candidates()`
+  rejects duplicated names in `meta`.
+* Graphical interface: an uploaded file is read only when its path is one
+  of shiny's upload files under `tempdir()`, so a crafted browser message
+  can no longer make the server read other files; malformed step-1 inputs
+  give an error message instead of ending the session. The exported
+  script writes the seed and frequency as R values.
+* `CandidateSet`, `CompositeIndex` and `CycleSeries` have validity
+  methods.
+* Graphical interface, from an end-to-end test of the ten steps:
+  - The quality scorecard of step 8 and its download are computed from the
+    result, as `cli_quality(res)` does, so they keep the row and note of a
+    reference disaggregated from quarterly (semiannual, annual) data; the
+    verdict box shows that note. For a manual composite the exported script
+    puts the composite and its validation (with the out-of-sample check
+    when step 8 ran it) into `res_manual` and reports
+    `cli_quality(res_manual)`, so script and interface give the same
+    scorecard.
+  - The turning points of candidates inverted in step 6 are dated again on
+    the inverted cycles, as in `cli_build()`; before, the `CliResult`
+    downloaded from step 10 kept those of the cycles as extracted.
+  - A file that cannot be read with the chosen column separator or decimal
+    mark gives the error with a translated hint to check them.
+  - A manual choice without components says "Choose at least one
+    component" instead of "Error: Components".
+  - With the OECD method, the options it does not use (filter, aggregation
+    method, transformation, AR extension and the leading thresholds) are
+    hidden.
+  - Filter, aggregation and transformation choices and the rationale in the
+    classification table are translated into Indonesian; messages of the
+    package itself (warnings, printed objects) stay in English.
+  - The warning on the share of outliers replaced is shown once, in step 4,
+    instead of again by the out-of-sample checks of steps 8 and 9.
+* When the holiday dates stop before the X-13ARIMA-SEATS forecast horizon
+  (three years past the data end), the series are still adjusted with X-11
+  without forecast extension, but `cli_cycles()` now warns once
+  (`cyclind_warning_holiday_horizon`), naming the series, the end of the
+  dates, the date X-13 needs and the call that fixes it (e.g.
+  `idulfitri_dates(2008, 2029)` for data ending in 2026). Before, the
+  fallback was only recorded in the steps. The graphical interface writes
+  `idulfitri_dates(<first year>, <last year + 3>)` from the data instead of
+  the default years, in the app and in the exported script.
+* Under `oecd_classifier()` with the conformity criteria (the default), a
+  coincident series must also have its cross-correlation peak strictly
+  inside the coincident band (lags -1 to 1 for monthly data, lag 0 for
+  quarterly data) and positive. This applies to the classification of
+  candidates (otherwise "rejected", reason "ccf lag") and to the
+  `coincident_criteria()` of `cci_validate()` (new criterion `ccf`). Before,
+  an index with a coincident median lead but its peak at lag -8 passed.
+  The leading and lagging rules and `oecd_classifier(conformity = FALSE)`
+  are unchanged. In `inst/calibration/oecd-classification.csv` the overall
+  accuracy of the OECD rule rises by up to 0.015 (fewer noise series
+  called coincident; 0.013 lower for quarterly data with strong noise);
+  in `lead-window.csv` correctly coincident series fall only with strong
+  noise (by up to 0.17), the leading columns are unchanged.
+
 ## Documentation
 
+* `?cli_validate` and `?cli_quality` say that the probability scores are
+  pseudo out-of-sample: only the logit is re-estimated recursively, while
+  the cycles, the contraction states and the components come from the full
+  sample.
+* `?Aggregator` explains the scales of the principal-component weights.
+* `inst/extdata/oecd-idn/SOURCE.txt` gives the URL of the fetch script and
+  the licence of the OECD data (CC BY 4.0).
+* The OECD Indonesia validation (`data-raw/oecd_idn_validate.R`) uses
+  TRAMO explicitly and stops without 'RJDemetra'; the vignette and the
+  harness say which engine produced the stored numbers.
+* `?holiday_effect`, `?idulfitri_dates`, `?cli_spec` and the vignette say
+  that holiday effects are optional (`holidays = list()`) and apply only
+  with `seasonal_adjust = TRUE`, that any moving holiday (Easter, Chinese
+  New Year, Diwali, ...) can be given by its dates, with Idulfitri as a
+  helper for Indonesia, and that the dates must reach three years past the
+  data end. They also say that dates and effects are country-specific: the
+  official 1 Syawal is set by each country's authority (Indonesia: *sidang
+  isbat* of the Ministry of Religious Affairs; elsewhere by moon sighting
+  or calculation) and can differ from the arithmetic calendar and between
+  countries by one or two days, and the default windows reflect Indonesia
+  (*mudik*, *cuti bersama*); an example passes a country's own dates and
+  windows.
+* `?coincident_criteria` and `?Classifier` describe the cross-correlation
+  condition of an OECD coincident series.
 * `?growth_form` and the help text of the unit choice in the graphical
   interface say that the growth rates equal those BPS publishes only
   without seasonal adjustment and outlier replacement: BPS computes its

@@ -13,14 +13,30 @@ idulfitri_dates(from = 1980, to = 2040)
 A sorted vector of class \code{Date}.
 }
 \description{
-Dates of 1 Syawal (Eid al-Fitr) from the arithmetic (tabular) Islamic
-calendar. The official Indonesian date, set each year by the Ministry of
-Religious Affairs after the \emph{sidang isbat}, can differ from these by one
-or two days. For monthly holiday regressors such a difference rarely
-matters, but the official dates should be used when they are at hand.
+Dates of 1 Syawal (Eid al-Fitr, Idulfitri) from the arithmetic (tabular)
+Islamic calendar, a helper for \code{\link[=holiday_effect]{holiday_effect()}} with Indonesian data.
+Holiday effects are optional and apply only with
+\code{seasonal_adjust = TRUE} (see \code{\link[=cli_spec]{cli_spec()}}).
+}
+\details{
+The official date is set per country: in Indonesia by the Ministry of
+Religious Affairs (Kementerian Agama) after the \emph{sidang isbat}; in
+Malaysia, Saudi Arabia and elsewhere by their own authorities, by moon
+sighting (\emph{rukyat}) or by calculation (\emph{hisab}). It can differ from these
+dates, and between countries, by one or two days. For monthly or
+quarterly holiday regressors such a difference rarely matters, but the
+official dates of the country of the data should be used when they are
+at hand (pass them to \code{\link[=holiday_effect]{holiday_effect()}} as \code{Date}s).
+
+X-13ARIMA-SEATS needs the holiday regressors over its forecast horizon,
+three years past the last observation: choose \code{to} at least three years
+after the last year of the data (for data ending in 2026, \code{to = 2029}).
+The default years cover data from 1980 to 2037.
 }
 \examples{
 idulfitri_dates(2020, 2026)
+# quarterly data from 2008 to 2026Q3 need dates up to 2029
+range(idulfitri_dates(2008, 2029))
 }
 \seealso{
 \code{\link[=holiday_effect]{holiday_effect()}}

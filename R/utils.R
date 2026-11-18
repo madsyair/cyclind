@@ -10,10 +10,11 @@ cyclind_abort <- function(message, class = NULL) {
   stop(cond)
 }
 
-cyclind_warn <- function(message, class = NULL) {
+# Signal a classed warning; fields in `...` are kept in the condition.
+cyclind_warn <- function(message, class = NULL, ...) {
   cond <- structure(
     class = c(class, "cyclind_warning", "warning", "condition"),
-    list(message = message, call = NULL)
+    c(list(message = message, call = NULL), list(...))
   )
   warning(cond)
 }
@@ -103,6 +104,8 @@ normalise_cycle <- function(x) {
 
 # Shift a vector forward by k positions (positive k moves values later).
 shift_vec <- function(x, k) {
+  check_number(k, "k", integer = TRUE)
+  k <- as.integer(round(k))
   n <- length(x)
   if (k == 0L) return(x)
   out <- rep(NA_real_, n)

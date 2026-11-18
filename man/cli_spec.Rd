@@ -133,10 +133,15 @@ advance rather than chosen from the data being tested.}
 \item{oos_cutoffs}{Optional cut-off dates (decimal time, e.g. \code{2015}) for
 the selection-bias harness run by \code{\link[=cli_build]{cli_build()}}.}
 
-\item{holidays}{A \code{\link[=holiday_effect]{holiday_effect()}}, or a list of them, whose effects
-X-13ARIMA-SEATS estimates and removes (needs \code{seasonal_adjust = TRUE}).
-For Indonesian data, \code{holiday_effect(idulfitri_dates())} removes the
-moving Idulfitri effect, which fixed monthly factors cannot.}
+\item{holidays}{Optional: a \code{\link[=holiday_effect]{holiday_effect()}}, or a list of them, whose
+effects X-13ARIMA-SEATS estimates and removes. The default \code{list()}
+uses none; holidays apply only with \code{seasonal_adjust = TRUE}. Any
+moving holiday (Easter, Chinese New Year, Diwali, ...) can be given by
+its dates; for Indonesian data, \code{holiday_effect(idulfitri_dates(from, to))} removes the moving Idulfitri effect, which fixed monthly factors
+cannot. The dates must cover the data and at least three years past
+its end (the X-13 forecast horizon); otherwise the series are adjusted
+with X-11 without forecasts, with a warning
+(\code{cyclind_warning_holiday_horizon}).}
 
 \item{classifier}{A \linkS4class{Classifier}; default \code{\link[=cyclind_classifier]{cyclind_classifier()}}. Use
 \code{\link[=oecd_classifier]{oecd_classifier()}} for the OECD median-lead rule.}

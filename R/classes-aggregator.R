@@ -64,11 +64,24 @@
 #'   in the spirit of the targeted-predictor approach (Bai and Ng 2008)
 #'   used for the Global Economic Barometers (Abberger et al. 2022); the
 #'   components entering the PCA are the ones that passed the screening.
+#'   The loadings come from the correlation matrix (the components are
+#'   standardised by their standard deviation inside the PCA), while the
+#'   weights are applied to the normalised cycles, which are scaled by
+#'   their mean absolute deviation. This is a design choice: for roughly
+#'   normal cycles the two scales differ by a nearly constant factor
+#'   (about 1.25), so the weights are close to those of standardised
+#'   components, but not identical for heavy-tailed cycles.
 #' * `conference_board()`: The Conference Board method. Symmetric
-#'   percentage changes of the original components (simple differences for
-#'   series that are not strictly positive) are weighted by the inverse of
-#'   their standard deviations, summed and cumulated into an index. The cycle
-#'   of that index is then extracted with the specification's filter.
+#'   percentage changes of the original components are weighted by the
+#'   inverse of their standard deviations, summed and cumulated into an
+#'   index. Components declared in percent (`unit = "percent"` in
+#'   [cli_candidates()], e.g. interest rates) and series that are not
+#'   strictly positive enter as simple differences, as The Conference
+#'   Board does. A date at which too few components have a change (see
+#'   `min_coverage`) has an unknown level: the index and its cycle are
+#'   missing there, and the index goes on from the last known level. The
+#'   cycle of that index is then extracted with the specification's
+#'   filter.
 #' * `dynamic_factor()`: a one-factor dynamic factor model estimated in two
 #'   steps (Doz, Giannone and Reichlin 2011): principal components give the
 #'   loadings and idiosyncratic variances, an AR(1) is fitted to the factor,

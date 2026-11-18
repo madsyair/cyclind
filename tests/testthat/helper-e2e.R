@@ -83,3 +83,21 @@ expect_text_soon <- function(app, selector, text, timeout = 30000) {
   tryCatch(app$wait_for_js(js, timeout = timeout), error = function(e) NULL)
   expect_match(app$get_text(selector), text, fixed = TRUE)
 }
+
+# Chrome leaves com.google.Chrome.* directories in the temporary directory
+# (TMPDIR, the parent of tempdir()), which R CMD check reports as detritus.
+# The browser tests note the ones that exist before they start and remove
+# the new ones at the end, after closing the browser.
+chrome_temp_dirs <- function() {
+  dirs <- unique(c(tempdir(), dirname(tempdir())))
+  list.files(dirs, pattern = "^com\\.google\\.Chrome\\.", full.names = TRUE,
+             all.files = TRUE, include.dirs = TRUE)
+}
+
+remove_chrome_temp_dirs <- function(before) {
+  if (requireNamespace("chromote", quietly = TRUE) &&
+      chromote::has_default_chromote_object()) {
+    try(chromote::default_chromote_object()$close(), silent = TRUE)
+  }
+  unlink(setdiff(chrome_temp_dirs(), before), recursive = TRUE)
+}

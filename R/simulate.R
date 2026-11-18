@@ -10,10 +10,12 @@
 #'
 #' @param n_years Length of the sample in years.
 #' @param freq 12 (monthly) or 4 (quarterly).
-#' @param leads Named vector of leads in periods (negative values lag).
+#' @param leads Named vector of leads in periods (whole numbers; negative
+#'   values lag).
 #'   `NULL` gives leads of 6, 3, 0 and -3 months, or 2, 1, 0 and -1 quarters.
-#' @param counter Named vector of leads of counter-cyclical candidates;
-#'   `NULL` gives 4 months or 1 quarter.
+#' @param counter Named vector of leads (whole numbers) of
+#'   counter-cyclical candidates; `NULL` gives 4 months or 1 quarter, and
+#'   `numeric(0)` none.
 #' @param n_noise Number of candidates without cyclical signal.
 #' @param noise_sd Standard deviation of the idiosyncratic noise relative to
 #'   the cycle.
@@ -50,6 +52,13 @@ simulate_cycles <- function(n_years = 30, freq = 12,
       }
     }, add = TRUE)
     set.seed(seed)
+  }
+  check_leads(leads, "leads")
+  check_leads(counter, "counter")
+  if (!is.null(leads) && !is.null(counter) &&
+      length(intersect(names(leads), names(counter))) > 0L) {
+    cyclind_abort("`leads` and `counter` need different names.",
+                  "cyclind_error_argument")
   }
   if (is.null(leads)) {
     leads <- if (freq == 12) {
@@ -95,6 +104,26 @@ simulate_cycles <- function(n_years = 30, freq = 12,
   out <- stats::ts(do.call(cbind, cols), start = start, frequency = freq)
   attr(out, "truth") <- truth
   out
+}
+
+# Leads of simulated candidates: NULL (the defaults), an empty vector
+# (none) or a named numeric vector of whole numbers with unique names
+# (audit E7).
+check_leads <- function(x, name) {
+  if (is.null(x) || (is.numeric(x) && length(x) == 0L)) {
+    return(invisible(TRUE))
+  }
+  nms <- names(x)
+  ok <- is.numeric(x) && all(is.finite(x)) &&
+    all(abs(x - round(x)) < 1e-8) && !is.null(nms) && all(nzchar(nms)) &&
+    !anyNA(nms) && !anyDuplicated(nms) && !"reference" %in% nms
+  if (!ok) {
+    cyclind_abort(sprintf(paste("`%s` must be a numeric vector of whole",
+                                "numbers with unique names other than",
+                                "\"reference\", e.g. c(lead_6 = 6)."), name),
+                  "cyclind_error_argument")
+  }
+  invisible(TRUE)
 }
 
 truth_class <- function(lead, freq) {
