@@ -199,6 +199,44 @@ detect_decimal <- function(path, sep) {
   "."
 }
 
+# Data source of step 1, as sent by the browser.
+check_source <- function(source) {
+  sources <- c("example_m", "example_q", "upload", "upload_multi")
+  if (!is.character(source) || length(source) != 1L ||
+      !source %in% sources) {
+    cyclind_abort("Unknown data source.", "cyclind_error_argument")
+  }
+  invisible(source)
+}
+
+# Uploaded files of a fileInput() (audit E1). Shiny writes each upload to
+# a new directory under tempdir() as 0.csv, 1.csv, ...; the value is a data
+# frame with columns `name` and `datapath`. A crafted websocket message can
+# put any path in `datapath`, so only paths of that form are accepted:
+# otherwise the server would read any CSV file the R process can read.
+checked_upload <- function(value) {
+  ok <- is.data.frame(value) && nrow(value) > 0L &&
+    all(c("name", "datapath") %in% names(value)) &&
+    is.character(value$name) && is.character(value$datapath) &&
+    !anyNA(value$name) && !anyNA(value$datapath)
+  if (!ok) {
+    cyclind_abort("The uploaded files are not valid; upload them again.",
+                  "cyclind_error_argument")
+  }
+  root <- normalizePath(tempdir(), winslash = "/", mustWork = TRUE)
+  path <- normalizePath(value$datapath, winslash = "/", mustWork = FALSE)
+  inside <- file.exists(path) &
+    normalizePath(dirname(dirname(path)), winslash = "/",
+                  mustWork = FALSE) == root &
+    grepl("^[0-9]+(\\.[[:alnum:]]+)?$", basename(path))
+  if (!all(inside)) {
+    cyclind_abort("The uploaded files are not valid; upload them again.",
+                  "cyclind_error_argument")
+  }
+  value$datapath <- path
+  value
+}
+
 # Value of a separator or decimal-mark choice of the interface.
 csv_choice <- function(value, kind) {
   if (is.null(value) || identical(value, "auto")) return("auto")
@@ -207,7 +245,8 @@ csv_choice <- function(value, kind) {
   } else {
     c(point = ".", comma = ",")
   }
-  if (!value %in% names(map)) {
+  if (!is.character(value) || length(value) != 1L ||
+      !value %in% names(map)) {
     cyclind_abort("Unknown column separator or decimal mark.",
                   "cyclind_error_argument")
   }
@@ -705,7 +744,8 @@ data_lines <- function(state) {
   if (!identical(state$source, "upload")) {
     return(c("# 1. Data",
              sprintf("data <- simulate_cycles(freq = %s, seed = %s)",
-                     state$frequency, state$seed)))
+                     deparse_value(state$frequency),
+                     deparse_value(state$seed))))
   }
   fmt <- ""
   sep <- if (is.null(state$sep)) "," else state$sep
@@ -941,53 +981,52 @@ app_server <- function(language = "en") {
     # the reference series whose type the step-2 entry holds
     ref_type_for <- NULL
     shiny::observeEvent(input$run1, {
-      sep <- csv_choice(input$csv_sep, "sep")
-      dec <- csv_choice(input$csv_dec, "dec")
-      if (input$source == "upload_multi") {
-        shiny::req(input$files)
-        series <- safely(read_cli_series(
-          stats::setNames(input$files$datapath, input$files$name),
-          sep = sep, dec = dec))
-        if (is.null(series)) return()
-        data <- NULL
-        fmt <- list(sep = sep, dec = dec)
-        freq <- as.numeric(input$target_freq)
-      } else {
-        data <- safely({
-          if (input$source == "upload") {
-            shiny::req(input$file)
-            f <- if (input$freq == "auto") NULL else as.numeric(input$freq)
-            fmt <- csv_format(input$file$datapath, sep = sep, dec = dec)
-            out <- read_cli_data(input$file$datapath, frequency = f,
-                                 start = parse_start(input$start),
-                                 check.names = FALSE, sep = fmt$sep,
-                                 dec = fmt$dec)
-            attr(out, "csv_format") <- fmt
-            out
-          } else {
-            f <- if (input$source == "example_m") 12 else 4
-            simulate_cycles(freq = f, seed = input$seed)
-          }
-        })
-        if (is.null(data)) return()
-        series <- NULL
-        fmt <- attr(data, "csv_format")
-        attr(data, "csv_format") <- NULL
-        freq <- stats::frequency(data)
-      }
-      rv$data <- data
-      rv$series <- series
+      # every input is checked inside safely(): a malformed message from
+      # the browser gives an error notification, not a crashed session
+      # (audit E9)
+      src <- input$source
+      if (identical(src, "upload")) shiny::req(input$file)
+      if (identical(src, "upload_multi")) shiny::req(input$files)
+      loaded <- safely({
+        check_source(src)
+        sep <- csv_choice(input$csv_sep, "sep")
+        dec <- csv_choice(input$csv_dec, "dec")
+        if (identical(src, "upload_multi")) {
+          up <- checked_upload(input$files)
+          freq <- as.numeric(input$target_freq)
+          check_frequency(freq)
+          list(series = read_cli_series(stats::setNames(up$datapath, up$name),
+                                        sep = sep, dec = dec),
+               data = NULL, fmt = list(sep = sep, dec = dec), freq = freq,
+               file_name = up$name, start = NULL)
+        } else if (identical(src, "upload")) {
+          up <- checked_upload(input$file)[1L, , drop = FALSE]
+          f <- if (identical(input$freq, "auto")) NULL else
+            as.numeric(input$freq)
+          start <- parse_start(input$start)
+          fmt <- csv_format(up$datapath, sep = sep, dec = dec)
+          data <- read_cli_data(up$datapath, frequency = f, start = start,
+                                check.names = FALSE, sep = fmt$sep,
+                                dec = fmt$dec)
+          list(series = NULL, data = data, fmt = fmt,
+               freq = stats::frequency(data), file_name = up$name,
+               start = start)
+        } else {
+          f <- if (identical(src, "example_m")) 12 else 4
+          data <- simulate_cycles(freq = f, seed = input$seed)
+          list(series = NULL, data = data, fmt = NULL, freq = f,
+               file_name = "data.csv", start = NULL)
+        }
+      })
+      if (is.null(loaded)) return()
+      rv$data <- loaded$data
+      rv$series <- loaded$series
+      freq <- loaded$freq
       # the script reproduces the data as loaded, not later edits of step 1
-      file_name <- switch(input$source,
-                          upload = if (is.null(input$file)) "data.csv" else
-                            input$file$name,
-                          upload_multi = input$files$name,
-                          "data.csv")
       rv$loaded <- list(
-        source = input$source, file_name = file_name,
-        start = if (input$source == "upload") parse_start(input$start) else
-          NULL,
-        seed = input$seed, sep = fmt$sep, dec = fmt$dec, frequency = freq
+        source = src, file_name = loaded$file_name, start = loaded$start,
+        seed = input$seed, sep = loaded$fmt$sep, dec = loaded$fmt$dec,
+        frequency = freq
       )
       rv$meta_known <- NULL
       rv$prelude <- NULL

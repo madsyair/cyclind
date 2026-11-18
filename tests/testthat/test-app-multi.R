@@ -157,8 +157,7 @@ test_that("AC-FR-009.5: quarterly analysis and bad files", {
     # a file with bad dates changes nothing
     bad <- tempfile(fileext = ".csv")
     writeLines(c("date,value", "kemarin,1", "hari ini,2"), bad)
-    session$setInputs(files = data.frame(name = "bad.csv", size = 1,
-                                         type = "text/csv", datapath = bad),
+    session$setInputs(files = as_upload(bad, "bad.csv"),
                       run1 = 2)
     expect_equal(rv$done, 1:2)
     expect_named(rv$series, c("pdb", "lead_6", "lead_3", "coincident",

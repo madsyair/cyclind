@@ -263,8 +263,11 @@ test_that("R1: names from files cannot run as code", {
              file.path(dir, "q.csv"))
   writeLines(c("date,a,b", paste0(m, ",", sim[, "lead_6"], ",",
                                   sim[, "lead_3"])), file.path(dir, "m.csv"))
+  # shiny stores uploads as 0.csv, 1.csv, ... (see as_upload())
+  file.copy(file.path(dir, c("q.csv", "m.csv")),
+            file.path(dir, c("0.csv", "1.csv")))
   files <- data.frame(name = c(bad, "m.csv"), size = 1, type = "text/csv",
-                      datapath = file.path(dir, c("q.csv", "m.csv")))
+                      datapath = file.path(dir, c("0.csv", "1.csv")))
   old <- setwd(dir)
   on.exit(setwd(old), add = TRUE)
   shiny::testServer(cyclind:::app_server("en"), {

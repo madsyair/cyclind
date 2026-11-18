@@ -251,7 +251,8 @@ test_that("several files at different frequencies run in the browser", {
   app <- start_app("upload-multi", "id")
   on.exit(app$stop(), add = TRUE)
   app$set_inputs(source = "upload_multi", wait_ = FALSE)
-  app$upload_file(files = files$datapath)
+  # the browser uploads the files under their own names
+  app$upload_file(files = file.path(dirname(files$datapath), files$name))
   app$click("run1")
   app$wait_for_idle(timeout = 120000)
   summary <- app$get_value(output = "data_summary")

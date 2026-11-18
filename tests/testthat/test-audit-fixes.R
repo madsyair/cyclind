@@ -194,3 +194,69 @@ test_that("E6: trailing blank rows (Excel) are dropped", {
   writeLines(c("date,x,y", "2001Q1,1,3", ",,", "2001Q3,3,1"), f)
   expect_error(read_cli_data(f), class = "cyclind_error_dates")
 })
+
+# ---- E1, E9: uploads and malformed inputs of the interface -----------------
+
+test_that("E1: an upload path outside shiny's upload directory is refused", {
+  skip_if_not_installed("shiny")
+  secret <- tempfile("secret", tmpdir = tempfile("outside"))
+  dir.create(dirname(secret))
+  writeLines(c("date,a,b", "2001Q1,1,2", "2001Q2,2,3", "2001Q3,3,4"),
+             secret)
+  good <- as_upload(secret, "data.csv")
+  expect_identical(cyclind:::checked_upload(good)$name, "data.csv")
+  hostile <- list(
+    # a file the R process can read, anywhere on disk
+    data.frame(name = "x.csv", datapath = secret),
+    data.frame(name = "x.csv", datapath = file.path(R.home(), "COPYING")),
+    # relative traversal out of an upload directory
+    data.frame(name = "x.csv",
+               datapath = file.path(dirname(good$datapath), "..", "..",
+                                    basename(secret))),
+    # not a data frame, or without the expected columns
+    list(name = "x.csv", datapath = good$datapath),
+    data.frame(name = "x.csv", path = good$datapath),
+    data.frame(name = character(0), datapath = character(0))
+  )
+  for (h in hostile) {
+    expect_error(cyclind:::checked_upload(h), "not valid",
+                 class = "cyclind_error_argument")
+  }
+  for (h in hostile[c(1, 4)]) {
+    shiny::testServer(cyclind:::app_server("en"), {
+      session$setInputs(source = "upload", freq = "auto", start = "",
+                        csv_sep = "auto", csv_dec = "auto", file = h)
+      session$setInputs(run1 = 1)
+      expect_null(rv$data)
+      expect_false(1L %in% rv$done)
+      session$setInputs(source = "upload_multi", target_freq = "4",
+                        files = h, run1 = 2)
+      expect_null(rv$series)
+      expect_false(1L %in% rv$done)
+    })
+  }
+  shiny::testServer(cyclind:::app_server("en"), {
+    session$setInputs(source = "upload", freq = "auto", start = "",
+                      csv_sep = "auto", csv_dec = "auto", file = good)
+    session$setInputs(run1 = 1)
+    expect_equal(colnames(rv$data), c("a", "b"))
+  })
+})
+
+test_that("E9: malformed step-1 inputs do not crash the session", {
+  skip_if_not_installed("shiny")
+  shiny::testServer(cyclind:::app_server("en"), {
+    for (bad in list(list(source = c("upload", "x")),
+                     list(source = "elsewhere"),
+                     list(source = "example_m", csv_sep = list(1)),
+                     list(source = "example_m", csv_sep = c("comma", "tab")),
+                     list(source = "upload_multi", target_freq = "7",
+                          files = multi_files()))) {
+      do.call(session$setInputs, c(bad, list(run1 = sample.int(1e6, 1))))
+      expect_false(1L %in% rv$done)
+    }
+    session$setInputs(source = "example_m", csv_sep = "auto", seed = 1,
+                      run1 = 1e7)
+    expect_true(1L %in% rv$done)
+  })
+})

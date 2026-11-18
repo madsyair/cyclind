@@ -48,7 +48,7 @@ test_that("FR-008 AC-1/4: step 1 reads Indonesian Excel files", {
       shiny::testServer(cyclind:::app_server("en"), {
         session$setInputs(source = "upload", freq = "auto", start = "",
                           csv_sep = choice[1], csv_dec = choice[2],
-                          file = list(name = "pdb.csv", datapath = path))
+                          file = as_upload(path, "pdb.csv"))
         session$setInputs(run1 = 1)
         expect_equal(1L, rv$done)
         expect_identical(rv$data, ref)
@@ -76,7 +76,7 @@ test_that("FR-008: a comma file keeps the short script line", {
   shiny::testServer(cyclind:::app_server("en"), {
     session$setInputs(source = "upload", freq = "auto", start = "",
                       csv_sep = "auto", csv_dec = "auto",
-                      file = list(name = "pdb.csv", datapath = path))
+                      file = as_upload(path, "pdb.csv"))
     session$setInputs(run1 = 1)
     lines <- cyclind:::data_lines(current_state())
     expect_false(any(grepl("sep =", lines, fixed = TRUE)))
@@ -91,7 +91,7 @@ test_that("FR-008 AC-3: a contradictory choice leaves step 1 undone", {
   shiny::testServer(cyclind:::app_server("en"), {
     session$setInputs(source = "upload", freq = "auto", start = "",
                       csv_sep = "comma", csv_dec = "comma",
-                      file = list(name = "pdb.csv", datapath = path))
+                      file = as_upload(path, "pdb.csv"))
     session$setInputs(run1 = 1)
     expect_null(rv$data)
     expect_false(1L %in% rv$done)
@@ -161,7 +161,7 @@ test_that("R4: the script keeps column names with spaces", {
   shiny::testServer(cyclind:::app_server("en"), {
     session$setInputs(source = "upload", freq = "auto", start = "",
                       csv_sep = "auto", csv_dec = "auto",
-                      file = list(name = "pdb riil.csv", datapath = path))
+                      file = as_upload(path, "pdb riil.csv"))
     session$setInputs(run1 = 1)
     expect_equal(colnames(rv$data), c("PDB riil", "kredit bank"))
     lines <- cyclind:::data_lines(current_state())
@@ -208,7 +208,7 @@ test_that("R6: explicit choices are used, also in the script", {
   shiny::testServer(cyclind:::app_server("en"), {
     session$setInputs(source = "upload", freq = "auto", start = "",
                       csv_sep = "semicolon", csv_dec = "point",
-                      file = list(name = "pdb.csv", datapath = path))
+                      file = as_upload(path, "pdb.csv"))
     session$setInputs(run1 = 1)
     expect_identical(rv$data, ref)
     lines <- cyclind:::data_lines(current_state())

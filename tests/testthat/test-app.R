@@ -211,7 +211,7 @@ test_that("manual composites, uploads and downloads work", {
                    row.names = FALSE)
   shiny::testServer(cyclind:::app_server("id"), {
     session$userData$data <- function() rv$data
-    session$setInputs(file = list(datapath = f, name = "q.csv"))
+    session$setInputs(file = as_upload(f, "q.csv"))
     session$setInputs(source = "upload", seed = 1, freq = "auto", start = "",
                       run1 = 1)
     expect_equal(frequency(rv$data), 4)
