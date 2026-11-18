@@ -1,3 +1,56 @@
+# cyclind (development version)
+
+## Bug fixes
+
+* `cf_filter()` removes the drift (the line through the first and last
+  observations) before the Christiano-Fitzgerald random-walk filter, as
+  Christiano and Fitzgerald (2003) and `mFilter::cffilter(drift = TRUE)`
+  do. Before, a trending series got a spurious cycle at both ends.
+  `cf_filter(drift = FALSE)` gives the old filter; filters saved before
+  the argument existed also remove the drift. Results with `cf_filter()`
+  change.
+* Daters with the default `phase_rule = "symmetric"` apply the end rule of
+  Bry and Boschan (1971) in full: a first (last) peak is dropped when any
+  value between it and the start (end) of the series is higher, and
+  likewise for troughs; before, only the first (last) value counted.
+  `phase_rule = "bbq"` keeps the rule of the 'BCDating' implementation
+  of BBQ (the golden-file replication is unchanged: 46 and 45 of 50
+  series).
+* The QS seasonality statistic, used when X-13 fails, is 0 when the
+  autocorrelation at the seasonal lag is not positive, as in X-13ARIMA-SEATS.
+* The Conference Board aggregator takes simple differences of components
+  declared `unit = "percent"`, and leaves the index and its cycle missing at
+  dates without enough components instead of assuming no change.
+* A candidate too short for its cycle (fewer than four years) is excluded
+  with a warning, like a candidate whose seasonal adjustment failed (see
+  `excluded_series()`), instead of stopping `cli_cycles()` and
+  `cli_build()`; a short reference still stops the run.
+* `read_cli_data()` rejects months outside 1 to 12, stops when `frequency`
+  contradicts the dates, and drops blank rows at the end of a file (Excel).
+* `simulate_cycles()` checks that `leads` and `counter` are named whole
+  numbers; `cli_composite()` names unknown components; `cli_candidates()`
+  rejects duplicated names in `meta`.
+* Graphical interface: an uploaded file is read only when its path is one
+  of shiny's upload files under `tempdir()`, so a crafted browser message
+  can no longer make the server read other files; malformed step-1 inputs
+  give an error message instead of ending the session. The exported
+  script writes the seed and frequency as R values.
+* `CandidateSet`, `CompositeIndex` and `CycleSeries` have validity
+  methods.
+
+## Documentation
+
+* `?cli_validate` and `?cli_quality` say that the probability scores are
+  pseudo out-of-sample: only the logit is re-estimated recursively, while
+  the cycles, the contraction states and the components come from the full
+  sample.
+* `?Aggregator` explains the scales of the principal-component weights.
+* `inst/extdata/oecd-idn/SOURCE.txt` gives the URL of the fetch script and
+  the licence of the OECD data (CC BY 4.0).
+* The OECD Indonesia validation (`data-raw/oecd_idn_validate.R`) uses
+  TRAMO explicitly and stops without 'RJDemetra'; the vignette and the
+  harness say which engine produced the stored numbers.
+
 # cyclind 0.2.0
 
 ## Breaking changes

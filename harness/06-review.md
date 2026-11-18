@@ -996,3 +996,36 @@ pasangan di metode `treat_outliers()` strategi `TramoOutliers`); tidak ada
 RNG, dan di `data-raw/`).
 
 Putusan: APPROVE (R1–R4 ditutup; R5–R8 diterima).
+
+
+# Review INC-21 (perbaikan hasil audit 2026-11-18)
+
+Dikerjakan oleh A5 sendiri dengan daftar periksa A6 (tanpa isolasi
+konteks). Setiap temuan diverifikasi dulu pada `main` (e556dfa); uji merah
+ditulis di `tests/testthat/test-audit-fixes.R`. Perlu tinjauan maintainer.
+
+| ID | Tingkat | Temuan | Tindak lanjut |
+|---|---|---|---|
+| S1 | major | CF tidak membuang *drift*; x = 0,01t memberi siklus ±0,013 di ujung | Diperbaiki: `cf_filter(drift = TRUE)`; sama dengan `mFilter::cffilter(drift = TRUE)` (1e-8) |
+| S2 | major | QPS/AUC rekursif hanya *pseudo out-of-sample* | Didokumentasikan (`?cli_validate`, `?cli_quality`); perilaku tetap, tanpa kalibrasi ulang |
+| S3 | minor | QS > 0 walau r_s ≤ 0 (5,35 lawan 0 di X-13) | Diperbaiki; F-13 diperbarui |
+| S4 | minor | Aturan ujung hanya memakai y[1]/y[n] | Diperbaiki untuk `phase_rule = "symmetric"`; `"bbq"` tetap seperti BCDating (berkas emas 46/45 dari 50 tidak berubah); kalibrasi berubah sedikit |
+| S5 | minor | Conference Board: seri persen memakai perubahan persen simetris | Diperbaiki: selisih biasa (langkah `unit: percent`) |
+| S6 | nit | NA internal Conference Board dianggap perubahan nol | Diperbaiki: indeks dan siklus NA, rantai lanjut dari level terakhir |
+| S7 | nit | Bobot PCA dari matriks korelasi diterapkan pada z skala MAD | Didokumentasikan (pilihan desain) |
+| E1 | major | `datapath` unggahan tidak divalidasi | Diperbaiki: `checked_upload()`; uji `testServer` dengan jalur jahat |
+| E2 | major | Satu kandidat pendek menghentikan seluruh build | Diperbaiki: dikeluarkan seperti kegagalan X-13; acuan tetap berhenti |
+| E3 | major | Uji `test-align.R` gagal tanpa tempdisagg (ERROR check) | Diperbaiki: argumen dicek sebelum dependensi |
+| E4–E6 | minor | Bulan 00/13, frekuensi bertentangan, baris kosong Excel | Diperbaiki di `read_cli_data()` |
+| E7, E8 | minor | `leads` tidak divalidasi; tanpa metode validitas | Diperbaiki |
+| E9 | minor | Masukan langkah 1 di luar `safely()` | Diperbaiki |
+| E10 | minor | Penjaga `Rd_db()` sendiri galat | Diperbaiki |
+| E11 | — | *Shim* lama dan riwayat NEWS | Tidak dikerjakan (keputusan maintainer) |
+| E12 | minor | SOURCE.txt menunjuk `data-raw/`, tanpa lisensi | Diperbaiki: URL GitHub, CC BY 4.0; validasi Indonesia dipatok ke TRAMO |
+| nit | nit | `shift_vec`, pesan `cli_composite`, `meta` ganda, `data_lines`, sisa direktori Chrome | Diperbaiki |
+
+Kontrak: tanpa Imports baru; galat lewat `cyclind_abort()` dengan kelas
+`cyclind_error_*`, peringatan baru `cyclind_warning_short_series`; tidak
+ada cabang `if (class == ...)` baru; tidak ada `set.seed()` di kode paket.
+
+Putusan: APPROVE (dengan catatan terbuka di `STATE.md`).
