@@ -578,15 +578,17 @@ denton_cholette <- function(q, tp, to = 12) {
 }
 
 chow_lin <- function(q, tp, indicator, to = 12) {
-  if (!requireNamespace("tempdisagg", quietly = TRUE)) {
-    cyclind_abort("`method = \"chow-lin\"` needs the 'tempdisagg' package.",
-                  "cyclind_error_dependency")
-  }
+  # the arguments are checked before the optional dependency, so that a
+  # wrong call gives the same error with or without 'tempdisagg'
   if (is.null(indicator) || !stats::is.ts(indicator) ||
       stats::frequency(indicator) != to) {
     cyclind_abort(sprintf(paste("`method = \"chow-lin\"` needs an `indicator`",
                                 "ts at the target frequency (%s)."), to),
                   "cyclind_error_argument")
+  }
+  if (!requireNamespace("tempdisagg", quietly = TRUE)) {
+    cyclind_abort("`method = \"chow-lin\"` needs the 'tempdisagg' package.",
+                  "cyclind_error_dependency")
   }
   conv <- c(flow = "sum", stock = "last", average = "average")[[tp]]
   y <- stats::na.omit(q)

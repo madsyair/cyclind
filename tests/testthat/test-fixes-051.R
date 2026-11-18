@@ -298,10 +298,13 @@ test_that("AC-FR-011.11 (E9): fallbacks of PCA and DFM are visible", {
 
 test_that("AC-FR-011.12 (F9, G11): documentation matches the code", {
   rd <- function(topic) {
-    paste(capture.output(tools::Rd2txt(
-      tools::Rd_db("cyclind")[[paste0(topic, ".Rd")]])), collapse = " ")
+    paste(capture.output(tools::Rd2txt(db[[paste0(topic, ".Rd")]])),
+          collapse = " ")
   }
-  skip_if(length(tools::Rd_db("cyclind")) == 0L, "help not installed")
+  # Rd_db() itself fails when the help is missing or out of date (a
+  # development install), so the guard catches that too
+  db <- tryCatch(tools::Rd_db("cyclind"), error = function(e) list())
+  skip_if(length(db) == 0L, "help not installed")
   expect_match(rd("cli_spec"), "cross-correlation", fixed = TRUE)
   expect_false(grepl("method = \"linear\"", rd("oecd_spec"), fixed = TRUE))
 })

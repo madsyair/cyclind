@@ -143,3 +143,12 @@ test_that("E2: a candidate shorter than four years is excluded", {
   expect_error(suppressWarnings(cli_build(only, spec)), "No candidate is left",
                class = "cyclind_error_short_series")
 })
+
+# ---- E3: Chow-Lin checks its arguments before the dependency ---------------
+
+test_that("E3: Chow-Lin without an indicator is an argument error", {
+  sim <- simulate_cycles(seed = 4, n_years = 12)
+  q <- stats::aggregate(sim[, "reference"], nfrequency = 4, FUN = sum)
+  expect_error(cyclind:::chow_lin(q, "flow", NULL),
+               class = "cyclind_error_argument")
+})
