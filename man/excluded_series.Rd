@@ -15,9 +15,10 @@ no series was excluded).
 }
 \description{
 A candidate whose seasonal adjustment fails, and cannot be replaced by
-the unadjusted series or by an adjustment without holiday regressors,
-is left out of \code{\link[=cli_cycles]{cli_cycles()}} (see \code{\link[=cli_spec]{cli_spec()}}, \code{seasonal_adjust}).
-This function lists such series and the reason.
+the unadjusted series or by an adjustment without holiday regressors
+(see \code{\link[=cli_spec]{cli_spec()}}, \code{seasonal_adjust}), or that is too short for its
+cycle, is left out of \code{\link[=cli_cycles]{cli_cycles()}}. This function lists such series
+and the reason.
 }
 \examples{
 sim <- simulate_cycles(seed = 1)

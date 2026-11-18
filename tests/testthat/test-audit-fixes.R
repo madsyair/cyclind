@@ -113,3 +113,33 @@ test_that("S4: a first peak lower than an earlier value is dropped", {
   old <- date_turning_points(bry_boschan(phase_rule = "bbq"), x)
   expect_equal(old@index[1], 10L)
 })
+
+# ---- E2: a short candidate is excluded, not fatal --------------------------
+
+test_that("E2: a candidate shorter than four years is excluded", {
+  sim <- simulate_cycles(seed = 1)
+  sim[1:(nrow(sim) - 36L), "noise_1"] <- NA
+  meta <- data.frame(name = colnames(sim)[-1], rationale = "early_stage")
+  cand <- cli_candidates(sim, "reference", meta = meta)
+  spec <- cli_spec(12)
+  expect_warning(cyc <- cli_cycles(cand, spec),
+                 "'noise_1': it has fewer than four years of observations;",
+                 class = "cyclind_warning_short_series")
+  expect_false("noise_1" %in% names(cyc))
+  ex <- excluded_series(cyc)
+  expect_equal(ex$name, "noise_1")
+  expect_match(ex$reason, "fewer than four years")
+  res <- suppressWarnings(cli_build(cand, spec))
+  expect_false("noise_1" %in% res@assessment@table$name)
+  expect_match(audit_log(res)$action[1], "^excluded noise_1")
+  # the reference still stops the run
+  short_ref <- sim
+  short_ref[1:(nrow(sim) - 36L), "reference"] <- NA
+  cand2 <- cli_candidates(short_ref, "reference", meta = meta)
+  expect_error(cli_cycles(cand2, spec), "'reference' has fewer",
+               class = "cyclind_error_short_series")
+  # every candidate too short
+  only <- cand["noise_1"]
+  expect_error(suppressWarnings(cli_build(only, spec)), "No candidate is left",
+               class = "cyclind_error_short_series")
+})

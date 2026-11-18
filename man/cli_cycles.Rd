@@ -13,9 +13,11 @@ cli_cycles(candidates, spec)
 }
 \value{
 A named list of \linkS4class{CycleSeries}, reference first. Candidates
-whose seasonal adjustment failed beyond repair are left out; the
+whose seasonal adjustment failed beyond repair, and candidates too
+short for the cycle (fewer than four years of observations, or fewer
+than three in the growth rate form), are left out with a warning; the
 attribute \code{"excluded"} (see \code{\link[=excluded_series]{excluded_series()}}) gives their names and
-the reason.
+the reason. A reference series that is too short stops the run.
 }
 \description{
 Applies, series by series on its own non-missing span: interpolation of

@@ -324,7 +324,7 @@ setMethod("show", "CliResult", function(object) {
       }, "; see outlier_report()\n", sep = "")
   ex <- excluded_series(object)
   if (nrow(ex) > 0L) {
-    cat("  excluded (seasonal adjustment failed): ",
+    cat("  excluded (failed seasonal adjustment or too short): ",
         paste(ex$name, collapse = ", "), "; see excluded_series()\n",
         sep = "")
   }
