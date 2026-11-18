@@ -689,7 +689,12 @@ activity). The components are published only as normalised cycles, and
 for four of them the OECD also publishes the original series.
 `data-raw/oecd_idn_fetch.R` saves a snapshot; `data-raw/oecd_idn_validate.R`
 runs two experiments. In the first, the OECD cycles go into cyclind as they
-are; in the second, the original series go through `oecd_spec()`.
+are; in the second, the original series go through
+`oecd_spec(engine = "tramo")`. The stored numbers were made with TRAMO
+(RJDemetra 0.2.8); with the X-13 engine, which `engine = "auto"` takes when
+RJDemetra is missing, the second experiment gives other numbers (the GDP
+cycle correlates 0.912 instead of 0.992 with the OECD reference cycle), so
+the script stops without RJDemetra.
 
 ```{r oecd-idn-composite}
 idn <- calib("oecd-idn-composite.csv")

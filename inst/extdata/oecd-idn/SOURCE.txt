@@ -1,2 +1,13 @@
 downloaded: 2026-11-13 23:59 WIB
-Source: OECD Data Explorer (SDMX API), Indonesia; see data-raw/oecd_idn_fetch.R
+Source: OECD Data Explorer (SDMX API, https://data-explorer.oecd.org),
+  Indonesia: composite leading indicator and its components, GDP.
+Fetch script (not in the package tarball):
+  https://github.com/madsyair/cyclind/blob/main/data-raw/oecd_idn_fetch.R
+  (the files are written by data-raw/oecd_idn_extdata.R in the same folder)
+Licence: OECD Terms and Conditions (https://www.oecd.org/en/about/terms-conditions.html):
+  OECD data are made available under the Creative Commons Attribution 4.0
+  International licence (CC BY 4.0,
+  https://creativecommons.org/licenses/by/4.0/), unless stated otherwise.
+Attribution: OECD (2026), OECD Data Explorer, Indonesia, accessed
+  2026-11-13. The files are reshaped (one CSV per series); values are as
+  published.
