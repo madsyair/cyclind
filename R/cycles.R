@@ -36,12 +36,17 @@ cli_cycles <- function(candidates, spec) {
   out <- list()
   excluded <- data.frame(name = character(0), reason = character(0),
                          stringsAsFactors = FALSE)
+  # one warning for all series whose holiday dates miss the X-13 horizon
+  horizon <- list()
   for (nm in nms) {
-    cs <- tryCatch(
+    cs <- withCallingHandlers(tryCatch(
       cycle_one(data[, nm], nm, spec, unit = series_unit(candidates, nm)),
       cyclind_error_seasonal_failed = function(e) e,
       cyclind_error_short_series = function(e) e
-    )
+    ), cyclind_warning_holiday_horizon = function(w) {
+      horizon[[nm]] <<- w$info
+      invokeRestart("muffleWarning")
+    })
     if (!inherits(cs, "error")) {
       out[[nm]] <- cs
       next
@@ -64,8 +69,18 @@ cli_cycles <- function(candidates, spec) {
                    "cyclind_warning_seasonal_failed")
     excluded[nrow(excluded) + 1L, ] <- list(nm, reason)
   }
+  if (length(horizon) > 0L) warn_holiday_horizon_all(horizon)
   if (nrow(excluded) > 0L) attr(out, "excluded") <- excluded
   out
+}
+
+# The holiday-horizon warning of cli_cycles(), for every series at once.
+warn_holiday_horizon_all <- function(horizon) {
+  last <- horizon[[which.max(vapply(horizon, function(h) h$needed_year,
+                                    numeric(1)))]]
+  cyclind_warn(holiday_horizon_text(
+    names(horizon), last$dates_from, last$dates_to, last$needed,
+    last$needed_year), "cyclind_warning_holiday_horizon", info = last)
 }
 
 #' Series excluded from the cycles
@@ -422,9 +437,47 @@ seasonal_adjust_x13 <- function(x, holidays = list(), log = NULL,
     return(seasonal_fallback(x, one_line(conditionMessage(fit)), reg,
                              hol_names, tf, scale, alpha))
   }
+  if (!is.null(reg) && !covered) warn_holiday_horizon(x, holidays)
   out <- as_ts_like(as.numeric(seasonal::final(fit)), x)
   attr(out, "step") <- step
   out
+}
+
+# Warn that the holiday dates stop before the X-13 forecast horizon (three
+# years past the data end), so the series was adjusted with X-11 without
+# forecasts. The fields let cli_cycles() report all series in one warning.
+warn_holiday_horizon <- function(x, holidays) {
+  dates <- do.call(c, lapply(holidays, function(h) h@dates))
+  end <- stats::time(x)[length(x)]
+  info <- list(dates_from = as.integer(format(min(dates), "%Y")),
+               dates_to = max(dates),
+               needed = period_label(end + 3, stats::frequency(x)),
+               needed_year = as.integer(floor(end + 1e-8)) + 3L)
+  cyclind_warn(do.call(holiday_horizon_text, c(list(series = NULL), info)),
+               "cyclind_warning_holiday_horizon", info = info)
+}
+
+holiday_horizon_text <- function(series, dates_from, dates_to, needed,
+                                 needed_year) {
+  who <- if (is.null(series)) {
+    "the series"
+  } else {
+    shown <- if (length(series) > 10L) {
+      paste0(paste(series[1:10], collapse = ", "), ", ...")
+    } else {
+      paste(series, collapse = ", ")
+    }
+    sprintf("%d series (%s)", length(series), shown)
+  }
+  sprintf(paste(
+    "The holiday dates end on %s, but X-13ARIMA-SEATS needs the holiday",
+    "regressors up to %s (three years past the data end) for its",
+    "forecasts; %s %s adjusted with X-11 without forecast extension.",
+    "Supply holiday dates up to %d or later, e.g.",
+    "holiday_effect(idulfitri_dates(%d, %d)) for Idulfitri."),
+    format(dates_to), needed, who,
+    if (length(series) > 1L || is.null(series)) "were" else "was",
+    needed_year, dates_from, needed_year)
 }
 
 # What to do when X-13 could not adjust a series (FR-019).

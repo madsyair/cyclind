@@ -12,25 +12,52 @@ setClass("HolidayEffect", representation(
 
 #' Moving-holiday effects for seasonal adjustment
 #'
-#' A moving holiday, such as Eid al-Fitr (Idulfitri) in Indonesia, falls in a
-#' different month from year to year, so fixed monthly seasonal factors
-#' cannot remove it. `holiday_effect()` describes such a holiday by its dates
-#' and by one or more windows of days around it; each window becomes one
-#' regressor of the regARIMA model of X-13ARIMA-SEATS (built with
-#' [seasonal::genhol()]), and the estimated effect is removed from the
-#' seasonally adjusted series. Pass the effects to [cli_spec()] through
-#' `holidays`, together with `seasonal_adjust = TRUE`.
+#' A moving holiday falls in a different month from year to year, so fixed
+#' monthly seasonal factors cannot remove it. `holiday_effect()` describes
+#' such a holiday by its dates and by one or more windows of days around it;
+#' each window becomes one regressor of the regARIMA model of
+#' X-13ARIMA-SEATS (built with [seasonal::genhol()]), and the estimated
+#' effect is removed from the seasonally adjusted series.
 #'
-#' The default windows suit Idulfitri in Indonesia: demand rises in the two
-#' weeks before the holiday, production falls during the week of collective
-#' leave that starts on it. Centring with `"mean"` follows the advice of the
-#' 'seasonal' package for Ramadan-type holidays.
+#' Holiday effects are optional: [cli_spec()] and [oecd_spec()] use none by
+#' default (`holidays = list()`), and they apply only with
+#' `seasonal_adjust = TRUE`. Pass the effects through `holidays`. Any moving
+#' holiday can be described, such as Easter, Chinese New Year (Imlek),
+#' Diwali or Eid al-Adha, from dates you supply; [idulfitri_dates()] is a
+#' helper for Eid al-Fitr (Idulfitri), the holiday that matters most for
+#' Indonesian data.
+#'
+#' **Horizon.** X-13ARIMA-SEATS extends the series with three years of
+#' forecasts, and the holiday regressors must cover them: give dates from
+#' the first year of the data to at least three years past its last
+#' observation. When the dates stop earlier, the series is adjusted with
+#' X-11 without forecast extension and [cli_cycles()] warns
+#' (`cyclind_warning_holiday_horizon`) once, naming the series. Dates that
+#' do not cover the data themselves are an error.
+#'
+#' **Country-specific dates and windows.** The date and the effect of a
+#' holiday depend on the country. The official date of 1 Syawal is set by
+#' each country: in Indonesia by the Ministry of Religious Affairs
+#' (Kementerian Agama) after the *sidang isbat*; in Malaysia, Saudi Arabia
+#' and elsewhere by their own authorities, by moon sighting (*rukyat*) or
+#' by calculation (*hisab*). Official dates can therefore differ from the
+#' arithmetic calendar of [idulfitri_dates()], and from one country to
+#' another, by one or two days; use the official dates of the country of
+#' the data when you have them. The default windows describe Idulfitri in
+#' Indonesia: demand rises in the two weeks before the holiday, when
+#' households travel home (*mudik*), and production falls during the week
+#' of collective leave (*cuti bersama*) that starts on it. Other countries
+#' and holidays need their own windows, set through `windows`. Centring
+#' with `"mean"` follows the advice of the 'seasonal' package for
+#' Ramadan-type holidays.
 #'
 #' @param dates Dates of the holiday (class `Date`), covering every year of
-#'   the data.
+#'   the data and at least three years past its end (the X-13 forecast
+#'   horizon).
 #' @param name Short name, used for the regressors (`<name>_<window>`).
 #' @param windows Named list of windows, each `c(first, last)` in days
-#'   relative to the holiday (negative = before).
+#'   relative to the holiday (negative = before). The default suits
+#'   Idulfitri in Indonesia (see Details).
 #' @param center Centring of the regressors, passed to [seasonal::genhol()].
 #' @return A `HolidayEffect` object.
 #' @references
@@ -39,8 +66,17 @@ setClass("HolidayEffect", representation(
 #' *Jurnal Gaussian*, 7(3), 236--247.
 #' @seealso [idulfitri_dates()], [cli_spec()]
 #' @examples
+#' # Idulfitri, data from 1990 to 2027: dates up to 2030
 #' eid <- holiday_effect(idulfitri_dates(1990, 2030), name = "idulfitri")
 #' eid
+#' # a country's own official dates and windows: replace the dates below
+#' # (the arithmetic ones, for illustration) by the official ones, e.g. as
+#' # Date strings read from the authority's announcements
+#' own <- idulfitri_dates(2010, 2030)
+#' eid_own <- holiday_effect(own, name = "eid",
+#'                           windows = list(before = c(-7, -1),
+#'                                          after = c(0, 2)))
+#' eid_own
 #' \donttest{
 #' if (requireNamespace("seasonal", quietly = TRUE)) {
 #'   sim <- simulate_cycles(seed = 1)
@@ -80,17 +116,32 @@ holiday_effect <- function(dates, name = "holiday",
 
 #' Approximate dates of Idulfitri
 #'
-#' Dates of 1 Syawal (Eid al-Fitr) from the arithmetic (tabular) Islamic
-#' calendar. The official Indonesian date, set each year by the Ministry of
-#' Religious Affairs after the *sidang isbat*, can differ from these by one
-#' or two days. For monthly holiday regressors such a difference rarely
-#' matters, but the official dates should be used when they are at hand.
+#' Dates of 1 Syawal (Eid al-Fitr, Idulfitri) from the arithmetic (tabular)
+#' Islamic calendar, a helper for [holiday_effect()] with Indonesian data.
+#' Holiday effects are optional and apply only with
+#' `seasonal_adjust = TRUE` (see [cli_spec()]).
+#'
+#' The official date is set per country: in Indonesia by the Ministry of
+#' Religious Affairs (Kementerian Agama) after the *sidang isbat*; in
+#' Malaysia, Saudi Arabia and elsewhere by their own authorities, by moon
+#' sighting (*rukyat*) or by calculation (*hisab*). It can differ from these
+#' dates, and between countries, by one or two days. For monthly or
+#' quarterly holiday regressors such a difference rarely matters, but the
+#' official dates of the country of the data should be used when they are
+#' at hand (pass them to [holiday_effect()] as `Date`s).
+#'
+#' X-13ARIMA-SEATS needs the holiday regressors over its forecast horizon,
+#' three years past the last observation: choose `to` at least three years
+#' after the last year of the data (for data ending in 2026, `to = 2029`).
+#' The default years cover data from 1980 to 2037.
 #'
 #' @param from,to First and last Gregorian year.
 #' @return A sorted vector of class `Date`.
 #' @seealso [holiday_effect()]
 #' @examples
 #' idulfitri_dates(2020, 2026)
+#' # quarterly data from 2008 to 2026Q3 need dates up to 2029
+#' range(idulfitri_dates(2008, 2029))
 #' @export
 idulfitri_dates <- function(from = 1980, to = 2040) {
   check_number(from, "from", lower = 1, upper = 9999, integer = TRUE)

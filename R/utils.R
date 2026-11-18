@@ -10,10 +10,11 @@ cyclind_abort <- function(message, class = NULL) {
   stop(cond)
 }
 
-cyclind_warn <- function(message, class = NULL) {
+# Signal a classed warning; fields in `...` are kept in the condition.
+cyclind_warn <- function(message, class = NULL, ...) {
   cond <- structure(
     class = c(class, "cyclind_warning", "warning", "condition"),
-    list(message = message, call = NULL)
+    c(list(message = message, call = NULL), list(...))
   )
   warning(cond)
 }

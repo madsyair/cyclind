@@ -481,17 +481,34 @@ all.equal(as.numeric(aggregate(x_a[, "gdp"], nfrequency = 1, FUN = sum)),
 
 Moving holidays, such as the Eid al-Fitr holiday (Idulfitri) in
 Indonesia, shift through the calendar, so fixed seasonal factors miss
-them. `holiday_effect()` turns their dates into regressors for
-X-13ARIMA-SEATS (package **seasonal**):
+them. Holiday effects are optional (by default `holidays = list()`) and
+apply only with `seasonal_adjust = TRUE`. `holiday_effect()` turns the
+dates of any moving holiday (Easter, Chinese New Year, Diwali, ...) into
+regressors for X-13ARIMA-SEATS (package **seasonal**);
+`idulfitri_dates()` is a helper for Idulfitri:
 
 ```{r holidays, eval = FALSE}
 eid <- holiday_effect(idulfitri_dates(1990, 2030), name = "idulfitri")
 spec_sa <- cli_spec(seasonal_adjust = TRUE, holidays = eid)
 ```
 
-`idulfitri_dates()` gives the dates of the arithmetic Islamic calendar,
-which can differ from the official dates by a day or two; use the official
-dates when you have them.
+X-13 forecasts three years past the end of the data, and the holiday
+regressors must cover those years too: for data ending in 2027 the dates
+above, up to 2030, are just enough. With dates that stop earlier the
+series are adjusted with X-11 without forecasts and `cli_cycles()` warns
+once (`cyclind_warning_holiday_horizon`).
+
+Dates and effects are country-specific. `idulfitri_dates()` gives the
+arithmetic (tabular) Islamic calendar; the official date of 1 Syawal is
+set by each country (in Indonesia by the Ministry of Religious Affairs
+after the *sidang isbat*, elsewhere by other authorities, by moon
+sighting or by calculation) and can differ from it, and between countries,
+by a day or two. The default windows, two weeks before the holiday and
+the week of collective leave that starts on it, describe Indonesia
+(*mudik* and *cuti bersama*). For another country give its official dates
+and its own `windows`, e.g.
+`holiday_effect(official_dates, name = "eid", windows = list(before =
+c(-7, -1), after = c(0, 2)))`.
 
 ## 9. The OECD method and the defaults
 

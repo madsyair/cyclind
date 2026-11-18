@@ -114,10 +114,16 @@
 #'   advance rather than chosen from the data being tested.
 #' @param oos_cutoffs Optional cut-off dates (decimal time, e.g. `2015`) for
 #'   the selection-bias harness run by [cli_build()].
-#' @param holidays A [holiday_effect()], or a list of them, whose effects
-#'   X-13ARIMA-SEATS estimates and removes (needs `seasonal_adjust = TRUE`).
-#'   For Indonesian data, `holiday_effect(idulfitri_dates())` removes the
-#'   moving Idulfitri effect, which fixed monthly factors cannot.
+#' @param holidays Optional: a [holiday_effect()], or a list of them, whose
+#'   effects X-13ARIMA-SEATS estimates and removes. The default `list()`
+#'   uses none; holidays apply only with `seasonal_adjust = TRUE`. Any
+#'   moving holiday (Easter, Chinese New Year, Diwali, ...) can be given by
+#'   its dates; for Indonesian data, `holiday_effect(idulfitri_dates(from,
+#'   to))` removes the moving Idulfitri effect, which fixed monthly factors
+#'   cannot. The dates must cover the data and at least three years past
+#'   its end (the X-13 forecast horizon); otherwise the series are adjusted
+#'   with X-11 without forecasts, with a warning
+#'   (`cyclind_warning_holiday_horizon`).
 #' @param classifier A [Classifier-class]; default [cyclind_classifier()]. Use
 #'   [oecd_classifier()] for the OECD median-lead rule.
 #' @param outliers An [OutlierTreatment-class]; default

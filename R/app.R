@@ -1372,7 +1372,8 @@ app_server <- function(language = "en") {
       }
       freq <- stats::frequency(rv$cand@data)
       # the interface runs the code it writes into the script
-      code <- safely(spec_call(input, freq))
+      code <- safely(spec_call(input, freq,
+                               range(stats::time(rv$cand@data))))
       spec <- if (!is.null(code)) {
         safely(eval_code(code, "spec", functions = spec_functions))
       }

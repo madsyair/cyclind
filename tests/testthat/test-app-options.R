@@ -43,8 +43,14 @@ test_that("AC-FR-010.1: the Idulfitri effect in seasonal adjustment", {
       expect_true(3L %in% rv$done)
       expect_length(rv$spec@holidays, 1L)
       expect_equal(rv$spec@holidays[[1]]@name, "idulfitri")
-      expect_match(rv$spec_call, "holiday_effect(idulfitri_dates()",
-                   fixed = TRUE)
+      # the dates cover the data and the X-13 forecast horizon (audit)
+      tm <- stats::time(rv$cand@data)
+      years <- c(floor(min(tm)), floor(max(tm) + 1e-8) + 3)
+      expect_match(rv$spec_call, sprintf(
+        "holiday_effect(idulfitri_dates(%d, %d)", years[1], years[2]),
+        fixed = TRUE)
+      dates <- rv$spec@holidays[[1]]@dates
+      expect_gte(as.numeric(format(max(dates), "%Y")), max(tm) + 3 - 1)
       expect_script_spec(rv)
     })
   }
