@@ -37,6 +37,30 @@
   script writes the seed and frequency as R values.
 * `CandidateSet`, `CompositeIndex` and `CycleSeries` have validity
   methods.
+* Graphical interface, from an end-to-end test of the ten steps:
+  - The quality scorecard of step 8 and its download are computed from the
+    result, as `cli_quality(res)` does, so they keep the row and note of a
+    reference disaggregated from quarterly (semiannual, annual) data; the
+    verdict box shows that note. For a manual composite the exported script
+    puts the composite and its validation (with the out-of-sample check
+    when step 8 ran it) into `res_manual` and reports
+    `cli_quality(res_manual)`, so script and interface give the same
+    scorecard.
+  - The turning points of candidates inverted in step 6 are dated again on
+    the inverted cycles, as in `cli_build()`; before, the `CliResult`
+    downloaded from step 10 kept those of the cycles as extracted.
+  - A file that cannot be read with the chosen column separator or decimal
+    mark gives the error with a translated hint to check them.
+  - A manual choice without components says "Choose at least one
+    component" instead of "Error: Components".
+  - With the OECD method, the options it does not use (filter, aggregation
+    method, transformation, AR extension and the leading thresholds) are
+    hidden.
+  - Filter, aggregation and transformation choices and the rationale in the
+    classification table are translated into Indonesian; messages of the
+    package itself (warnings, printed objects) stay in English.
+  - The warning on the share of outliers replaced is shown once, in step 4,
+    instead of again by the out-of-sample checks of steps 8 and 9.
 
 ## Documentation
 
