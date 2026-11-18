@@ -43,6 +43,21 @@ variance of \code{\link[=concordance]{concordance()}}, which allows for the stro
 the signs of cyclical changes.
 }
 
+\strong{What "out of sample" means here.} Only the logit is re-estimated
+recursively. Everything it is fed comes from the full sample: the cycles
+of the composite and the reference are filtered over the whole sample
+(two-sided filters, so the value at \eqn{t} uses later data), the
+contraction states are dated on the whole reference cycle (a turning
+point near \eqn{t - h} is confirmed only by data after \eqn{t}), and the
+components were selected with the whole sample. The training labels up
+to \eqn{t - h} are therefore not the ones a forecaster would have had
+at the time. The QPS, AUC and their naive benchmark are pseudo
+out-of-sample scores that are optimistic, above all near the end of the
+sample; they rank composites, but do not measure real-time accuracy.
+\code{\link[=cli_selection_bias]{cli_selection_bias()}} checks the component selection on cut-off
+samples, and real-time vintages (\code{vintages} in \code{\link[=cli_candidates]{cli_candidates()}}) are
+the way to measure accuracy at the time.
+
 The horizon \eqn{h} is \code{spec@horizon} or, when that is \code{NA}, the lower
 end of \code{spec@target_lead} (6 months or 2 quarters by default), fixed in
 advance: a horizon taken from the composite's own cross-correlation would

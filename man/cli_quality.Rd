@@ -28,7 +28,11 @@ composite must meet every leading criterion of the specification, the same
 ones used to classify candidates (see \code{\link[=cli_assess]{cli_assess()}}).
 
 \strong{Prediction}, from the out-of-sample forecasts of \code{\link[=cli_validate]{cli_validate()}} at
-the horizon fixed in advance:
+the horizon fixed in advance. These are pseudo out-of-sample forecasts:
+only the logit is re-estimated recursively, while the cycles, the
+contraction states it is trained on and the components come from the
+full sample (see \code{\link[=cli_validate]{cli_validate()}}), so the scores are optimistic and do
+not measure real-time accuracy:
 \itemize{
 \item at least 20 out-of-sample forecasts of the contraction probability;
 \item their area under the ROC curve is at least \code{min_auc} (0.7 is
