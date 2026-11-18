@@ -300,18 +300,15 @@ cyclind_app <- function(language = c("en", "id")) {
 
 # ---- user interface ----------------------------------------------------------
 
-filter_choices <- c("hp_double", "hp", "hp_smoother", "cf", "bk",
-                    "hamilton")
-names(filter_choices) <- c("OECD double Hodrick-Prescott", "Hodrick-Prescott",
-                           "HP smoother (no detrending)",
-                           "Christiano-Fitzgerald", "Baxter-King",
-                           "Hamilton regression")
-aggregator_choices <- c("equal", "equal_level", "oecd", "pca", "cb", "dfm")
-names(aggregator_choices) <- c("Equal weights, chained at the ragged edge",
-                               "Equal weights, plain mean",
-                               "Chained average log growth (OECD chain)",
-                               "First principal component",
-                               "Conference Board", "Dynamic factor model")
+filter_keys <- c("hp_double", "hp", "hp_smoother", "cf", "bk", "hamilton")
+aggregator_keys <- c("equal", "equal_level", "oecd", "pca", "cb", "dfm")
+transform_keys <- c("auto", "log", "none", "test")
+
+# Choices of a select input: the keys, labelled by the text of
+# `prefix` + key in the language of the interface.
+labelled_choices <- function(keys, prefix, t) {
+  stats::setNames(keys, vapply(paste0(prefix, keys), t, character(1)))
+}
 
 step_panel <- function(t, k, ...) {
   shiny::tabPanel(
@@ -426,11 +423,17 @@ app_ui <- function(language = "en") {
                                    c("annual", "period"),
                                    c(t("lag_annual"), t("lag_period")))),
               shiny::helpText(t("form_help"))),
-            shiny::selectInput("filter", t("filter"), filter_choices),
-            shiny::selectInput("aggregator", t("aggregator"),
-                               aggregator_choices),
-            shiny::selectInput("transform", t("transform"),
-                               c("auto", "log", "none", "test")),
+            # options of the cyclind method only; oecd_spec() fixes them
+            shiny::conditionalPanel(
+              "input.method == 'cyclind'",
+              shiny::selectInput("filter", t("filter"),
+                                 labelled_choices(filter_keys, "flt_", t)),
+              shiny::selectInput("aggregator", t("aggregator"),
+                                 labelled_choices(aggregator_keys, "agg_",
+                                                  t)),
+              shiny::selectInput("transform", t("transform"),
+                                 labelled_choices(transform_keys, "tr_",
+                                                  t))),
             shiny::checkboxInput("seasonal", paste(
               t("seasonal"), if (!has_seasonal) t("seasonal_missing")),
               FALSE),
@@ -440,19 +443,24 @@ app_ui <- function(language = "en") {
             shiny::conditionalPanel(
               "input.method == 'cyclind' && input.outlier_method != 'tramo'",
               shiny::numericInput("outlier", t("outlier"), 5, min = 1)),
-            shiny::checkboxInput("extend", t("extend"), TRUE),
+            shiny::conditionalPanel(
+              "input.method == 'cyclind'",
+              shiny::checkboxInput("extend", t("extend"), TRUE)),
             shiny::textInput("oos_cutoffs", t("oos_cutoffs"), "")
           ),
           shiny::column(6,
-            shiny::numericInput("min_lead", t("min_lead"), 3, min = 0),
-            shiny::numericInput("min_median_lead", t("min_median_lead"), 1,
-                                min = 0, step = 0.5),
-            shiny::numericInput("min_consistency", t("min_consistency"), 0.5,
-                                min = 0, max = 1, step = 0.05),
-            shiny::numericInput("max_missed", t("max_missed"), 0.4, min = 0,
-                                max = 1, step = 0.05),
-            shiny::numericInput("max_extra", t("max_extra"), 0.4, min = 0,
-                                max = 1, step = 0.05),
+            # classification thresholds of the cyclind method only
+            shiny::conditionalPanel(
+              "input.method == 'cyclind'",
+              shiny::numericInput("min_lead", t("min_lead"), 3, min = 0),
+              shiny::numericInput("min_median_lead", t("min_median_lead"), 1,
+                                  min = 0, step = 0.5),
+              shiny::numericInput("min_consistency", t("min_consistency"),
+                                  0.5, min = 0, max = 1, step = 0.05),
+              shiny::numericInput("max_missed", t("max_missed"), 0.4,
+                                  min = 0, max = 1, step = 0.05),
+              shiny::numericInput("max_extra", t("max_extra"), 0.4, min = 0,
+                                  max = 1, step = 0.05)),
             shiny::numericInput("alpha", t("alpha"), 0.05, min = 0.001,
                                 max = 0.5, step = 0.01),
             shiny::numericInput("min_auc", t("min_auc"), 0.7, min = 0.5,
@@ -651,7 +659,7 @@ assessment_display <- function(tab, p = function(x) x) {
       sign_sources(tab) == "none", "undetermined",
       paste0(ifelse(tab$inverted, "countercyclical", "procyclical"),
              ifelse(sign_sources(tab) == "meta", " (declared)", ""))),
-    rationale = ifelse(is.na(tab$rationale), "", tab$rationale),
+    rationale = ifelse(is.na(tab$rationale), "", p(tab$rationale)),
     lead = tab$ccf_lag,
     median = tab$median_lead,
     led = sprintf("%.2f", tab$pct_led),

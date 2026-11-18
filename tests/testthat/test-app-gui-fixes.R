@@ -14,6 +14,27 @@ capture_notifications <- function(code) {
   shown
 }
 
+# The display conditions of the conditional panels around an input, read
+# from the HTML of the interface (without 'htmltools', which is not in
+# Suggests).
+display_conditions <- function(ui, id) {
+  html <- as.character(ui)
+  at <- regexpr(sprintf('id="%s"', id), html, fixed = TRUE)
+  before <- substr(html, 1L, at)
+  tags <- gregexpr("<div[^>]*>|</div>", before)[[1]]
+  text <- regmatches(before, list(tags))[[1]]
+  open <- character(0)
+  for (tag in text) {
+    if (startsWith(tag, "</")) {
+      open <- open[-length(open)]
+    } else {
+      cond <- regmatches(tag, regexec('data-display-if="([^"]*)"', tag))[[1]]
+      open <- c(open, if (length(cond) == 2L) cond[2] else "")
+    }
+  }
+  gsub("&#39;", "'", open[nzchar(open)], fixed = TRUE)
+}
+
 # Steps 1 to 7 for the files of multi_files(): a quarterly reference
 # disaggregated to months.
 run_multi_steps <- function(session, files, mode, cutoffs = "") {
@@ -140,6 +161,44 @@ test_that("INC-22 (4): manual mode without components says so", {
                   fixed = TRUE)
     expect_equal(sum(hits), 2L, info = lang)
   }
+})
+
+test_that("INC-22 (5): options of the cyclind method hide with OECD", {
+  skip_if_not_installed("shiny")
+  ui <- cyclind:::app_ui("en")
+  only_cyclind <- c("filter", "aggregator", "transform", "extend",
+                    "min_lead", "min_median_lead", "min_consistency",
+                    "max_missed", "max_extra")
+  for (id in only_cyclind) {
+    expect_true("input.method == 'cyclind'" %in% display_conditions(ui, id),
+                info = id)
+  }
+  for (id in c("method", "form", "seasonal", "oos_cutoffs", "alpha",
+               "min_auc", "min_components", "max_iter")) {
+    expect_false("input.method == 'cyclind'" %in% display_conditions(ui, id),
+                 info = id)
+  }
+})
+
+test_that("INC-22 (6): filter, aggregator, transform and rationale in id", {
+  skip_if_not_installed("shiny")
+  html <- as.character(cyclind:::app_ui("id"))
+  keys <- c("flt_hp_double", "flt_hp", "flt_hp_smoother", "flt_cf",
+            "flt_bk", "flt_hamilton", "agg_equal", "agg_equal_level",
+            "agg_oecd", "agg_pca", "agg_cb", "agg_dfm", "tr_auto", "tr_log",
+            "tr_none", "tr_test")
+  for (k in keys) {
+    expect_true(nzchar(cyclind:::app_text$id[[k]]), info = k)
+    expect_true(nzchar(cyclind:::app_text$en[[k]]), info = k)
+    expect_match(html, cyclind:::app_text$id[[k]], fixed = TRUE, info = k)
+  }
+  expect_false(grepl("Equal weights, plain mean", html, fixed = TRUE))
+  res <- cli_build(sim_candidates(seed = 1))
+  p <- cyclind:::phrase_translator("id")
+  shown <- cyclind:::assessment_display(assessment(res)@table, p)
+  expect_false(any(shown$rasional %in% names(cyclind:::oecd_rationales)))
+  expect_true(all(shown$rasional %in% c("", unname(p(names(
+    cyclind:::oecd_rationales))))))
 })
 
 test_that("INC-22 (7): the outlier-share warning shows once", {
