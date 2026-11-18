@@ -152,7 +152,8 @@ cycle_one <- function(x, name, spec, unit = "level") {
 }
 
 cycle_one_body <- function(x, name, spec, unit) {
-  steps <- character(0)
+  # the unit is recorded for the Conference Board changes (audit S5)
+  steps <- if (identical(unit, "percent")) "unit: percent" else character(0)
   span <- non_na_span(x)
   if (anyNA(span) || span[2] - span[1] + 1L < 4L * spec@freq) {
     cyclind_abort(

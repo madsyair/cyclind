@@ -126,8 +126,12 @@ setMethod("aggregate_components", "PrincipalComponent",
   list(cycle = comp, index = NULL, weights = stats::setNames(w, colnames(z)))
 })
 
-symmetric_change <- function(v) {
-  if (all(v > 0, na.rm = TRUE)) {
+# Changes of the Conference Board method: symmetric percent changes of
+# positive series, simple differences of series in percent (rates,
+# balances; The Conference Board 2001, ch. 4) and of series that are not
+# positive throughout.
+symmetric_change <- function(v, percent = FALSE) {
+  if (!percent && all(v > 0, na.rm = TRUE)) {
     c(NA, 200 * diff(v) / (v[-1] + v[-length(v)]))
   } else {
     c(NA, diff(v))
@@ -137,8 +141,10 @@ symmetric_change <- function(v) {
 #' @rdname cli_composite
 setMethod("aggregate_components", "ConferenceBoard",
           function(aggregator, z, levels, spec) {
+  pct <- attr(levels, "percent")
+  if (is.null(pct)) pct <- rep(FALSE, ncol(levels))
   ch <- vapply(seq_len(ncol(levels)), function(j) {
-    symmetric_change(levels[, j]) * attr(levels, "sign")[j]
+    symmetric_change(levels[, j], pct[j]) * attr(levels, "sign")[j]
   }, numeric(nrow(levels)))
   ch <- matrix(ch, nrow = nrow(levels))
   s <- apply(ch, 2, stats::sd, na.rm = TRUE)
@@ -148,19 +154,24 @@ setMethod("aggregate_components", "ConferenceBoard",
   contrib[!ok] <- NA_real_
   span <- non_na_span(contrib)
   index <- rep(NA_real_, length(contrib))
-  if (!anyNA(span)) {
-    seg <- contrib[span[1]:span[2]]
-    seg[is.na(seg)] <- 0
-    lev <- 100 * cumprod((200 + seg) / (200 - seg))
-    index[span[1]:span[2]] <- lev / mean(lev) * 100
-  }
-  idx_ts <- stats::ts(index, start = attr(levels, "tsp")[1],
-                      frequency = spec@freq)
   cyc <- rep(NA_real_, length(index))
   if (!anyNA(span)) {
-    core <- stats::window(idx_ts, start = stats::time(idx_ts)[span[1]],
-                          end = stats::time(idx_ts)[span[2]])
-    cyc[span[1]:span[2]] <- as.numeric(extract_cycle(spec@filter, log(core)))
+    # a date without a contribution has an unknown level (audit S6): it
+    # stays missing, and the index goes on from the last known level; the
+    # filter sees the gap interpolated, and the cycle is missing there too
+    seg <- contrib[span[1]:span[2]]
+    gap <- is.na(seg)
+    lev <- 100 * cumprod(ifelse(gap, 1, (200 + seg) / (200 - seg)))
+    lev[gap] <- NA_real_
+    lev <- lev / mean(lev, na.rm = TRUE) * 100
+    index[span[1]:span[2]] <- lev
+    core <- stats::ts(log(fill_internal_na(lev)),
+                      start = attr(levels, "tsp")[1] +
+                        (span[1] - 1) / spec@freq,
+                      frequency = spec@freq)
+    cv <- as.numeric(extract_cycle(spec@filter, core))
+    cv[gap] <- NA_real_
+    cyc[span[1]:span[2]] <- cv
   }
   list(cycle = cyc, index = index, weights = stats::setNames(w, colnames(z)))
 })
@@ -298,6 +309,9 @@ cli_composite <- function(cycles, components, spec, reference = NULL,
     if (is_inverted(cycles[[nm]])) -1 else 1
   }, numeric(1))
   attr(levels, "tsp") <- stats::tsp(template)
+  attr(levels, "percent") <- vapply(components, function(nm) {
+    "unit: percent" %in% cycles[[nm]]@steps
+  }, logical(1))
   shifts <- check_shifts(shifts, components)
   for (nm in names(shifts)) {
     k <- as.integer(shifts[[nm]])
