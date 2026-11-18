@@ -61,6 +61,28 @@
     package itself (warnings, printed objects) stay in English.
   - The warning on the share of outliers replaced is shown once, in step 4,
     instead of again by the out-of-sample checks of steps 8 and 9.
+* When the holiday dates stop before the X-13ARIMA-SEATS forecast horizon
+  (three years past the data end), the series are still adjusted with X-11
+  without forecast extension, but `cli_cycles()` now warns once
+  (`cyclind_warning_holiday_horizon`), naming the series, the end of the
+  dates, the date X-13 needs and the call that fixes it (e.g.
+  `idulfitri_dates(2008, 2029)` for data ending in 2026). Before, the
+  fallback was only recorded in the steps. The graphical interface writes
+  `idulfitri_dates(<first year>, <last year + 3>)` from the data instead of
+  the default years, in the app and in the exported script.
+* Under `oecd_classifier()` with the conformity criteria (the default), a
+  coincident series must also have its cross-correlation peak strictly
+  inside the coincident band (lags -1 to 1 for monthly data, lag 0 for
+  quarterly data) and positive. This applies to the classification of
+  candidates (otherwise "rejected", reason "ccf lag") and to the
+  `coincident_criteria()` of `cci_validate()` (new criterion `ccf`). Before,
+  an index with a coincident median lead but its peak at lag -8 passed.
+  The leading and lagging rules and `oecd_classifier(conformity = FALSE)`
+  are unchanged. In `inst/calibration/oecd-classification.csv` the overall
+  accuracy of the OECD rule rises by up to 0.015 (fewer noise series
+  called coincident; 0.013 lower for quarterly data with strong noise);
+  in `lead-window.csv` correctly coincident series fall only with strong
+  noise (by up to 0.17), the leading columns are unchanged.
 
 ## Documentation
 
@@ -74,6 +96,20 @@
 * The OECD Indonesia validation (`data-raw/oecd_idn_validate.R`) uses
   TRAMO explicitly and stops without 'RJDemetra'; the vignette and the
   harness say which engine produced the stored numbers.
+* `?holiday_effect`, `?idulfitri_dates`, `?cli_spec` and the vignette say
+  that holiday effects are optional (`holidays = list()`) and apply only
+  with `seasonal_adjust = TRUE`, that any moving holiday (Easter, Chinese
+  New Year, Diwali, ...) can be given by its dates, with Idulfitri as a
+  helper for Indonesia, and that the dates must reach three years past the
+  data end. They also say that dates and effects are country-specific: the
+  official 1 Syawal is set by each country's authority (Indonesia: *sidang
+  isbat* of the Ministry of Religious Affairs; elsewhere by moon sighting
+  or calculation) and can differ from the arithmetic calendar and between
+  countries by one or two days, and the default windows reflect Indonesia
+  (*mudik*, *cuti bersama*); an example passes a country's own dates and
+  windows.
+* `?coincident_criteria` and `?Classifier` describe the cross-correlation
+  condition of an OECD coincident series.
 
 # cyclind 0.2.0
 
