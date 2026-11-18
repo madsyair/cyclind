@@ -79,6 +79,15 @@ year (12 months or 4 quarters), the year-on-year rate; \code{lag = 1} gives
 the period-on-period (q-to-q or m-to-m) rate.
 }
 
+The rates equal those BPS publishes only when they are computed from the
+same data. BPS computes its year-on-year and quarter-to-quarter rates
+from series that are not seasonally adjusted, so with
+\code{seasonal_adjust = TRUE} in \code{\link[=cli_spec]{cli_spec()}} the quarter-to-quarter rate can
+differ from the published one by several points (the year-on-year rate
+changes much less). Outliers replaced by \code{\link[=cli_cycles]{cli_cycles()}} also change the
+rates around the replaced observations; \code{outlier_threshold = Inf} keeps
+the data as published.
+
 The first \code{lag} observations of a growth rate are missing. Without a
 \code{filter}, \code{\link[=cli_spec]{cli_spec()}} pairs the growth form with \code{\link[=hp_smoother]{hp_smoother()}}, which
 smooths without removing a trend, and the level form with
