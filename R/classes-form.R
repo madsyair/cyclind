@@ -25,6 +25,15 @@
 #'   year (12 months or 4 quarters), the year-on-year rate; `lag = 1` gives
 #'   the period-on-period (q-to-q or m-to-m) rate.
 #'
+#' The rates equal those BPS publishes only when they are computed from the
+#' same data. BPS computes its year-on-year and quarter-to-quarter rates
+#' from series that are not seasonally adjusted, so with
+#' `seasonal_adjust = TRUE` in [cli_spec()] the quarter-to-quarter rate can
+#' differ from the published one by several points (the year-on-year rate
+#' changes much less). Outliers replaced by [cli_cycles()] also change the
+#' rates around the replaced observations; `outlier_threshold = Inf` keeps
+#' the data as published.
+#'
 #' The first `lag` observations of a growth rate are missing. Without a
 #' `filter`, [cli_spec()] pairs the growth form with [hp_smoother()], which
 #' smooths without removing a trend, and the level form with
