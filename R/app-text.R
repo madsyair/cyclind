@@ -281,6 +281,12 @@ app_text <- list(
     code = "Kode R yang setara", no_leaders = paste(
       "Tidak ada kandidat pendahulu; ubah spesifikasi atau pilih komponen",
       "secara manual."),
+    need_component = "Pilih minimal satu komponen.",
+    read_hint = "Periksa pemisah kolom dan tanda desimal.",
+    disagg_note = paste("Seri acuan hasil disagregasi data %s: tanggal titik",
+                        "baliknya, dan karena itu lead, tidak pasti sekitar",
+                        "%s."),
+    one_month = "satu bulan", n_months = "%d bulan",
     loaded = "Data dimuat", error = "Galat"
   ),
   en = list(
@@ -567,6 +573,12 @@ app_text <- list(
     code = "Equivalent R code", no_leaders = paste(
       "No candidate is leading; change the specification or choose",
       "components manually."),
+    need_component = "Choose at least one component.",
+    read_hint = "Check the column separator and the decimal mark.",
+    disagg_note = paste("The reference was disaggregated from %s data: its",
+                        "turning-point dates, and so the lead, are uncertain",
+                        "by about %s."),
+    one_month = "one month", n_months = "%d months",
     loaded = "Data loaded", error = "Error"
   )
 )

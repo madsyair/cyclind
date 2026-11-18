@@ -694,6 +694,32 @@ app_warning_text <- function(w, t) {
   paste0(t(hit[[1]]), " (", conditionMessage(w), ")")
 }
 
+# Errors while reading uploaded files, followed by a hint on the file
+# format: a wrong column separator or decimal mark gives errors of
+# utils::read.csv() such as "more columns than column names".
+with_read_hint <- function(expr, hint) {
+  tryCatch(expr, error = function(e) {
+    cyclind_abort(paste(conditionMessage(e), hint), "cyclind_error_read")
+  })
+}
+
+# The note of a quality verdict: the translated note of `key` and, when
+# the scorecard has the information row of a disaggregated reference (see
+# cli_quality()), the uncertainty of its turning-point dates.
+verdict_note <- function(q, key, t, p) {
+  note <- t(key)
+  crit <- as.character(q@table$criterion)
+  pattern <- "^reference disaggregated from (.*) data$"
+  hit <- which(grepl(pattern, crit))
+  if (length(hit) == 0L) return(note)
+  from <- sub(pattern, "\\1", crit[hit[1]])
+  months <- as.integer(sub("^turning points \\+/- ([0-9]+) months?$", "\\1",
+                           q@table$threshold[hit[1]]))
+  about <- if (identical(months, 1L)) t("one_month") else
+    sprintf(t("n_months"), months)
+  paste(note, sprintf(t("disagg_note"), p(from), about))
+}
+
 # The outlier report of step 4 with translated headers.
 outlier_table_app <- function(cycles, p) {
   rep <- outlier_report(cycles)
@@ -869,8 +895,17 @@ analysis_lines <- function(state) {
       "cli <- cli_composite(cycles(res), %s, spec, cycles(res)[[%s]]%s)",
       chr_text(unname(state$components)), ref, shift_arg),
       sprintf("val <- cli_validate(cli, cycles(res)[[%s]], spec)", ref),
-      "pres <- cli_presentation(res, composite = cli)  # three OECD forms",
-      "", "# 8. Validation and quality", "cli_quality(val, spec)")
+      if (isTRUE(state$oos)) {
+        c("# the out-of-sample check of step 8",
+          paste0("val@out_of_sample <- cli_selection_bias(cand, spec, ",
+                 "spec@oos_cutoffs)"))
+      },
+      "# the result with the manual composite",
+      "res_manual <- res",
+      "res_manual@composite <- cli",
+      "res_manual@validation <- val",
+      "pres <- cli_presentation(res_manual)  # three OECD forms",
+      "", "# 8. Validation and quality", "cli_quality(res_manual)")
   } else {
     lines <- c(lines, "audit_log(res)", "plot(res)",
                "pres <- cli_presentation(res)  # three OECD forms", "",
@@ -900,7 +935,7 @@ app_server <- function(language = "en") {
   function(input, output, session) {
     rv <- shiny::reactiveValues(
       data = NULL, cand = NULL, spec = NULL, cycles = NULL, tps = NULL,
-      assessment = NULL, cycles_used = NULL, composite = NULL,
+      tps_used = NULL, assessment = NULL, cycles_used = NULL, composite = NULL,
       validation = NULL, audit = NULL, done = integer(0), meta = NULL,
       spec_call = NULL, mode = "auto", components = character(0),
       cci = NULL, cci_mode = NULL, prelude = NULL, cand_rebuilt = FALSE,
@@ -909,7 +944,7 @@ app_server <- function(language = "en") {
     fields <- list(`1` = c("data", "series"),
                    `2` = c("cand", "meta", "align"),
                    `3` = c("spec", "spec_call"), `4` = "cycles", `5` = "tps",
-                   `6` = c("assessment", "cycles_used"),
+                   `6` = c("assessment", "cycles_used", "tps_used"),
                    `7` = c("composite", "validation", "audit", "cci",
                            "cci_mode", "mode", "components"))
     reset_from <- function(k) {
@@ -922,11 +957,16 @@ app_server <- function(language = "en") {
       reset_from(k + 1L)
       rv$done <- sort(unique(c(rv$done, k)))
     }
-    safely <- function(expr) {
+    # warnings of the classes in `quiet` are not shown again: the
+    # out-of-sample checks of steps 8 and 9 extract the cycles again and
+    # repeat the outlier warnings of step 4
+    safely <- function(expr, quiet = character(0)) {
       tryCatch(
         withCallingHandlers(expr, warning = function(w) {
-          shiny::showNotification(app_warning_text(w, t), type = "warning",
-                                  duration = 8)
+          if (!inherits(w, quiet)) {
+            shiny::showNotification(app_warning_text(w, t),
+                                    type = "warning", duration = 8)
+          }
           invokeRestart("muffleWarning")
         }),
         error = function(e) {
@@ -995,8 +1035,10 @@ app_server <- function(language = "en") {
           up <- checked_upload(input$files)
           freq <- as.numeric(input$target_freq)
           check_frequency(freq)
-          list(series = read_cli_series(stats::setNames(up$datapath, up$name),
-                                        sep = sep, dec = dec),
+          series <- with_read_hint(
+            read_cli_series(stats::setNames(up$datapath, up$name),
+                            sep = sep, dec = dec), t("read_hint"))
+          list(series = series,
                data = NULL, fmt = list(sep = sep, dec = dec), freq = freq,
                file_name = up$name, start = NULL)
         } else if (identical(src, "upload")) {
@@ -1005,9 +1047,10 @@ app_server <- function(language = "en") {
             as.numeric(input$freq)
           start <- parse_start(input$start)
           fmt <- csv_format(up$datapath, sep = sep, dec = dec)
-          data <- read_cli_data(up$datapath, frequency = f, start = start,
-                                check.names = FALSE, sep = fmt$sep,
-                                dec = fmt$dec)
+          data <- with_read_hint(
+            read_cli_data(up$datapath, frequency = f, start = start,
+                          check.names = FALSE, sep = fmt$sep, dec = fmt$dec),
+            t("read_hint"))
           list(series = NULL, data = data, fmt = fmt,
                freq = stats::frequency(data), file_name = up$name,
                start = start)
@@ -1413,13 +1456,20 @@ app_server <- function(language = "en") {
         shiny::showNotification(t("need_prev"), type = "warning")
         return()
       }
-      a <- shiny::withProgress(message = t("run6"),
-                               safely(cli_assess(rv$cand, rv$spec, rv$cycles)))
-      if (is.null(a)) return()
-      used <- rv$cycles
-      for (nm in a@inverted) used[[nm]] <- invert_cycle(used[[nm]])
+      out <- shiny::withProgress(message = t("run6"), safely({
+        a <- cli_assess(rv$cand, rv$spec, rv$cycles)
+        used <- rv$cycles
+        for (nm in a@inverted) used[[nm]] <- invert_cycle(used[[nm]])
+        # inverted candidates are dated again, as in cli_build()
+        tps <- rv$tps
+        tps[a@inverted] <- cli_turning_points(used[a@inverted], rv$spec)
+        list(a = a, used = used, tps = tps)
+      }))
+      if (is.null(out)) return()
+      a <- out$a
       rv$assessment <- a
-      rv$cycles_used <- used
+      rv$cycles_used <- out$used
+      rv$tps_used <- out$tps
       finish(6L)
       shiny::updateCheckboxGroupInput(
         session, "manual_components", choices = a@table$name,
@@ -1479,7 +1529,7 @@ app_server <- function(language = "en") {
         } else {
           comps <- input$manual_components
           if (length(comps) == 0L) {
-            cyclind_abort(t("components"), "cyclind_error_argument")
+            cyclind_abort(t("need_component"), "cyclind_error_argument")
           }
           shifts <- if (isTRUE(rv$spec@lag_shift)) {
             lag_shifts(comps, rv$assessment)
@@ -1527,9 +1577,11 @@ app_server <- function(language = "en") {
     })
 
     # 8. Validation and quality ---------------------------------------------
+    # from the result, as in the script: the scorecard then notes a
+    # disaggregated reference
     quality <- shiny::reactive({
       need(7L)
-      cli_quality(rv$validation, rv$spec)
+      cli_quality(result())
     })
     shiny::observeEvent(input$run8, {
       if (!7L %in% rv$done) {
@@ -1542,7 +1594,8 @@ app_server <- function(language = "en") {
       }
       sb <- shiny::withProgress(
         message = t("run8"),
-        safely(cli_selection_bias(rv$cand, rv$spec, rv$spec@oos_cutoffs))
+        safely(cli_selection_bias(rv$cand, rv$spec, rv$spec@oos_cutoffs),
+               quiet = "cyclind_warning_outlier_share")
       )
       if (is.null(sb)) return()
       val <- rv$validation
@@ -1558,7 +1611,8 @@ app_server <- function(language = "en") {
                         verdict_colour[[q@verdict]]),
         shiny::h3(style = "margin: 0;",
                   paste0(t("verdict"), ": ", t(q@verdict))),
-        shiny::p(style = "margin: 6px 0 0 0;", t(paste0(q@verdict, "_note")))
+        shiny::p(style = "margin: 6px 0 0 0;",
+                 verdict_note(q, paste0(q@verdict, "_note"), t, p))
       )
     })
     output$scorecard <- shiny::renderTable({
@@ -1607,7 +1661,7 @@ app_server <- function(language = "en") {
         return()
       }
       base <- new("CliResult", spec = rv$spec, candidates = rv$cand,
-                  cycles = rv$cycles_used, turning_points = rv$tps,
+                  cycles = rv$cycles_used, turning_points = rv$tps_used,
                   assessment = rv$assessment, composite = NULL,
                   validation = NULL, audit = data.frame())
       cci <- shiny::withProgress(message = t("run9"), safely({
@@ -1619,11 +1673,11 @@ app_server <- function(language = "en") {
         } else {
           comps <- input$cci_components
           if (length(comps) == 0L) {
-            cyclind_abort(t("components"), "cyclind_error_argument")
+            cyclind_abort(t("need_component"), "cyclind_error_argument")
           }
           cci_build(base, components = comps, select = FALSE)
         }
-      }))
+      }, quiet = "cyclind_warning_outlier_share"))
       if (is.null(cci) || is.null(cci@composite)) return()
       rv$cci <- cci
       rv$cci_mode <- input$cci_mode
@@ -1668,7 +1722,7 @@ app_server <- function(language = "en") {
                         verdict_colour[[q@verdict]]),
         shiny::h3(style = "margin: 0;",
                   paste0(t("verdict"), ": ", t(q@verdict))),
-        shiny::p(style = "margin: 6px 0 0 0;", t(note))
+        shiny::p(style = "margin: 6px 0 0 0;", verdict_note(q, note, t, p))
       )
     })
     output$cci_plot <- shiny::renderPlot({
@@ -1704,7 +1758,7 @@ app_server <- function(language = "en") {
     result <- shiny::reactive({
       need(7L)
       new("CliResult", spec = rv$spec, candidates = rv$cand,
-          cycles = rv$cycles_used, turning_points = rv$tps,
+          cycles = rv$cycles_used, turning_points = rv$tps_used,
           assessment = rv$assessment, composite = rv$composite,
           validation = rv$validation, audit = rv$audit)
     })
@@ -1721,6 +1775,8 @@ app_server <- function(language = "en") {
           series_unit(rv$cand, rv$cand@reference),
         spec_call = rv$spec_call, mode = rv$mode,
         components = rv$components,
+        oos = !is.null(rv$validation) &&
+          nrow(rv$validation@out_of_sample) > 0L,
         lag_shift = !is.null(rv$spec) && isTRUE(rv$spec@lag_shift),
         cci_mode = rv$cci_mode,
         cci_components = if (is.null(rv$cci)) NULL else
