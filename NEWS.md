@@ -110,6 +110,12 @@
   windows.
 * `?coincident_criteria` and `?Classifier` describe the cross-correlation
   condition of an OECD coincident series.
+* `?growth_form` and the help text of the unit choice in the graphical
+  interface say that the growth rates equal those BPS publishes only
+  without seasonal adjustment and outlier replacement: BPS computes its
+  year-on-year and quarter-to-quarter rates from the original data, and
+  with `seasonal_adjust = TRUE` the quarter-to-quarter rate can differ by
+  several points.
 
 # cyclind 0.2.0
 
