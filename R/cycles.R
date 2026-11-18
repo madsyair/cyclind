@@ -16,9 +16,11 @@
 #' @param candidates A [CandidateSet-class].
 #' @param spec A [CliSpec-class].
 #' @return A named list of [CycleSeries-class], reference first. Candidates
-#'   whose seasonal adjustment failed beyond repair are left out; the
+#'   whose seasonal adjustment failed beyond repair, and candidates too
+#'   short for the cycle (fewer than four years of observations, or fewer
+#'   than three in the growth rate form), are left out with a warning; the
 #'   attribute `"excluded"` (see [excluded_series()]) gives their names and
-#'   the reason.
+#'   the reason. A reference series that is too short stops the run.
 #' @examples
 #' sim <- simulate_cycles(seed = 1)
 #' meta <- data.frame(name = colnames(sim)[-1], rationale = "early_stage")
@@ -37,21 +39,29 @@ cli_cycles <- function(candidates, spec) {
   for (nm in nms) {
     cs <- tryCatch(
       cycle_one(data[, nm], nm, spec, unit = series_unit(candidates, nm)),
-      cyclind_error_seasonal_failed = function(e) e
+      cyclind_error_seasonal_failed = function(e) e,
+      cyclind_error_short_series = function(e) e
     )
     if (!inherits(cs, "error")) {
       out[[nm]] <- cs
       next
     }
     reason <- conditionMessage(cs)
+    short <- inherits(cs, "cyclind_error_short_series")
     if (identical(nm, ref)) {
       # without the reference there is nothing to compare with
+      if (short) stop(cs)
       cyclind_abort(sprintf("Series '%s' (the reference): %s", nm, reason),
                     c("cyclind_error_seasonal_failed", "cyclind_error_x13"))
     }
+    # a candidate that is too short is left out like one that X-13 cannot
+    # adjust (audit E2), instead of stopping the whole build
     cyclind_warn(sprintf(paste("Series '%s': %s; the series is excluded",
-                               "from the candidates."), nm, reason),
-                 "cyclind_warning_seasonal_failed")
+                               "from the candidates."), nm,
+                         sub("\\.$", "",
+                             sub("^Series '[^']*' ", "it ", reason))),
+                 if (short) "cyclind_warning_short_series" else
+                   "cyclind_warning_seasonal_failed")
     excluded[nrow(excluded) + 1L, ] <- list(nm, reason)
   }
   if (nrow(excluded) > 0L) attr(out, "excluded") <- excluded
@@ -61,9 +71,10 @@ cli_cycles <- function(candidates, spec) {
 #' Series excluded from the cycles
 #'
 #' A candidate whose seasonal adjustment fails, and cannot be replaced by
-#' the unadjusted series or by an adjustment without holiday regressors,
-#' is left out of [cli_cycles()] (see [cli_spec()], `seasonal_adjust`).
-#' This function lists such series and the reason.
+#' the unadjusted series or by an adjustment without holiday regressors
+#' (see [cli_spec()], `seasonal_adjust`), or that is too short for its
+#' cycle, is left out of [cli_cycles()]. This function lists such series
+#' and the reason.
 #'
 #' @param cycles The output of [cli_cycles()], or a [CliResult-class].
 #' @return A data frame with columns `name` and `reason` (no rows when
@@ -91,9 +102,11 @@ drop_excluded <- function(candidates, cycles) {
   if (length(ex) == 0L) return(candidates)
   keep <- setdiff(candidate_names(candidates), ex)
   if (length(keep) == 0L) {
-    cyclind_abort(paste("No candidate is left: the seasonal adjustment of",
-                        "every candidate failed (see the warnings)."),
-                  "cyclind_error_seasonal_failed")
+    cyclind_abort(paste("No candidate is left: every candidate was excluded",
+                        "(failed seasonal adjustment or too short; see the",
+                        "warnings and excluded_series())."),
+                  c("cyclind_error_seasonal_failed",
+                    "cyclind_error_short_series"))
   }
   candidates[keep]
 }
