@@ -2,13 +2,17 @@
 #'
 #' Reads a CSV file with one column per series. If the first column holds
 #' dates (`2001-01`, `2001-01-15` or `2001Q1`), the frequency and start are
-#' taken from it; otherwise give `frequency` and `start`. Non-numeric
-#' columns other than the date column are dropped with a warning (often a
-#' wrong decimal mark or thousands separators). A UTF-8 byte-order mark at
-#' the start of the file is ignored.
+#' taken from it (a `frequency` given as well must agree with the dates);
+#' otherwise give `frequency` and `start`. Rows at the end of the file in
+#' which every cell is empty, as Excel often leaves them, are dropped.
+#' Non-numeric columns other than the date column are dropped with a
+#' warning (often a wrong decimal mark or thousands separators). A UTF-8
+#' byte-order mark at the start of the file is ignored.
 #'
 #' @param file Path to a CSV file, or a data frame already read.
-#' @param frequency `NULL` (detect from dates), 12 or 4.
+#' @param frequency `NULL` (detect from dates), 12 or 4. With a date
+#'   column, 4 also reads monthly dates of quarterly data (`2001-01`,
+#'   `2001-04`, ...); a frequency that contradicts the dates is an error.
 #' @param start Start as `c(year, period)` when there is no date column.
 #' @param ... Passed to [utils::read.csv()], e.g. `sep = ";", dec = ","` for
 #'   a file saved by Excel with Indonesian settings.
@@ -33,6 +37,7 @@ read_cli_data <- function(file, frequency = NULL, start = NULL, ...) {
     cyclind_abort("The data need at least two columns.",
                   "cyclind_error_argument")
   }
+  df <- drop_trailing_blank_rows(df)
   first <- df[[1]]
   if (!is.numeric(first)) {
     tm <- parse_dates(as.character(first), frequency)
@@ -65,6 +70,17 @@ read_cli_data <- function(file, frequency = NULL, start = NULL, ...) {
   stats::ts(as.matrix(df[num]), start = start, frequency = frequency)
 }
 
+# Rows at the end in which every cell is empty, as Excel often leaves them
+# (audit E6). Blank rows inside the data are kept, and fail later.
+drop_trailing_blank_rows <- function(df) {
+  if (nrow(df) == 0L) return(df)
+  blank <- Reduce(`&`, lapply(df, function(v) {
+    is.na(v) | !nzchar(trimws(as.character(v)))
+  }))
+  n_keep <- nrow(df) - sum(cumprod(rev(blank)))
+  df[seq_len(n_keep), , drop = FALSE]
+}
+
 has_bom <- function(file) {
   is.character(file) && length(file) == 1L && file.exists(file) &&
     identical(readBin(file, "raw", 3L), as.raw(c(0xef, 0xbb, 0xbf)))
@@ -83,6 +99,11 @@ parse_dates <- function(x, frequency = NULL) {
     year <- as.integer(vapply(m, `[`, "", 2))
     per <- as.integer(vapply(m, `[`, "", 3))
     freq <- 12
+    if (!all(per %in% 1:12)) {
+      cyclind_abort(sprintf(paste("Date '%s': months must lie between 1 and",
+                                  "12."), x[!per %in% 1:12][1]),
+                    "cyclind_error_dates")
+    }
     if (identical(as.numeric(frequency), 4)) {
       per <- (per - 1L) %/% 3L + 1L
       freq <- 4
@@ -90,6 +111,15 @@ parse_dates <- function(x, frequency = NULL) {
   } else {
     cyclind_abort("Dates must look like 2001-01, 2001-01-15 or 2001Q1.",
                   "cyclind_error_dates")
+  }
+  # a frequency given with dates must agree with them (audit E5)
+  if (!is.null(frequency) && !identical(as.numeric(frequency), freq)) {
+    cyclind_abort(sprintf(paste("The dates are %s, but `frequency` is %s;",
+                                "leave `frequency` NULL to take it from the",
+                                "dates."),
+                          if (freq == 4) "quarterly" else "monthly",
+                          paste(format(frequency), collapse = ", ")),
+                  "cyclind_error_frequency")
   }
   pos <- year * freq + per
   if (any(diff(pos) != 1)) {

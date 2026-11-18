@@ -152,3 +152,45 @@ test_that("E3: Chow-Lin without an indicator is an argument error", {
   expect_error(cyclind:::chow_lin(q, "flow", NULL),
                class = "cyclind_error_argument")
 })
+
+# ---- E4, E5, E6: dates of read_cli_data() ----------------------------------
+
+test_that("E4: months outside 1 to 12 are rejected", {
+  # both sequences are consecutive when months are counted as numbers
+  bad <- list(c("2000-11", "2001-00", "2001-01"),
+              c("2000-12", "2000-13", "2001-02"))
+  for (d in bad) {
+    df <- data.frame(date = d, x = 1:3, y = 3:1)
+    expect_error(read_cli_data(df), "between 1 and 12",
+                 class = "cyclind_error_dates")
+  }
+  df <- data.frame(date = c("2000-11", "2000-12", "2001-01"), x = 1:3,
+                   y = 3:1)
+  expect_equal(start(read_cli_data(df)), c(2000, 11))
+})
+
+test_that("E5: a frequency that contradicts the dates is an error", {
+  q <- data.frame(date = c("2001Q1", "2001Q2", "2001Q3"), x = 1:3, y = 3:1)
+  expect_error(read_cli_data(q, frequency = 12), "quarterly",
+               class = "cyclind_error_frequency")
+  expect_equal(frequency(read_cli_data(q, frequency = 4)), 4)
+  m <- data.frame(date = c("2001-01", "2001-02", "2001-03"), x = 1:3, y = 3:1)
+  expect_equal(frequency(read_cli_data(m, frequency = 12)), 12)
+  # quarterly data dated by the first month of the quarter stay allowed
+  qm <- data.frame(date = c("2001-01-01", "2001-04-01", "2001-07-01"),
+                   x = 1:3, y = 3:1)
+  expect_equal(start(read_cli_data(qm, frequency = 4)), c(2001, 1))
+})
+
+test_that("E6: trailing blank rows (Excel) are dropped", {
+  f <- tempfile(fileext = ".csv")
+  on.exit(unlink(f))
+  writeLines(c("date,x,y", "2001Q1,1,3", "2001Q2,2,2", "2001Q3,3,1", ",,",
+               ",,", ""), f)
+  out <- read_cli_data(f)
+  expect_equal(nrow(out), 3L)
+  expect_equal(frequency(out), 4)
+  # a blank row inside the data is still an error
+  writeLines(c("date,x,y", "2001Q1,1,3", ",,", "2001Q3,3,1"), f)
+  expect_error(read_cli_data(f), class = "cyclind_error_dates")
+})
