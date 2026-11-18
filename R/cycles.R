@@ -460,7 +460,8 @@ seasonal_fallback <- function(x, error, reg, hol_names, tf, scale, alpha) {
 # QS test for seasonality (F-13): Ljung-Box statistic on the positive
 # autocorrelations at the seasonal lags s and 2s of the first differences
 # (of the logarithms when `log`), with a chi-squared(2) p-value, as the
-# `qsori` diagnostic of X-13ARIMA-SEATS.
+# `qsori` diagnostic of X-13ARIMA-SEATS; zero when the autocorrelation at
+# lag s is not positive.
 qs_test <- function(x, log = FALSE) {
   s <- stats::frequency(x)
   v <- as.numeric(x)
@@ -471,7 +472,10 @@ qs_test <- function(x, log = FALSE) {
   none <- list(statistic = 0, p_value = 1)
   if (m <= 2L * s + 1L || !(stats::sd(z) > 0)) return(none)
   r <- stats::acf(z, lag.max = 2L * s, plot = FALSE)$acf[-1]
-  rs <- max(0, r[s])
+  # X-13ARIMA-SEATS sets QS to zero when the autocorrelation at lag s is
+  # not positive, whatever the one at lag 2s (audit S3)
+  if (!(r[s] > 0)) return(none)
+  rs <- r[s]
   r2 <- max(0, r[2L * s])
   q <- m * (m + 2) * (rs^2 / (m - s) + r2^2 / (m - 2L * s))
   list(statistic = q, p_value = stats::pchisq(q, 2, lower.tail = FALSE))
