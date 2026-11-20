@@ -1,5 +1,14 @@
 # cyclind (development version)
 
+## New features
+
+* `cli_align()` disaggregates a reference series with two more regression
+  methods from 'tempdisagg': `method = "litterman"` (random-walk residuals
+  with AR(1) increments; Litterman 1983) and `method = "fernandez"`
+  (random-walk residuals; Fernandez 1981), for a reference and indicator
+  that are not cointegrated. Both need a monthly `indicator`, like
+  `"chow-lin"`, and the graphical interface offers them in step 2.
+
 ## Bug fixes
 
 * `cf_filter()` removes the drift (the line through the first and last

@@ -149,7 +149,7 @@ test_that("E2: a candidate shorter than four years is excluded", {
 test_that("E3: Chow-Lin without an indicator is an argument error", {
   sim <- simulate_cycles(seed = 4, n_years = 12)
   q <- stats::aggregate(sim[, "reference"], nfrequency = 4, FUN = sum)
-  expect_error(cyclind:::chow_lin(q, "flow", NULL),
+  expect_error(cyclind:::regression_disagg(q, "flow", NULL),
                class = "cyclind_error_argument")
 })
 

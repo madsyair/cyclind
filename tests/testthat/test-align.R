@@ -150,6 +150,42 @@ test_that("Chow-Lin needs tempdisagg and a monthly indicator", {
                tolerance = 1e-6)
 })
 
+test_that("Litterman and Fernandez need an indicator and keep the totals", {
+  sim <- simulate_cycles(seed = 4, n_years = 12)
+  q <- quarterly_of(sim[, "reference"], "flow")
+  for (m in c("litterman", "fernandez")) {
+    expect_error(cli_align(list(gdp = q), type = c(gdp = "flow"),
+                           reference = "gdp", method = m),
+                 class = "cyclind_error_argument")
+  }
+  skip_if_not_installed("tempdisagg")
+  ind <- sim[, "coincident"]
+  td_name <- c(litterman = "litterman-maxlog", fernandez = "fernandez")
+  for (m in names(td_name)) {
+    x <- cli_align(list(gdp = q), type = c(gdp = "flow"), reference = "gdp",
+                   method = m, indicator = ind)
+    expect_equal(as.numeric(quarterly_of(x[, "gdp"], "flow")),
+                 as.numeric(q), tolerance = 1e-6, info = m)
+    expect_match(attr(x, "alignment")$method[1], m, fixed = TRUE)
+    # the same numbers as tempdisagg called directly
+    direct <- stats::predict(tempdisagg::td(q ~ ind, conversion = "sum",
+                                            method = td_name[[m]]))
+    expect_equal(as.numeric(x[, "gdp"]), as.numeric(direct),
+                 tolerance = 1e-8, info = m)
+  }
+})
+
+test_that("the regression methods write the indicator into the script", {
+  for (m in c("litterman", "fernandez")) {
+    txt <- cyclind:::align_text(list(freq = 12, type = c(a = "flow"),
+                                     reference = "a", method = m,
+                                     indicator = "b"))
+    expect_match(txt, sprintf('method = "%s"', m), fixed = TRUE)
+    expect_match(txt, 'indicator = cli_align(series["b"]', fixed = TRUE)
+    expect_match(txt, 'series[names(series) != "b"]', fixed = TRUE)
+  }
+})
+
 test_that("cli_align rejects unclear input", {
   q <- ts(1:8, start = 2000, frequency = 4)
   expect_error(cli_align(list(q)), class = "cyclind_error_argument")

@@ -74,10 +74,16 @@ series_frequencies <- c(
 #' * **Quarterly to monthly, reference series**: temporal disaggregation that
 #'   keeps the quarterly constraint: `"denton-cholette"` (the smoothest
 #'   monthly path, Denton 1971 with the Cholette modification, computed
-#'   here), `"chow-lin"` (regression on a monthly `indicator`, Chow and Lin
-#'   1971, via the 'tempdisagg' package; the indicator must not also be a
-#'   candidate) or `"linear"`. The OECD builds a monthly GDP reference
-#'   with its own method, which cyclind does not reproduce; any of these
+#'   here), one of three regressions on a monthly `indicator` via the
+#'   'tempdisagg' package (Sax and Steiner 2013), or `"linear"`. The
+#'   regressions differ in the residuals they assume: `"chow-lin"` (AR(1),
+#'   for a reference and indicator that are stationary or cointegrated;
+#'   Chow and Lin 1971), `"litterman"` (random walk with AR(1) increments;
+#'   Litterman 1983) and `"fernandez"` (random walk, the Litterman model with
+#'   zero autocorrelation; Fernandez 1981); the autocorrelation is estimated
+#'   by maximum likelihood. The indicator must not also be a candidate. The
+#'   OECD builds a monthly GDP reference with its own method, which cyclind
+#'   does not reproduce; any of these
 #'   gives a similar reference cycle (`vignette("oecd-indonesia")`).
 #' * **Quarterly to monthly, candidates**: linear interpolation with the
 #'   quarterly value placed in the central month (flows, averages) or the
@@ -101,8 +107,8 @@ series_frequencies <- c(
 #'   with `method` instead of interpolated.
 #' @param method Disaggregation method for a quarterly, semiannual or annual
 #'   reference series.
-#' @param indicator `ts` at the target frequency used by
-#'   `method = "chow-lin"`.
+#' @param indicator `ts` at the target frequency used by the regression
+#'   methods `"chow-lin"`, `"litterman"` and `"fernandez"`.
 #' @param position Named integers: subperiod at which a value is placed
 #'   before linear interpolation, 1 to 3 (month of the quarter) for a
 #'   quarterly candidate, 1 to k for a semiannual or annual reference with
@@ -126,11 +132,18 @@ series_frequencies <- c(
 #' totals: an approach based on quadratic minimization. *Journal of the
 #' American Statistical Association*, 66(333), 99--102.
 #'
+#' Fernandez, R. B. (1981). A methodological note on the estimation of
+#' time series. *Review of Economics and Statistics*, 63(3), 471--476.
+#'
 #' Gyomai, G. and Guidetti, E. (2012). *OECD System of Composite Leading
 #' Indicators*. OECD, Paris.
 #'
 #' International Monetary Fund (2017). *Quarterly National Accounts Manual*,
 #' chapter 6: Benchmarking and reconciliation. IMF, Washington.
+#'
+#' Litterman, R. B. (1983). A random walk, Markov model for the
+#' distribution of time series. *Journal of Business & Economic
+#' Statistics*, 1(2), 169--173.
 #'
 #' Sax, C. and Steiner, P. (2013). Temporal disaggregation of time series.
 #' *The R Journal*, 5(2), 80--87.
@@ -151,7 +164,8 @@ series_frequencies <- c(
 #' cand <- cli_candidates(x, reference = "gdp", meta = meta)
 #' @export
 cli_align <- function(series, freq = 12, type = NULL, reference = NULL,
-                      method = c("denton-cholette", "chow-lin", "linear"),
+                      method = c("denton-cholette", "chow-lin", "litterman",
+                                 "fernandez", "linear"),
                       indicator = NULL, position = NULL,
                       week_date = c("start", "end"), min_coverage = 0.7,
                       frequency = NULL) {
@@ -414,7 +428,9 @@ convert_one <- function(s, nm, tp, freq, is_ref, method, indicator,
   if (is_ref) {
     x <- switch(method,
       "denton-cholette" = denton_cholette(s$x, tp, freq),
-      "chow-lin" = chow_lin(s$x, tp, indicator, freq),
+      "chow-lin" = ,
+      "litterman" = ,
+      "fernandez" = regression_disagg(s$x, tp, indicator, freq, method),
       "linear" = if (low) {
         k <- as.integer(round(freq / stats::frequency(s$x)))
         interpolate_reference(s$x, tp, freq,
@@ -577,17 +593,27 @@ denton_cholette <- function(q, tp, to = 12) {
   as_ts_like(sol[seq_len(n)], target_frame(core, to))
 }
 
-chow_lin <- function(q, tp, indicator, to = 12) {
+# Regression methods of temporal disaggregation (Sax and Steiner 2013): the
+# method names of cli_align() and of tempdisagg::td(); the autoregressive
+# parameter is estimated by maximum likelihood where the model has one.
+td_methods <- c("chow-lin" = "chow-lin-maxlog",
+                "litterman" = "litterman-maxlog",
+                "fernandez" = "fernandez")
+
+regression_disagg <- function(q, tp, indicator, to = 12,
+                              method = "chow-lin") {
   # the arguments are checked before the optional dependency, so that a
   # wrong call gives the same error with or without 'tempdisagg'
   if (is.null(indicator) || !stats::is.ts(indicator) ||
       stats::frequency(indicator) != to) {
-    cyclind_abort(sprintf(paste("`method = \"chow-lin\"` needs an `indicator`",
-                                "ts at the target frequency (%s)."), to),
+    cyclind_abort(sprintf(paste("`method = \"%s\"` needs an `indicator`",
+                                "ts at the target frequency (%s)."),
+                          method, to),
                   "cyclind_error_argument")
   }
   if (!requireNamespace("tempdisagg", quietly = TRUE)) {
-    cyclind_abort("`method = \"chow-lin\"` needs the 'tempdisagg' package.",
+    cyclind_abort(sprintf("`method = \"%s\"` needs the 'tempdisagg' package.",
+                          method),
                   "cyclind_error_dependency")
   }
   conv <- c(flow = "sum", stock = "last", average = "average")[[tp]]
@@ -598,6 +624,6 @@ chow_lin <- function(q, tp, indicator, to = 12) {
   ind <- stats::window(ind, start = c(stats::start(y)[1],
                                       k * (stats::start(y)[2] - 1L) + 1L))
   fit <- tempdisagg::td(y ~ ind, conversion = conv,
-                        method = "chow-lin-maxlog")
+                        method = td_methods[[method]])
   stats::predict(fit)
 }
