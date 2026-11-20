@@ -1313,9 +1313,9 @@ app_server <- function(language = "en") {
                       indicator = if (convert) input$align_indicator,
                       week_date = input$week_date,
                       min_coverage = input$align_coverage)
-        if (identical(align$method, "chow-lin") &&
+        if (isTRUE(align$method %in% names(td_methods)) &&
             given(align$indicator)) {
-          # the Chow-Lin indicator is not a candidate
+          # the indicator of a regression method is not a candidate
           keep <- meta$name != align$indicator
           meta <- meta[keep, , drop = FALSE]
           align$type <- align$type[names(align$type) != align$indicator]

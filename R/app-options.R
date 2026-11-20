@@ -417,15 +417,16 @@ align_text <- function(al) {
   if (!is.null(al$indicator) && !is.atomic(al$indicator)) {
     bad_input("align_indicator")
   }
-  chow <- identical(al$method, "chow-lin") && given(al$indicator)
-  # the indicator of Chow-Lin explains the reference, so it is not a
-  # candidate (see ?cli_align)
-  first <- if (chow) {
+  by_regression <- isTRUE(al$method %in% names(td_methods)) &&
+    given(al$indicator)
+  # the indicator of a regression method explains the reference, so it is
+  # not a candidate (see ?cli_align)
+  first <- if (by_regression) {
     sprintf("series[names(series) != %s]", chr_text(al$indicator))
   } else {
     "series"
   }
-  indicator <- if (chow) {
+  indicator <- if (by_regression) {
     sprintf("cli_align(series[%s], freq = %s)[, %s]",
             chr_text(al$indicator), al$freq, chr_text(al$indicator))
   }
@@ -437,7 +438,7 @@ align_text <- function(al) {
     reference = chr_text(al$reference),
     method = if (!is.null(al$method) &&
                  !identical(al$method, "denton-cholette")) {
-      choice_text(al$method, c("chow-lin", "linear"), "align_method")
+      choice_text(al$method, c(names(td_methods), "linear"), "align_method")
     },
     indicator = indicator,
     week_date = if (identical(al$week_date, "end")) "\"end\"",
@@ -460,16 +461,18 @@ align_ui <- function(t, series, reference, freq, old) {
   convert <- !identical(attr(series[[reference]], "frequency"), target)
   has_td <- requireNamespace("tempdisagg", quietly = TRUE)
   methods <- stats::setNames(
-    c("denton-cholette", "chow-lin", "linear"),
+    c("denton-cholette", names(td_methods), "linear"),
     c(t("align_dc"),
-      paste(t("align_cl"), if (!has_td) t("tempdisagg_missing")),
+      paste(c(t("align_cl"), t("align_lit"), t("align_fer")),
+            if (!has_td) t("tempdisagg_missing")),
       t("align_lin")))
   shiny::fluidRow(
     if (convert) shiny::column(3, shiny::selectInput(
       "align_method", t("align_method"), methods,
       selected = keep("align_method", "denton-cholette"))),
     if (convert) shiny::column(3, shiny::conditionalPanel(
-      "input.align_method == 'chow-lin'",
+      sprintf("[%s].indexOf(input.align_method) >= 0",
+              paste0("'", names(td_methods), "'", collapse = ", ")),
       shiny::selectInput("align_indicator", t("align_indicator"),
                          c(stats::setNames("", t("none")), same),
                          selected = keep("align_indicator", "")),

@@ -429,8 +429,10 @@ are taken at the end of the period, averages are averaged. Weekly data are
 spread over their days before they are summed into months, so that months
 of five weeks do not look larger than months of four. A quarterly
 reference series is disaggregated to months with the Denton-Cholette
-method (Denton 1971) or the Chow-Lin method (Chow and Lin 1971) with a
-monthly indicator that is not a candidate; quarterly candidates are
+method (Denton 1971) or by regression on a monthly indicator that is not a
+candidate: Chow-Lin (Chow and Lin 1971), Litterman (Litterman 1983) or
+Fernandez (Fernandez 1981), the last two for a reference and indicator that
+are not cointegrated (Sax and Steiner 2013); quarterly candidates are
 interpolated at the month the OECD uses (central month, or last month for
 stocks; Gyomai and Guidetti 2012, p. 6).
 
@@ -953,6 +955,9 @@ totals: an approach based on quadratic minimization. *Journal of the
 American Statistical Association*, 66(333), 99–102.
 <https://doi.org/10.1080/01621459.1971.10482227>
 
+Fernandez, R. B. (1981). A methodological note on the estimation of time
+series. *Review of Economics and Statistics*, 63(3), 471–476.
+
 Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
 leading indicators. In G. L. Mazzi and A. Ozyildirim (eds.), *Handbook on
 Cyclical Composite Indicators for Business Cycle Analysis*, chapter 10,
@@ -975,6 +980,9 @@ Kiefer, N. M. and Vogelsang, T. J. (2005). A new asymptotic theory for
 heteroskedasticity-autocorrelation robust tests. *Econometric Theory*,
 21(6), 1130–1164. <https://doi.org/10.1017/S0266466605050565>
 
+Litterman, R. B. (1983). A random walk, Markov model for the distribution
+of time series. *Journal of Business & Economic Statistics*, 1(2), 169–173.
+
 Marcellino, M. (2006). Leading indicators. In G. Elliott, C. W. J. Granger
 and A. Timmermann (eds.), *Handbook of Economic Forecasting*, Vol. 1,
 879–960. Elsevier, Amsterdam.
@@ -989,6 +997,9 @@ Pesaran, M. H. and Timmermann, A. (2009). Testing dependence among
 serially correlated multicategory variables. *Journal of the American
 Statistical Association*, 104(485), 325–337.
 <https://doi.org/10.1198/jasa.2009.0113>
+
+Sax, C. and Steiner, P. (2013). Temporal disaggregation of time series.
+*The R Journal*, 5(2), 80–87.
 
 Toda, H. Y. and Yamamoto, T. (1995). Statistical inference in vector
 autoregressions with possibly integrated processes. *Journal of
