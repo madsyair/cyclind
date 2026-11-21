@@ -301,7 +301,9 @@ holidays_text <- function(input, span = NULL) {
 
 # Code of step 3: `spec <- cli_spec(...)` or `spec <- oecd_spec(...)`.
 # `span`: first and last time of the data (see holidays_text()).
-spec_call <- function(input, freq, span = NULL) {
+# `decisions`: TRUE when the script defines a table `decisions` of expert
+# outlier decisions (see tramo_outliers()).
+spec_call <- function(input, freq, span = NULL, decisions = FALSE) {
   cuts <- parse_cutoffs(input$oos_cutoffs)
   cut <- if (length(cuts) > 0L) deparse_value(cuts)
   if (identical(input$method, "oecd")) {
@@ -318,7 +320,8 @@ spec_call <- function(input, freq, span = NULL) {
       filter = if (isTRUE(input$oecd_rates)) {
         call_text("hp_smoother", list(
           period = num_in(input, "oecd_smooth_period")))
-      }, form = form_text(input))))
+      }, form = form_text(input),
+      decisions = if (isTRUE(decisions)) "decisions")))
   }
   tramo <- identical(input$outlier_method, "tramo")
   assign_text("spec", "cli_spec", list(
@@ -330,7 +333,10 @@ spec_call <- function(input, freq, span = NULL) {
     seasonal_adjust = deparse_value(isTRUE(input$seasonal)),
     holidays = holidays_text(input, span),
     outlier_threshold = if (!tramo) num_in(input, "outlier"),
-    outliers = if (tramo) "tramo_outliers()",
+    outliers = if (tramo) {
+      if (isTRUE(decisions)) "tramo_outliers(decisions = decisions)" else
+        "tramo_outliers()"
+    },
     min_lead = num_in(input, "min_lead"),
     min_median_lead = num_in(input, "min_median_lead"),
     min_consistency = num_in(input, "min_consistency"),
