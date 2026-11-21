@@ -515,25 +515,30 @@ c(-7, -1), after = c(0, 2)))`.
 ## 9. The OECD method and the defaults
 
 `oecd_spec()` follows the OECD documents (Gyomai and Guidetti 2012,
-"GG12"; Gyomai, Ahmad and Astolfi 2017, "GAA17") where they state a rule.
-The table gives the source of each step and marks the choices of cyclind
-where the documents give no formula:
+"GG12"; Fulop and Gyomai 2012, "FG12"; Gyomai, Ahmad and Astolfi 2017,
+"GAA17") where they state a rule. The table gives the source and page of
+each OECD rule and marks with "(cyclind)" every choice that the documents
+do not write:
 
 | Step | OECD rule (source) | `oecd_spec()` | `cli_spec()` |
 | --- | --- | --- | --- |
 | Outliers | TRAMO; additive outliers removed, level shifts on expert judgement, transitory changes not mentioned (GAA17 p. 283) | `tramo_outliers()`, `outlier_types = "AO"` (cyclind: TC kept) | robust z-score |
 | Target cycle | growth cycle; growth rate and classical CLIs are presentations (GAA17 pp. 276--277) | `level_form()` | same |
-| Log or levels | TRAMO test (GAA17 p. 284) | `transform = "test"` | `"auto"` |
-| End of series | 2--6 months of TRAMO forecasts (GAA17 p. 284) | 2 months | 12 months, AR |
+| Log or levels | TRAMO test (GG12 p. 7; GAA17 p. 284) | `transform = "test"` | `"auto"` |
+| End of series | 2--6 months of TRAMO forecasts (GAA17 p. 284) | 2 months (cyclind) | 12 months, AR |
 | Cycle | double HP, 12--120 months (GG12 pp. 7, 15) | same | same |
 | Normalisation | mean, mean absolute deviation (GG12 p. 7) | same | same |
-| Turning points | Bry-Boschan, phase 9, cycle 24 months (GAA17 p. 285) | `oecd_dater()` | `bry_boschan()`, 5/15 |
-| Matching window | 24 months lead, 9 lag (GAA17 p. 285) | `c(9, 24)` | `c(12, 24)` |
-| Evaluation | lead, conformity, missing or extra cycles, no thresholds (GG12 p. 8) | 40 percent, fixed-b test, positive peak (cyclind) | calibrated thresholds |
-| Classification | median lead, coincident within 2 months, no minimum of turning points (GG12 p. 9) | `oecd_classifier()`, `min_matched = 3` (cyclind) | `cyclind_classifier()` |
+| Turning points | simplified Bry-Boschan, phase 9, cycle 24 months, "rules of thumb" (GAA17 p. 285; FG12 p. 3) | `oecd_dater()` | `bry_boschan()`, 5/15 |
+| Dating window and ends | not given | 5 and 6 months, Bry-Boschan values (cyclind) | same |
+| Short phase | which turning point goes: not given | the most extreme are kept, `phase_rule = "symmetric"` (cyclind) | same |
+| Matching window | 24 months lead, 9 lag (GAA17 p. 285; FG12 p. 3) | `c(9, 24)` | `c(12, 24)` |
+| Evaluation | lead, conformity, missing or extra cycles, no thresholds (GG12 p. 8; GAA17 pp. 285--286) | `rule = "cyclind"`: at least 3 matched, at most 40 percent missed or extra, fixed-b concordance test, positive peak (cyclind); `rule = "document"`: reported only | calibrated thresholds |
+| Classification | median lead: coincident within 2 months, leading from 2, longer over 8, no minimum of turning points (GG12 p. 9) | `oecd_classifier()` | `cyclind_classifier()` |
+| Lag of the cross-correlation peak | "should not be too different from the median lead", no number (GAA17 p. 286; GG12 p. 8) | `rule = "cyclind"`: coincident series only (cyclind); `rule = "document"`: within 6 months (cyclind number) | `min_lead` |
 | Lag-shifting | not used in practice (GAA17 p. 287) | off | off |
-| Aggregation | chained mean of ratios, 60 percent rule (GAA17 p. 286, note 8) | chained mean log ratio (cyclind) | `equal_weight()` |
-| Amplitude | rescaled to the reference, measure not given (GAA17 p. 288) | standard deviation (cyclind) | mean absolute deviation |
+| Aggregation | chained mean of ratios, 60 percent rule (GAA17 p. 286, note 8) | chained mean log ratio, reciprocal inversion (cyclind, calibrated on the CLI of Indonesia) | `equal_weight()` |
+| Amplitude | rescaled to the reference, measure not given (GG12 p. 9; GAA17 p. 288) | standard deviation (cyclind, calibrated on the CLI of Indonesia) | mean absolute deviation |
+| Quarterly data | monthly system; quarterly series interpolated to months (GG12 p. 6; FG12 p. 3) | month thresholds converted to quarters (cyclind) | same |
 | Trend restored | not computed while GDP is missing (OECD 2024, question 6) | same | same |
 
 For quarterly data `oecd_spec()` uses phases of 3 and cycles of 8
@@ -551,7 +556,29 @@ percent missed or extra turning points, concordance significant at 5
 percent with the fixed-b test, a positive cross-correlation peak), the
 minimum of three matched turning points (`min_matched = 3`), the
 aggregation by mean log ratios with the inversion of counter-cyclical
-components, and the amplitude measure.
+components, and the amplitude measure. The OECD counts a phase shift of
++/- 2 months as coincident because the linear interpolation of quarterly
+GDP to months shifts the phase (FG12 pp. 3--4); on a quarterly grid a
+median lead of half a quarter is coincident and one quarter (3 months) is
+already leading.
+
+`oecd_classifier()` has two rules. The default, `rule = "cyclind"`, adds
+the thresholds above before the median lead is read; its results are
+unchanged. `rule = "document"` applies only what the documents write: the
+class follows the median lead with at least one matched turning point,
+and a series whose cross-correlation peak lies more than `ccf_tolerance`
+months from its median lead is rejected, the one cross-check the
+documents formulate (GAA17 p. 286; GG12 p. 8). The OECD gives no number
+for "not too different"; the default of 6 months is a choice of cyclind.
+It is the largest gap between the median lead and the peak lead among
+the CLIs the OECD kept when it moved to GDP as the target, except one
+(Slovenia, 7 months; FG12 tables 2a and 2b, pp. 5--6), and it keeps the
+CLI of Indonesia itself (median 8, peak 3 months; FG12 p. 7).
+
+```{r oecd-document, eval = FALSE}
+spec_doc <- oecd_spec(classifier = oecd_classifier(rule = "document"))
+cli_assess(cand, spec_doc)
+```
 
 The choices of cyclind, in one list (each can be changed in
 `oecd_spec()` or `oecd_classifier()`):
@@ -565,9 +592,16 @@ The choices of cyclind, in one list (each can be changed in
   transitory change as the decay after it, with a warning
   (`cyclind_warning_outlier_collinear`; `?OutlierTreatment`).
 * `min_matched = 3`, the 40 percent limits of missed and extra turning
-  points and the fixed-b test of concordance (`?oecd_classifier`).
+  points and the fixed-b test of concordance (`?oecd_classifier`), in the
+  default `oecd_classifier(rule = "cyclind")`.
+* the tolerance of 6 months between the lead of the cross-correlation
+  peak and the median lead in `oecd_classifier(rule = "document")`.
+* the dating window and the end exclusion of `oecd_dater()` (5 and 6
+  months, the Bry-Boschan values), and the symmetric phase rule.
 * aggregation by mean log ratios with reciprocal inversion
-  (`oecd_aggregate()`), and the standard deviation as amplitude measure.
+  (`oecd_aggregate()`), and the standard deviation as amplitude measure,
+  both chosen because they reproduce the published CLI of Indonesia (see
+  the replication below).
 * quarterly mode: phases of 3 and cycles of 8 quarters, a matching window
   of 3 and 8 quarters.
 * the transformation decided by cyclind (`transform`) is also passed to
@@ -746,6 +780,12 @@ b_corr <- comp$B_corr_with_oecd_cycle[!is.na(comp$B_corr_with_oecd_cycle)]
 rs <- comp[comp$component == "RS", ]
 bench <- row("OECD published")
 n_med <- table(cmp_c$A_class_oecd_median_rule)
+classes <- c("leading", "coincident", "lagging", "rejected")
+n_doc <- table(factor(cmp_c$A_class_oecd_document_rule, classes))
+n_doc_sign <- table(factor(cmp_c$A_class_oecd_document_rule_oecd_signs,
+                           classes))
+doc_out <- cmp_c$component[
+  cmp_c$A_class_oecd_document_rule_oecd_signs == "rejected"]
 last <- gaps[grepl("components available", gaps$variant), ]
 ```
 
@@ -799,7 +839,9 @@ The second experiment runs the whole method from the original series:
 
 ```{r oecd-idn-components}
 comp[, c("component", "A_class_oecd_rule", "A_class_oecd_median_rule",
-         "A_median_lead", "B_corr_with_oecd_cycle", "B_tp_matched",
+         "A_class_oecd_document_rule",
+         "A_class_oecd_document_rule_oecd_signs", "A_median_lead",
+         "A_ccf_lag_oecd_spec", "B_corr_with_oecd_cycle", "B_tp_matched",
          "B_tp_oecd")]
 ```
 
@@ -820,10 +862,20 @@ more turning points in the components than in GDP and several fail the
 concordance test. The published CLI itself has `r bench$ref_extra` extra
 turning points against `r bench$ref_tp_rs` of the reference, a share
 above the `max_extra` of 0.4 that the conformity criteria use.
-`cli_build()` then finds no leading component (B2). The OECD chose the
+`cli_build()` then finds no leading component (B2). In its own
+evaluation of 2012 against GDP the OECD found 1 missed and 5 extra
+turning points for 8 of the reference in this CLI and flagged it for
+review, not for withdrawal (FG12 pp. 7--8, table 2c). The OECD chose the
 components with economic rationale and on an earlier sample, so the
 stricter rule is a warning about the Indonesian components, not a
-contradiction. `vignette("oecd-indonesia")` runs the second experiment
+contradiction, and it is not the rule of the OECD documents. Read with
+`oecd_classifier(rule = "document")`, which drops the thresholds of
+cyclind and keeps the cross-check of the lag, the seven components give
+`r n_doc[["leading"]]` leading and `r n_doc[["coincident"]]` coincident
+with the signs cyclind finds, and `r n_doc_sign[["leading"]]` leading and
+`r n_doc_sign[["coincident"]]` coincident with the OECD signs given as
+`meta$sign`; `r words(doc_out)` fail the cross-check of the lag (their
+median lead is far from the lead of the cross-correlation peak). `vignette("oecd-indonesia")` runs the second experiment
 step by step.
 
 ## 10. A coincident index
@@ -1052,7 +1104,8 @@ Fernandez, R. B. (1981). A methodological note on the estimation of time
 series. *Review of Economics and Statistics*, 63(3), 471–476.
 
 Fulop, G. and Gyomai, G. (2012). *Transition of the OECD CLI System to a
-GDP-based Business Cycle Target*. OECD background note, Paris.
+GDP-based Business Cycle Target*. OECD Composite Leading Indicators,
+Background note, March 2012. OECD, Paris.
 
 Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
 leading indicators. In G. L. Mazzi and A. Ozyildirim (eds.), *Handbook on

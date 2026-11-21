@@ -5,6 +5,7 @@
 \alias{coincident_criteria,Classifier-method}
 \alias{coincident_criteria,CyclindClassifier-method}
 \alias{coincident_criteria,OecdClassifier-method}
+\alias{coincident_criteria,OecdDocumentClassifier-method}
 \title{Coincident criteria}
 \usage{
 coincident_criteria(classifier, row, spec)
@@ -14,6 +15,8 @@ coincident_criteria(classifier, row, spec)
 \S4method{coincident_criteria}{CyclindClassifier}(classifier, row, spec)
 
 \S4method{coincident_criteria}{OecdClassifier}(classifier, row, spec)
+
+\S4method{coincident_criteria}{OecdDocumentClassifier}(classifier, row, spec)
 }
 \arguments{
 \item{classifier}{A \linkS4class{Classifier}.}
@@ -47,6 +50,11 @@ default) the cross-correlation peak must also be positive and lie
 strictly inside the same band (lags -1 to 1 for monthly data, lag 0 for
 quarterly data), so that an index whose median lead is coincident but
 which moves with the reference several periods later is not accepted.
+\item \code{OecdDocumentClassifier} (\code{oecd_classifier(rule = "document")}): at
+least \code{min_matched} matched turning points, a median lead strictly
+inside +/- \code{coincident} months, and a cross-correlation peak within
+\code{ccf_tolerance} months of the median lead, the cross-check of the OECD
+documents (Gyomai, Ahmad and Astolfi 2017, p. 286).
 \item any other \code{Classifier}: at least three matched turning points and a
 median lead within the timing band.
 }

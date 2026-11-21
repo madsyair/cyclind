@@ -106,6 +106,102 @@ test_that("the default classifier is unchanged", {
     classifier = oecd_classifier()))$class, "leading")
 })
 
+# O-M1 (review of the OECD expert, 2026-11): the rule of the OECD documents.
+# The class follows the median lead alone (GG12 p. 9), without the
+# thresholds of cyclind (three matched turning points, 40 percent missed or
+# extra, concordance); the only cross-check the documents write is that the
+# lead of the cross-correlation peak "should not be too different from the
+# median lead" (GG12 p. 8; GAA17 p. 286), here within `ccf_tolerance`
+# months (a choice of cyclind; the OECD gives no number).
+test_that("O-M1: oecd_classifier(rule = 'document') reads the median lead", {
+  d <- oecd_classifier(rule = "document")
+  expect_s4_class(d, "OecdDocumentClassifier")
+  expect_s4_class(d, "OecdClassifier")
+  expect_equal(d@ccf_tolerance, 6)
+  expect_equal(d@min_matched, 1)
+  s <- update(spec, classifier = d)
+  cls <- function(r, sp = s) cyclind:::classify_row(r, sp)
+  # none of the cyclind thresholds: one matched turning point, many missed
+  # and extra ones, no significant concordance, a weak correlation
+  loose <- transform(row_with(6, n_matched = 1), missed = 4, extra = 6,
+                     concordance_p = 0.9, ccf_r = 0.1)
+  expect_equal(cls(loose)$class, "leading")
+  expect_equal(cls(loose)$reasons, "")
+  expect_equal(cyclind:::classify_row(loose, update(
+    spec, classifier = oecd_classifier()))$class, "rejected")
+  # the median-lead table of GG12 p. 9
+  expect_equal(cls(row_with(12))$class, "leading")
+  expect_match(cls(row_with(12))$reasons, "longer")
+  expect_equal(cls(row_with(1.5))$class, "coincident")
+  expect_equal(cls(row_with(-3))$class, "lagging")
+  expect_equal(cls(row_with(NA))$class, "rejected")
+  expect_equal(cls(row_with(6, n_matched = 0))$class, "rejected")
+  # a long median lead with the cross-correlation peak at lag 0
+  far <- transform(row_with(10.5), ccf_lag = 0)
+  expect_equal(cls(far)$class, "rejected")
+  expect_equal(cls(far)$reasons, "ccf lag")
+  expect_equal(cyclind:::classify_row(far, update(
+    spec, classifier = oecd_classifier()))$class, "leading")
+  expect_equal(cls(transform(row_with(10.5), ccf_lag = 4.5))$class,
+               "leading")
+  expect_equal(cls(transform(row_with(-1), ccf_lag = 8))$class, "rejected")
+  expect_equal(cls(transform(row_with(6), ccf_lag = NA))$class, "rejected")
+  # the tolerance is in months and can be changed
+  s3 <- update(spec, classifier = oecd_classifier(rule = "document",
+                                                  ccf_tolerance = 3))
+  expect_equal(cls(transform(row_with(10.5), ccf_lag = 4.5), s3)$class,
+               "rejected")
+  # quarterly: 6 months are 2 quarters (review L-M1: lead 3.5 quarters with
+  # the peak at 0 fails, lead 3 with the peak at 1 passes)
+  sq <- cli_spec(4, classifier = d)
+  expect_equal(cls(transform(row_with(3.5), ccf_lag = 0), sq)$class,
+               "rejected")
+  expect_equal(cls(transform(row_with(3), ccf_lag = 1), sq)$class, "leading")
+  expect_equal(cls(transform(row_with(0.5), ccf_lag = 0), sq)$class,
+               "coincident")
+  # criteria, scorecard and coincident validation report the cross-check
+  chk <- leading_criteria(d, far, s)
+  expect_named(chk, c("matched", "lead", "ccf_fit"))
+  expect_equal(unname(chk), c(TRUE, TRUE, FALSE))
+  q <- cyclind:::quality_criteria(d, far, s)
+  fit <- q[q$criterion == "cross-correlation lead minus median lead", ]
+  expect_equal(fit$value, -10.5)
+  expect_false(fit$passed)
+  expect_equal(fit$threshold, "within +/- 6")
+  cc <- coincident_criteria(d, transform(row_with(0), ccf_lag = -8), s)
+  expect_named(cc, c("matched", "ccf", "timing"))
+  expect_false(cc[["ccf"]])
+  expect_true(coincident_criteria(d, row_with(0), s)[["ccf"]])
+  rules <- cyclind:::coincident_quality(d, row_with(0), sq)
+  expect_true(any(grepl("median lead| <= 6 months", rules$threshold,
+                        fixed = TRUE)))
+  # printing
+  expect_output(show(d), "OECD documents")
+  expect_output(show(d), "6 months")
+  expect_output(show(s), "cross-correlation peak within 6 months")
+  # arguments
+  expect_error(oecd_classifier(rule = "document", ccf_tolerance = -1),
+               class = "cyclind_error_argument")
+  expect_error(oecd_classifier(rule = "document", conformity = TRUE),
+               class = "cyclind_error_argument")
+  expect_error(oecd_classifier(rule = "other"))
+  expect_equal(oecd_classifier(rule = "document", min_matched = 3)@min_matched,
+               3)
+  expect_s4_class(oecd_spec(classifier = d)@classifier,
+                  "OecdDocumentClassifier")
+})
+
+test_that("O-M1: the default OECD classifier is unchanged", {
+  expect_identical(oecd_classifier(rule = "cyclind"), oecd_classifier())
+  expect_identical(class(oecd_classifier())[[1]], "OecdClassifier")
+  expect_identical(
+    oecd_classifier(),
+    new("OecdClassifier",
+        label = "OECD: median lead at turning points, cyclical conformity",
+        coincident = 2, long = 8, min_matched = 3, conformity = TRUE))
+  expect_false(methods::.hasSlot(oecd_classifier(), "ccf_tolerance"))
+})
+
 test_that("OECD aggregation chains the average growth of the components", {
   s <- update(spec, aggregator = oecd_aggregate(growth = "ratio"))
   z <- cbind(a = c(1, 2, 1, 0), b = c(0, 1, 3, 2))
@@ -575,6 +671,56 @@ test_that("signs of the Indonesian components: data and meta$sign", {
   a <- cli_assess(cand, oecd_spec(), cycles = o$cycles)
   expect_setequal(a@inverted, c("LOCOEX", "LOCOST", "LOCOPP"))
   expect_true(all(as.data.frame(a)$sign_source == "meta"))
+})
+
+test_that("O-M1: the document rule on the OECD components of Indonesia", {
+  # experiment A of data-raw/oecd_idn_validate.R: the OECD cycles go in as
+  # they are, with the signs found by cyclind and with the OECD signs
+  o <- oecd_idn()
+  meta <- data.frame(name = o$comps, rationale = "early_stage")
+  assess <- function(cls, meta) {
+    cand <- cli_candidates(o$x[, c("RS", o$comps)], "RS", meta = meta)
+    as.data.frame(cli_assess(cand, oecd_spec(classifier = cls),
+                             cycles = o$cycles))
+  }
+  doc <- assess(oecd_classifier(rule = "document"), meta)
+  old <- assess(oecd_classifier(), meta)
+  stored <- utils::read.csv(system.file("calibration",
+                                        "oecd-idn-components.csv",
+                                        package = "cyclind"))
+  stored <- stored[match(doc$name, stored$component), ]
+  # the default rule rejects all seven, as before
+  expect_true(all(old$class == "rejected"))
+  expect_identical(old$class, stored$A_class_oecd_rule)
+  expect_identical(old$reasons, stored$A_reasons_oecd_rule)
+  # the document rule rejects none for missed or extra turning points or
+  # concordance; only the cross-check of the lag rejects
+  expect_false(any(grepl("missed|extra|concordance", doc$reasons)))
+  expect_true(all(doc$reasons[doc$class == "rejected"] == "ccf lag"))
+  expect_identical(doc$class, stored$A_class_oecd_document_rule)
+  expect_identical(doc$reasons, stored$A_reasons_oecd_document_rule)
+  expect_equal(doc$ccf_lag, stored$A_ccf_lag_oecd_spec)
+  fit <- abs(doc$ccf_lag - doc$median_lead) <= 6
+  expect_identical(doc$class != "rejected", fit)
+  # signs found by cyclind: 3 leading and 1 coincident (the interest rate
+  # is not inverted and peaks 16 months after GDP)
+  expect_equal(sum(doc$class == "leading"), 3L)
+  expect_equal(sum(doc$class == "coincident"), 1L)
+  # with the OECD signs (meta$sign): 4 leading and 1 coincident; the
+  # exchange rate (median lead 9.5, peak 3) and producer prices fail the
+  # cross-check
+  meta$sign <- ifelse(o$comps %in% c("LOCOEX", "LOCOST", "LOCOPP"), -1, 1)
+  doc_sign <- assess(oecd_classifier(rule = "document"), meta)
+  expect_identical(doc_sign$class,
+                   stored$A_class_oecd_document_rule_oecd_signs)
+  expect_equal(sum(doc_sign$class == "leading"), 4L)
+  expect_equal(sum(doc_sign$class == "coincident"), 1L)
+  expect_setequal(doc_sign$name[doc_sign$class == "rejected"],
+                  c("LOCOEX", "LOCOPP"))
+  # one quarter of tolerance keeps only 2 leading
+  doc3 <- assess(oecd_classifier(rule = "document", ccf_tolerance = 3), meta)
+  expect_equal(sum(doc3$class == "leading"), 2L)
+  expect_equal(sum(doc3$class == "coincident"), 0L)
 })
 
 test_that("FR-014.6: the OECD example files of Indonesia read and align", {

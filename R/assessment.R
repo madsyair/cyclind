@@ -483,6 +483,30 @@ oecd_ccf_coincident <- function(classifier, row, spec) {
     isTRUE(row$ccf_r > 0)
 }
 
+# Cross-check of the OECD documents: the lead of the cross-correlation peak
+# "should not be too different from the median lead" (GAA17 p. 286; GG12
+# p. 8). The tolerance, in months, is a choice of cyclind.
+oecd_ccf_fit <- function(classifier, row, spec) {
+  tolerance <- classifier@ccf_tolerance * spec@freq / 12
+  isTRUE(abs(row$ccf_lag - row$median_lead) <= tolerance + 1e-8)
+}
+
+#' @rdname Classifier-class
+setMethod("leading_criteria", "OecdDocumentClassifier",
+          function(classifier, row, spec) {
+  c(callNextMethod(), ccf_fit = oecd_ccf_fit(classifier, row, spec))
+})
+
+#' @rdname Classifier-class
+setMethod("classify_candidate", "OecdDocumentClassifier",
+          function(classifier, row, spec) {
+  out <- callNextMethod()
+  if (out$class == "rejected" || oecd_ccf_fit(classifier, row, spec)) {
+    return(out)
+  }
+  list(class = "rejected", reasons = "ccf lag")
+})
+
 # Where the direction came from; assessments made before 0.6.0 have none.
 sign_sources <- function(tab) {
   if ("sign_source" %in% names(tab)) tab$sign_source else
@@ -562,7 +586,10 @@ invert_cycle <- function(cs) {
 #'
 #' With [oecd_classifier()] the class follows the OECD table of median leads
 #' at turning points (coincident within +/- 2 months, lagging at -2 months
-#' or less); the other statistics are reported but not used.
+#' or less; Gyomai and Guidetti 2012, p. 9), after the conformity thresholds
+#' of cyclind (`rule = "cyclind"`, the default) or with only the cross-check
+#' of the lag of the cross-correlation peak written in the OECD documents
+#' (`rule = "document"`); see [Classifier-class].
 #'
 #' The lead of the cross-correlation peak is the primary lead measure because
 #' the Monte Carlo calibration of the package showed that median leads at

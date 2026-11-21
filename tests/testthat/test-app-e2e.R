@@ -411,6 +411,36 @@ test_that("the coincident index becomes the reference in the browser", {
   expect_no_browser_errors(app)
 })
 
+test_that("O-M1: the rule of the OECD documents is chosen in the browser", {
+  skip_if_no_browser()
+  app <- start_app("oecd-document", "id")
+  on.exit(app$stop(), add = TRUE)
+  app$set_inputs(source = "example_m", wait_ = FALSE)
+  app$click("run1")
+  app$wait_for_idle()
+  go_to(app, 2L)
+  app$click("run2")
+  app$wait_for_idle()
+  go_to(app, 3L)
+  app$set_inputs(method = "oecd")
+  visible <- function(id) {
+    app$get_js(sprintf("$('#%s').is(':visible')", id))
+  }
+  expect_true(visible("oecd_conformity"))
+  expect_false(visible("oecd_ccf_tolerance"))
+  app$set_inputs(oecd_rule = "document")
+  expect_false(visible("oecd_conformity"))
+  expect_true(visible("oecd_ccf_tolerance"))
+  expect_match(app$get_html("#oecd_rule"), "Dokumen OECD", fixed = TRUE)
+  app$set_inputs(oecd_ccf_tolerance = 3)
+  app$click("run3")
+  app$wait_for_idle()
+  spec <- app$get_value(output = "spec_print")
+  expect_match(spec, "OECD documents", fixed = TRUE)
+  expect_match(spec, "within 3 months of the median lead", fixed = TRUE)
+  expect_no_browser_errors(app)
+})
+
 # no Chrome directories left behind (detritus NOTE of R CMD check)
 remove_chrome_temp_dirs(chrome_before)
 

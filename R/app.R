@@ -397,8 +397,21 @@ app_ui <- function(language = "en") {
             shiny::conditionalPanel(
               "input.method == 'oecd'",
               shiny::helpText(t("method_help")),
-              shiny::checkboxInput("oecd_conformity", t("oecd_conformity"),
-                                   TRUE),
+              # the rule of cyclind or of the OECD documents (O-M1)
+              shiny::selectInput("oecd_rule", t("oecd_rule"),
+                                 stats::setNames(
+                                   c("cyclind", "document"),
+                                   c(t("oecd_rule_cyclind"),
+                                     t("oecd_rule_document")))),
+              shiny::conditionalPanel(
+                "input.oecd_rule == 'cyclind'",
+                shiny::checkboxInput("oecd_conformity", t("oecd_conformity"),
+                                     TRUE)),
+              shiny::conditionalPanel(
+                "input.oecd_rule == 'document'",
+                shiny::helpText(t("oecd_rule_help")),
+                shiny::numericInput("oecd_ccf_tolerance",
+                                    t("oecd_ccf_tolerance"), NA, min = 0)),
               # uploaded rates: no transformation, HP smoother (FR-014.8)
               shiny::checkboxInput("oecd_rates", t("oecd_rates"), FALSE),
               shiny::conditionalPanel(
@@ -692,7 +705,7 @@ quality_display <- function(q, p = function(x) x) {
   status <- ifelse(is.na(tab$passed), "info",
                    ifelse(tab$passed, "pass", "fail"))
   thr <- p(tab$threshold)
-  for (w in c("positive", "naive", "to", "within")) {
+  for (w in c("positive", "naive", "to", "within", "months")) {
     thr <- gsub(paste0("\\b", w, "\\b"), p(w), thr)
   }
   out <- data.frame(group = p(tab$group), criterion = p(tab$criterion),

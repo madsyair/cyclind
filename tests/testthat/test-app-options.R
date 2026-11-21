@@ -78,6 +78,51 @@ test_that("AC-FR-010.4: classifier, outliers and lag shift one by one", {
   })
 })
 
+test_that("O-M1: the rule of the OECD documents in both methods", {
+  skip_if_not_installed("shiny")
+  html <- as.character(cyclind:::app_ui("id"))
+  expect_match(html, 'id="oecd_rule"', fixed = TRUE)
+  expect_match(html, "dokumen OECD", fixed = TRUE)
+  # the cyclind method with the OECD classifier of the documents
+  with_step3(list(classifier = "oecd_document"), function(rv, session) {
+    expect_s4_class(rv$spec@classifier, "OecdDocumentClassifier")
+    expect_match(rv$spec_call, "oecd_classifier(rule = \"document\")",
+                 fixed = TRUE)
+    expect_script_spec(rv)
+  })
+  # the OECD method, with a tolerance typed in
+  with_step3(list(method = "oecd", oecd_rule = "document",
+                  oecd_ccf_tolerance = 3), function(rv, session) {
+    expect_s4_class(rv$spec@classifier, "OecdDocumentClassifier")
+    expect_equal(rv$spec@classifier@ccf_tolerance, 3)
+    expect_match(rv$spec_call, paste0("oecd_classifier(rule = \"document\",",
+                                      " ccf_tolerance = 3)"), fixed = TRUE)
+    expect_script_spec(rv)
+  })
+  # the conformity box does not apply to the rule of the documents
+  with_step3(list(method = "oecd", oecd_rule = "document",
+                  oecd_conformity = FALSE), function(rv, session) {
+    expect_match(rv$spec_call, "oecd_classifier(rule = \"document\")",
+                 fixed = TRUE)
+    expect_script_spec(rv)
+  })
+  with_step3(list(method = "oecd", oecd_rule = "cyclind"),
+             function(rv, session) {
+    expect_identical(class(rv$spec@classifier)[[1]], "OecdClassifier")
+    expect_false(grepl("classifier", rv$spec_call))
+  })
+  with_step3(list(method = "oecd", oecd_rule = "forged"),
+             function(rv, session) {
+    expect_false(3L %in% rv$done)
+  })
+  # the reason of the cross-check is translated
+  expect_equal(cyclind:::translate_reasons("ccf lag", "id"),
+               "lag korelasi silang")
+  p <- cyclind:::phrase_translator("id")
+  expect_equal(p("cross-correlation lead minus median lead"),
+               "lead korelasi silang dikurangi median lead")
+})
+
 test_that("AC-FR-010.5: filter and dating parameters", {
   skip_if_not_installed("shiny")
   cases <- list(

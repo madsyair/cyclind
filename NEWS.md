@@ -2,6 +2,23 @@
 
 ## New features
 
+* `oecd_classifier(rule = "document")` (class `OecdDocumentClassifier`)
+  applies only the rule written in the OECD documents: the class follows
+  the median lead at turning points (Gyomai and Guidetti 2012, p. 9) with
+  at least one matched turning point, without the thresholds of cyclind
+  (three matched turning points, 40 percent missed or extra, concordance),
+  and a series whose cross-correlation peak lies more than `ccf_tolerance`
+  months (default 6, a choice of cyclind) from its median lead is rejected
+  ("ccf lag"), the cross-check of Gyomai, Ahmad and Astolfi (2017, p. 286).
+  The scorecard reports the gap, and `coincident_criteria()` uses it for a
+  coincident index. On the seven components of the OECD CLI of Indonesia
+  it gives 4 leading and 1 coincident with the OECD signs, where the
+  default rule rejects all seven (new columns in
+  `inst/calibration/oecd-idn-components.csv`). The default
+  `oecd_classifier()` (`rule = "cyclind"`) is unchanged.
+* The graphical interface offers the rule in the OECD method (with the
+  tolerance) and as a classifier of the cyclind method; the exported
+  script writes `oecd_classifier(rule = "document", ...)`.
 * Expert judgement, as in OECD practice, enters the workflow and is
   recorded (ADR-014):
   - `cli_build()`, `cli_assess()` and `cci_build()` take `reference_tp`, a
@@ -156,6 +173,16 @@
   windows.
 * `?coincident_criteria` and `?Classifier` describe the cross-correlation
   condition of an OECD coincident series.
+* `?oecd_spec`, `?Classifier` and the vignette separate, in a table with
+  source and page, the rules written in the OECD documents from the
+  choices of cyclind (the extra selection thresholds, the dating window,
+  end exclusion and symmetric phase rule, the aggregation by chained mean
+  log ratios and the standard-deviation amplitude, both chosen on the CLI
+  of Indonesia, and the conversion of the thresholds to quarters). They
+  cite the OECD sources directly with pages, add Fulop and Gyomai (2012),
+  *Transition of the OECD CLI System to a GDP-based Business Cycle
+  Target*, and correct the pages of Gyomai, Ahmad and Astolfi (2017) to
+  273--291.
 * `?growth_form` and the help text of the unit choice in the graphical
   interface say that the growth rates equal those BPS publishes only
   without seasonal adjustment and outlier replacement: BPS computes its

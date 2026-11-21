@@ -70,7 +70,7 @@
 #'
 #' Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
 #' leading indicators. In *Handbook on Cyclical Composite Indicators*,
-#' chapter 10, 271--291. Eurostat, Luxembourg.
+#' chapter 10, 273--291. Eurostat, Luxembourg.
 #'
 #' Kaiser, R. and Maravall, A. (2001). *Measuring Business Cycles in
 #' Economic Time Series*. Lecture Notes in Statistics 154. Springer, New
