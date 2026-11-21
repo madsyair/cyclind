@@ -7,25 +7,37 @@
 \alias{Classifier}
 \alias{CyclindClassifier-class}
 \alias{OecdClassifier-class}
+\alias{OecdDocumentClassifier-class}
 \alias{cyclind_classifier}
 \alias{oecd_classifier}
 \alias{classify_candidate}
 \alias{leading_criteria}
 \alias{show,Classifier-method}
 \alias{show,OecdClassifier-method}
+\alias{show,OecdDocumentClassifier-method}
 \alias{leading_criteria,CyclindClassifier-method}
 \alias{classify_candidate,CyclindClassifier-method}
 \alias{leading_criteria,OecdClassifier-method}
 \alias{classify_candidate,OecdClassifier-method}
+\alias{leading_criteria,OecdDocumentClassifier-method}
+\alias{classify_candidate,OecdDocumentClassifier-method}
 \alias{quality_criteria}
 \alias{quality_criteria,Classifier-method}
 \alias{quality_criteria,CyclindClassifier-method}
 \alias{quality_criteria,OecdClassifier-method}
+\alias{quality_criteria,OecdDocumentClassifier-method}
 \title{Classification rules}
 \usage{
 cyclind_classifier()
 
-oecd_classifier(coincident = 2, long = 8, min_matched = 3, conformity = TRUE)
+oecd_classifier(
+  coincident = 2,
+  long = 8,
+  min_matched = 3,
+  conformity = TRUE,
+  rule = c("cyclind", "document"),
+  ccf_tolerance = 6
+)
 
 classify_candidate(classifier, row, spec)
 
@@ -35,6 +47,8 @@ leading_criteria(classifier, row, spec)
 
 \S4method{show}{OecdClassifier}(object)
 
+\S4method{show}{OecdDocumentClassifier}(object)
+
 \S4method{leading_criteria}{CyclindClassifier}(classifier, row, spec)
 
 \S4method{classify_candidate}{CyclindClassifier}(classifier, row, spec)
@@ -43,6 +57,10 @@ leading_criteria(classifier, row, spec)
 
 \S4method{classify_candidate}{OecdClassifier}(classifier, row, spec)
 
+\S4method{leading_criteria}{OecdDocumentClassifier}(classifier, row, spec)
+
+\S4method{classify_candidate}{OecdDocumentClassifier}(classifier, row, spec)
+
 quality_criteria(classifier, row, spec)
 
 \S4method{quality_criteria}{Classifier}(classifier, row, spec)
@@ -50,6 +68,8 @@ quality_criteria(classifier, row, spec)
 \S4method{quality_criteria}{CyclindClassifier}(classifier, row, spec)
 
 \S4method{quality_criteria}{OecdClassifier}(classifier, row, spec)
+
+\S4method{quality_criteria}{OecdDocumentClassifier}(classifier, row, spec)
 }
 \arguments{
 \item{coincident}{Half-width, in months, of the coincident band (OECD: 2).}
@@ -57,10 +77,20 @@ quality_criteria(classifier, row, spec)
 \item{long}{Lead, in months, above which a leading series is "longer
 leading" (OECD: 8).}
 
-\item{min_matched}{Minimum number of matched turning points.}
+\item{min_matched}{Minimum number of matched turning points; 3 with
+\code{rule = "cyclind"}, 1 with \code{rule = "document"} when not given.}
 
 \item{conformity}{Require cyclical conformity and few missed or extra
-cycles (see above).}
+cycles (see above). Only for \code{rule = "cyclind"}.}
+
+\item{rule}{\code{"cyclind"} (the default) for the OECD table with the
+thresholds of cyclind, \code{"document"} for the rule of the OECD documents
+with the cross-check of the lag (an \code{OecdDocumentClassifier}).}
+
+\item{ccf_tolerance}{Largest distance, in months, between the lead of the
+cross-correlation peak and the median lead with \code{rule = "document"}
+(converted to quarters for quarterly data). A choice of cyclind; see
+above.}
 
 \item{classifier}{A \code{Classifier}.}
 
@@ -87,47 +117,89 @@ at least \code{min_lead}, a median lead of at least \code{min_median_lead},
 consistency, few missed and extra turning points, significant
 concordance and Granger causality. The thresholds are the fields of the
 \linkS4class{CliSpec} and were calibrated by Monte Carlo simulation.
-\item \code{oecd_classifier()}: the OECD rule, with the operational choices of
-cyclind listed separately below.
+\item \code{oecd_classifier()}: the OECD classification by the median lead, in
+two forms. \code{rule = "cyclind"} (the default, with unchanged results) adds
+the thresholds of cyclind listed below; \code{rule = "document"} applies only
+what the OECD documents write, with the cross-check of the lag of the
+cross-correlation peak.
+}
 
-\emph{OECD rule.} The class follows only the median lead at turning points
-(Gyomai and Guidetti 2012, p. 9): coincident within +/- \code{coincident}
-months, leading from \code{coincident} months on ("shorter or medium" up to
-\code{long} months, "longer" beyond) and lagging at \code{-coincident} months or
-less. The OECD also evaluates candidates by cyclical conformity and by
-missing or extra cycles (Gyomai and Guidetti 2012, p. 8), but names
-these criteria without thresholds or tests.
+\strong{What the OECD documents write.} The class follows only the median lead
+at turning points (Gyomai and Guidetti 2012, "GG12", p. 9): coincident
+within +/- \code{coincident} months, leading from \code{coincident} months on
+("shorter/medium" up to \code{long} months, "longer" beyond) and lagging at
+\code{-coincident} months or less. The OECD also evaluates candidates by the
+length and consistency of the lead, by cyclical conformity and by missing
+or extra cycles, but names these criteria without thresholds or tests
+(GG12 p. 8; Gyomai, Ahmad and Astolfi 2017, "GAA17", pp. 285--286). The
+one check the documents formulate is a cross-check: the lead "at which
+the highest correlation occurs should not be too different from the
+median lead" (GAA17 p. 286; GG12 p. 8 has "median lag"). The tolerance of
++/- 2 months for coincident behaviour allows for the phase shifts that
+the linear interpolation of quarterly series to months introduces
+(Fulop and Gyomai 2012, "FG12", pp. 3--4).
 
-\emph{Choices of cyclind.} (1) \code{min_matched} (default 3) is the smallest
-number of matched turning points from which a median lead is computed;
-the OECD sets no minimum, so \code{min_matched = 1} follows the OECD table
-literally. (2) With \code{conformity = TRUE} (the default) the two OECD
-evaluation criteria are made operational: a positive cross-correlation
-peak, at most \code{max_missed} and \code{max_extra} (40 percent) missed and
-extra turning points, and a concordance significantly above its value
-under independence at level \code{alpha}, tested with a fixed-b HAC test
-(Kiefer and Vogelsang 2005; see \code{\link[=cli_assess]{cli_assess()}}). A coincident series
+The table separates the two ("c" marks a choice of cyclind):\tabular{llll}{
+   Step \tab OECD documents \tab \code{"cyclind"} \tab \code{"document"} \cr
+   class \tab median lead (GG12 p. 9) \tab same \tab same \cr
+   matched turning points \tab no minimum \tab >= 3 (c) \tab >= 1 \cr
+   missed, extra cycles \tab no threshold (GG12 p. 8) \tab <= 0.4 (c) \tab shown \cr
+   conformity \tab no threshold (GG12 p. 8) \tab concordance test (c) \tab shown \cr
+   peak lag \tab near median lead (GAA17 p. 286) \tab in band (c) \tab 6 months (c) \cr
+   quarterly data \tab monthly system (GG12 p. 6) \tab in quarters (c) \tab same \cr
+}
+
+
+\strong{Choices of cyclind in \code{rule = "cyclind"}.} (1) \code{min_matched}
+(default 3) is the smallest number of matched turning points from which a
+median lead is computed. (2) With \code{conformity = TRUE} (the default) the
+OECD evaluation criteria are made operational: a positive
+cross-correlation peak, at most \code{max_missed} and \code{max_extra} (40 percent)
+missed and extra turning points, and a concordance significantly above
+its value under independence at level \code{alpha}, tested with a fixed-b HAC
+test (Kiefer and Vogelsang 2005; see \code{\link[=cli_assess]{cli_assess()}}). A coincident series
 must, in addition, have its cross-correlation peak strictly inside the
 coincident band (lags -1 to 1 for monthly data, lag 0 for quarterly
 data); otherwise it is rejected ("ccf lag"). The leading and lagging
-rules do not use the lag of the peak. (3) Thresholds are
-given in months and converted to quarters for quarterly data (the OECD
-system is monthly).
+rules do not use the lag of the peak. (3) Thresholds are given in months
+and converted to quarters for quarterly data.
 
-These choices are stricter than OECD practice: dated with
-\code{\link[=oecd_dater]{oecd_dater()}}, the published CLI of Indonesia has 6 extra turning
-points against 8 of its reference (0.75), and the rule accepts none of
-the four original component series of that CLI that are public
-(\code{inst/calibration/oecd-idn-composite.csv}, rows "OECD published CLI"
-and B2). Without them the median lead alone labels about half of all
+These choices are stricter than OECD practice. In its 2012 evaluation
+against GDP, the OECD found 1 missed and 5 extra turning points for 8 of
+the reference in the CLI of Indonesia and flagged that CLI for review,
+not for withdrawal (FG12 pp. 7--8, table 2c); dated with \code{\link[=oecd_dater]{oecd_dater()}},
+the CLI published now has 6 extra turning points against 8
+(\code{inst/calibration/oecd-idn-composite.csv}, row "OECD published CLI").
+The rule rejects all seven components of that CLI, for extra turning
+points and concordance (\code{inst/calibration/oecd-idn-components.csv}).
+Without the thresholds the median lead alone labels about half of all
 independent cycles as leading; with them about one in ten (monthly) to
 one in five (quarterly) in the simulations of
 \code{inst/calibration/lead-window.csv}, since the OECD rule has no test of
 predictive content such as the Granger test of \code{\link[=cyclind_classifier]{cyclind_classifier()}}
-(0 to 3 percent). \code{conformity = FALSE} gives the OECD median-lead table
-taken literally; the other statistics are then reported for judgement
-only.
-}
+(0 to 3 percent). \code{conformity = FALSE} gives the median-lead table taken
+literally, with at least \code{min_matched} matched turning points.
+
+\strong{\code{rule = "document"}.} The class follows the median-lead table with at
+least one matched turning point (\code{min_matched = 1} unless given), and a
+series of any class whose cross-correlation peak lies more than
+\code{ccf_tolerance} months from its median lead is rejected ("ccf lag").
+Missed and extra turning points, concordance and the size of the
+correlation are reported for judgement only, as the OECD analyst would
+read them. The documents give no number for "not too different", so the
+default of 6 months is a choice of cyclind: it is the largest gap
+between the median lead and the peak lead of the CLIs the OECD kept when
+it moved to the GDP target, except one (0 to 6 months, Slovenia 7, in
+FG12 tables 2a and 2b, pp. 5--6), and it keeps the CLI of Indonesia
+itself (median 8, peak 3 months; FG12 p. 7). With it and the OECD signs
+(\code{meta$sign}), 4 of the 7 OECD components of Indonesia are leading and 1
+coincident, against none with \code{rule = "cyclind"}; the exchange rate
+(median lead 9.5, peak 3 months) and producer prices fail the
+cross-check. With 3 months (one quarter) 2 are leading
+(\code{inst/calibration/oecd-idn-components.csv}, columns
+\verb{A_class_oecd_document_rule*}). The rule is closer to the documents and
+therefore looser: it has neither the conformity thresholds nor a test of
+predictive content.
 
 New rules are added by defining a subclass of \code{Classifier} and methods
 for the generics \code{classify_candidate()} and \code{leading_criteria()}.
@@ -135,11 +207,20 @@ for the generics \code{classify_candidate()} and \code{leading_criteria()}.
 \examples{
 cyclind_classifier()
 oecd_classifier()
+oecd_classifier(rule = "document")
 cli_spec(classifier = oecd_classifier())
 }
 \references{
+Fulop, G. and Gyomai, G. (2012). \emph{Transition of the OECD CLI System to a
+GDP-based Business Cycle Target}. OECD Composite Leading Indicators,
+Background note, March 2012. OECD, Paris.
+
+Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
+leading indicators. In \emph{Handbook on Cyclical Composite Indicators},
+chapter 10, 273--291. Eurostat, Luxembourg.
+
 Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
-Indicators}. OECD Publishing, Paris.
+Indicators}. OECD, Paris, April 2012.
 
 Kiefer, N. M. and Vogelsang, T. J. (2005). A new asymptotic theory for
 heteroskedasticity-autocorrelation robust tests. \emph{Econometric Theory},

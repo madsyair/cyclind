@@ -134,6 +134,17 @@ setMethod("classifier_lines", "OecdClassifier", function(classifier, spec) {
          })
 })
 
+setMethod("classifier_lines", "OecdDocumentClassifier",
+          function(classifier, spec) {
+  paste0("  leading if:  median lead at turning points >= ",
+         classifier@coincident, " months (OECD documents)\n",
+         "               coincident within +/- ", classifier@coincident,
+         ", lagging <= -", classifier@coincident, ", >= ",
+         classifier@min_matched, " matched\n",
+         "               and cross-correlation peak within ",
+         classifier@ccf_tolerance, " months of the median lead\n")
+})
+
 #' @rdname show-methods
 #' @export
 setMethod("show", "CandidateSet", function(object) {

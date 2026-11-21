@@ -242,7 +242,7 @@ update(spec, min_lead = 6, aggregator = dynamic_factor())
 \references{
 Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
 leading indicators. In \emph{Handbook on Cyclical Composite Indicators},
-chapter 10, 271--291. Eurostat, Luxembourg.
+chapter 10, 273--291. Eurostat, Luxembourg.
 
 Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
 Indicators}. OECD Publishing, Paris.

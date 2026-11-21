@@ -30,7 +30,7 @@
 #'
 #' @keywords internal
 #' @importFrom methods new validObject is slot slot<- slotNames setClass
-#'   setGeneric setMethod setValidity show
+#'   setGeneric setMethod setValidity show callNextMethod
 #' @importFrom stats ts start end frequency time window lm lm.fit coef median
 #'   sd cor pf pnorm na.omit tsp tsp<- quantile mad approx glm binomial
 #'   fitted var arima.sim rnorm update setNames complete.cases prcomp

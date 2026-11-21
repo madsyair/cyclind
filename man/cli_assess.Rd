@@ -65,7 +65,10 @@ missed, extra and concordance criteria with a cross-correlation peak within
 
 With \code{\link[=oecd_classifier]{oecd_classifier()}} the class follows the OECD table of median leads
 at turning points (coincident within +/- 2 months, lagging at -2 months
-or less); the other statistics are reported but not used.
+or less; Gyomai and Guidetti 2012, p. 9), after the conformity thresholds
+of cyclind (\code{rule = "cyclind"}, the default) or with only the cross-check
+of the lag of the cross-correlation peak written in the OECD documents
+(\code{rule = "document"}); see \linkS4class{Classifier}.
 
 The lead of the cross-correlation peak is the primary lead measure because
 the Monte Carlo calibration of the package showed that median leads at

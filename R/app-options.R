@@ -41,7 +41,8 @@ input_limits <- list(
   dater_end_exclusion = c(0, 120), agg_min_coverage = c(0, 1),
   ar_h = c(1, 120), ar_order_max = c(1, 60), coincident_band = c(0, 120),
   ccf_lag_max = c(1, 240), granger_max_lag = c(1, 60),
-  granger_dmax = c(0, 12), horizon = c(0, 120), align_coverage = c(0, 1)
+  granger_dmax = c(0, 12), horizon = c(0, 120), align_coverage = c(0, 1),
+  oecd_ccf_tolerance = c(0, 120)
 )
 
 # Code text of a numeric input, or NULL when it is empty. Only a single
@@ -210,9 +211,26 @@ choice_key <- function(x, allowed, id) {
 # The classifier of the cyclind method; NULL for the package rule.
 classifier_text <- function(x) {
   if (is.null(x)) return(NULL)
-  switch(choice_key(x, c("cyclind", "oecd", "oecd_median"), "classifier"),
+  key <- choice_key(x, c("cyclind", "oecd", "oecd_median", "oecd_document"),
+                    "classifier")
+  switch(key,
          oecd = "oecd_classifier()",
-         oecd_median = "oecd_classifier(conformity = FALSE)")
+         oecd_median = "oecd_classifier(conformity = FALSE)",
+         oecd_document = "oecd_classifier(rule = \"document\")")
+}
+
+# The classifier of the OECD method: the rule of cyclind (with or without
+# the conformity thresholds) or the rule of the OECD documents; NULL for
+# the default of oecd_spec().
+oecd_classifier_text <- function(input) {
+  rule <- if (is.null(input$oecd_rule)) "cyclind" else input$oecd_rule
+  rule <- choice_key(rule, c("cyclind", "document"), "oecd_rule")
+  if (rule == "document") {
+    return(call_text("oecd_classifier", list(
+      rule = "\"document\"",
+      ccf_tolerance = num_in(input, "oecd_ccf_tolerance"))))
+  }
+  if (isFALSE(input$oecd_conformity)) "oecd_classifier(conformity = FALSE)"
 }
 
 filter_text <- function(input) {
@@ -311,9 +329,8 @@ spec_call <- function(input, freq, span = NULL) {
       min_auc = num_in(input, "min_auc"),
       min_components = num_in(input, "min_components"),
       max_iter = num_in(input, "max_iter"), oos_cutoffs = cut,
-      classifier = if (isFALSE(input$oecd_conformity)) {
-        "oecd_classifier(conformity = FALSE)"
-      }, engine = engine_text(input),
+      classifier = oecd_classifier_text(input),
+      engine = engine_text(input),
       transform = if (isTRUE(input$oecd_rates)) deparse_value("none"),
       filter = if (isTRUE(input$oecd_rates)) {
         call_text("hp_smoother", list(
@@ -367,8 +384,9 @@ advanced_ui <- function(t) {
     shiny::fluidRow(
       shiny::column(4,
         shiny::selectInput("classifier", t("classifier"), stats::setNames(
-          c("cyclind", "oecd", "oecd_median"),
-          c(t("cls_cyclind"), t("cls_oecd"), t("cls_oecd_median")))),
+          c("cyclind", "oecd", "oecd_median", "oecd_document"),
+          c(t("cls_cyclind"), t("cls_oecd"), t("cls_oecd_median"),
+            t("cls_oecd_document")))),
         shiny::selectInput("outlier_method", t("outlier_method"),
                            stats::setNames(c("robust", "tramo"),
                                            c(t("out_robust"),

@@ -35,7 +35,9 @@ extension of cyclind, not an OECD rule).}
 \item{engine}{Engine of \code{\link[=tramo_outliers]{tramo_outliers()}} and of the log/level test.}
 
 \item{classifier}{An OECD \linkS4class{Classifier}, by default
-\code{\link[=oecd_classifier]{oecd_classifier()}}.}
+\code{\link[=oecd_classifier]{oecd_classifier()}} (the OECD table with the thresholds of cyclind);
+\code{oecd_classifier(rule = "document")} for the rule of the OECD
+documents.}
 
 \item{forecast}{Months of TRAMO forecasts appended before the filter
 (\code{\link[=tramo_outliers]{tramo_outliers()}}); \code{NULL} means 2 months (1 quarter), within the
@@ -93,41 +95,64 @@ A \linkS4class{CliSpec}.
 }
 \description{
 A \code{\link[=cli_spec]{cli_spec()}} set, step by step, to the OECD system of composite leading
-indicators as documented by Gyomai and Guidetti (2012, "GG12") and
-Gyomai, Ahmad and Astolfi (2017, "GAA17"), where the documents state the
-rule, and to the choice that reproduces the published OECD CLI of
-Indonesia where they do not. It is not a replication of the OECD's
-production system: the steps marked "cyclind" below are not written in
-the OECD documents.
+indicators as documented by Gyomai and Guidetti (2012, "GG12"), Fulop and
+Gyomai (2012, "FG12") and Gyomai, Ahmad and Astolfi (2017, "GAA17"),
+where the documents state the rule, and to the choice that reproduces
+the published OECD CLI of Indonesia where they do not. It is not a
+replication of the OECD's production system: the steps marked "c" below
+are choices of cyclind, not written in the OECD documents.
 }
 \details{
-\strong{Rules of the OECD} (written in GG12 or GAA17; \code{oecd_spec()} follows
-them):
+\strong{OECD documents and choices of cyclind.} For each step, what the OECD
+documents write (source and page) and what \code{oecd_spec()} does:\tabular{lll}{
+   Step \tab OECD documents (source, page) \tab \code{oecd_spec()} \cr
+   outliers \tab TRAMO; AO out, LS on judgement (GAA17 p. 283) \tab AO only (c) \cr
+   log or levels \tab TRAMO test (GG12 p. 7; GAA17 p. 284) \tab same \cr
+   end of series \tab 2 to 6 months of forecasts (GAA17 p. 284) \tab 2 (c) \cr
+   target \tab growth cycle (GAA17 pp. 276--277) \tab same \cr
+   cycle \tab double HP, 12 to 120 months (GG12 p. 7) \tab same \cr
+   normalisation \tab mean, mean abs. deviation (GG12 p. 7) \tab same \cr
+   dating \tab phase 9, cycle 24 (GAA17 p. 285; FG12 p. 3) \tab same \cr
+   dating window, ends \tab not given \tab 5 and 6 months (c) \cr
+   short phase \tab which point is dropped: not given \tab most extreme (c) \cr
+   matching window \tab 24 lead, 9 lag (GAA17 p. 285; FG12 p. 3) \tab same \cr
+   evaluation \tab criteria without thresholds (GG12 p. 8) \tab thresholds (c) \cr
+   classification \tab median lead (GG12 p. 9) \tab same \cr
+   peak lag \tab near the median lead (GAA17 p. 286) \tab see below \cr
+   lag-shifting \tab not used in practice (GAA17 p. 287) \tab off \cr
+   aggregation \tab chained mean of ratios (GAA17 p. 286, note 8) \tab logs (c) \cr
+   amplitude \tab to the reference, no measure (GG12 p. 9) \tab sd (c) \cr
+   quarterly data \tab monthly system (GG12 p. 6; FG12 p. 3) \tab quarters (c) \cr
+   trend restored \tab not while GDP is missing (OECD 2024, q. 6) \tab same \cr
+}
+
+
+The rules of the OECD in more detail:
 \itemize{
 \item outliers: TRAMO finds them; additive outliers (AO) are filtered out and
 level shifts (LS) are analysed and removed only on expert judgement
 (GAA17 p. 283; transitory changes are not mentioned);
-\item log or levels: the TRAMO log/level test (GG12 p. 7; GAA17 p. 284);
-\code{transform = "test"};
-\item end of the series: 2 to 6 months of TRAMO forecasts (GAA17 p. 284);
+\item log or levels: the TRAMO log/level test; \code{transform = "test"};
 \item cycle: double Hodrick-Prescott filter, 12 to 120 months (GG12 p. 7
 and 15; OECD 2024, question 10); \code{\link[=hp_double_filter]{hp_double_filter()}};
 \item the target is the growth cycle (deviation from trend); components are
 selected on it, and CLIs for the growth rate and classical cycles are
 presentations (GAA17 pp. 276--277);
-\item normalisation: mean and mean absolute deviation (GG12 p. 7; GAA17
-p. 284);
 \item turning points: simplified Bry-Boschan with phases of at least 9 and
-cycles of at least 24 months (GAA17 p. 285); \code{\link[=oecd_dater]{oecd_dater()}};
-\item matching window: 24 months lead and 9 months lag (GAA17 p. 285);
-\code{lead_window = c(9, 24)};
+cycles of at least 24 months, parameters "set by rules of thumb"
+(GAA17 p. 285; FG12 p. 3); \code{\link[=oecd_dater]{oecd_dater()}};
+\item matching window: 24 months lead and 9 months lag (GAA17 p. 285; FG12
+p. 3); \code{lead_window = c(9, 24)};
 \item evaluation: length and consistency of the lead, cyclical conformity
 (cross-correlation) and missing or extra cycles, named without
-thresholds (GG12 p. 8);
+thresholds (GG12 p. 8; GAA17 pp. 285--286);
 \item classification: median lead at turning points, coincident within
-+/- 2 months (GG12 p. 9); \code{\link[=oecd_classifier]{oecd_classifier()}};
-\item lag-shifting: supported but not used in practice (GAA17 p. 287);
-\code{lag_shift = FALSE};
++/- 2 months, leading from 2, "longer" leading over 8 months, lagging
+at -2 months or less (GG12 p. 9); \code{\link[=oecd_classifier]{oecd_classifier()}};
+\item the one cross-check written down: the lead at the highest
+cross-correlation "should not be too different from the median lead"
+(GAA17 p. 286; GG12 p. 8), without a number;
+\code{oecd_classifier(rule = "document")} applies it;
 \item aggregation: chained mean of the ratios \eqn{c_{i,t}/c_{i,t-1}} with
 the 60 percent rule (GAA17 p. 286, note 8);
 \item amplitude adjustment: rescaled to the reference cycle, measure not
@@ -146,23 +171,33 @@ the same date are rewritten so that the AO is the whole deviation at
 that date (ADR-012, \linkS4class{OutlierTreatment}); \code{c("AO", "TC", "LS")}
 gives the fully linearised series of GG12 (p. 6);
 \item forecasts: 2 months, the lower end of the OECD range;
-\item \code{min_matched = 3} in \code{\link[=oecd_classifier]{oecd_classifier()}}: the OECD table of median
-leads sets no minimum number of matched turning points;
-\item the thresholds and tests that make the OECD evaluation criteria
-operational (\code{\link[=oecd_classifier]{oecd_classifier()}}, \code{conformity = TRUE}): at most 40
-percent missed and 40 percent extra turning points (\code{max_missed},
-\code{max_extra}), a positive cross-correlation peak, and a concordance
-significantly above its value under independence, tested with a
-fixed-b HAC test (Kiefer and Vogelsang 2005; see \code{\link[=cli_assess]{cli_assess()}});
+\item dating: the window of the local extrema (5 months) and the exclusion
+of turning points near the ends (6 months) keep the Bry-Boschan
+values, and of a phase that is too short the most extreme turning
+points are kept (\code{phase_rule = "symmetric"}, see \linkS4class{Dater});
+\item classification (\code{\link[=oecd_classifier]{oecd_classifier()}}, default \code{rule = "cyclind"}):
+at least \code{min_matched = 3} matched turning points (the OECD table sets
+no minimum), at most 40 percent missed and 40 percent extra turning
+points (\code{max_missed}, \code{max_extra}), a positive cross-correlation peak,
+and a concordance significantly above its value under independence,
+tested with a fixed-b HAC test (Kiefer and Vogelsang 2005; see
+\code{\link[=cli_assess]{cli_assess()}}). With these thresholds all seven components of the
+OECD CLI of Indonesia are rejected, although the OECD's own 2012
+evaluation found 1 missed and 5 extra turning points for 8 of GDP in
+that CLI and kept it under review (FG12 pp. 7--8, table 2c).
+\code{oecd_classifier(rule = "document")} drops the thresholds and keeps
+the cross-check of the lag, with a tolerance of 6 months chosen by
+cyclind;
 \item aggregation: the mean of log ratios with reciprocal inversion of
 counter-cyclical components (\code{\link[=oecd_aggregate]{oecd_aggregate()}}, see below) instead
-of the written ratio formula;
-\item amplitude: ratio of standard deviations (see below);
-\item phase rule of the dating: the most extreme turning points are kept
-(\code{phase_rule = "symmetric"});
-\item quarterly data: the OECD system is monthly; the month thresholds are
-converted to quarters (phases of 3 and cycles of 8 quarters, a lead
-window of 3 and 8 quarters, a coincident band of 2/3 of a quarter);
+of the written ratio formula, chosen on the CLI of Indonesia;
+\item amplitude: ratio of standard deviations, chosen on the CLI of
+Indonesia (see below);
+\item quarterly data: the OECD system is monthly and interpolates quarterly
+series to months (GG12 p. 6; FG12 p. 3); cyclind converts the month
+thresholds to quarters instead (phases of 3 and cycles of 8 quarters,
+a lead window of 3 and 8 quarters, a coincident band of 2/3 of a
+quarter);
 \item the transformation decided by cyclind is also used by the X-13
 seasonal adjustment, and a series that X-13 cannot adjust is handled
 as described under \code{seasonal_adjust} in \code{\link[=cli_spec]{cli_spec()}}.
@@ -222,9 +257,11 @@ coincident band (2 months). Other arguments are passed to \code{\link[=cli_spec]
 From the four component series of Indonesia that are public, the whole
 method gives a composite that correlates 0.89 with the published CLI and
 finds 10 of the 12 turning points that \code{\link[=oecd_dater]{oecd_dater()}} dates in it over
-the common span (row B1 of \code{inst/calibration/oecd-idn-composite.csv});
-the classification step uses the stricter operationalisation of
-\code{\link[=oecd_classifier]{oecd_classifier()}}.
+the common span (row B1 of \code{inst/calibration/oecd-idn-composite.csv}).
+The classification step uses the stricter operationalisation of
+\code{\link[=oecd_classifier]{oecd_classifier()}}, which finds no leading component there (B2);
+\code{oecd_spec(classifier = oecd_classifier(rule = "document"))} reads the
+median lead as the OECD documents do.
 }
 \examples{
 oecd_spec()
@@ -241,12 +278,16 @@ if (requireNamespace("seasonal", quietly = TRUE)) {
 }
 }
 \references{
+Fulop, G. and Gyomai, G. (2012). \emph{Transition of the OECD CLI System to a
+GDP-based Business Cycle Target}. OECD Composite Leading Indicators,
+Background note, March 2012. OECD, Paris.
+
 Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
 leading indicators. In \emph{Handbook on Cyclical Composite Indicators},
-chapter 10, 271--291. Eurostat, Luxembourg.
+chapter 10, 273--291. Eurostat, Luxembourg.
 
 Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
-Indicators}. OECD Publishing, Paris.
+Indicators}. OECD, Paris, April 2012.
 
 OECD (2024). \emph{Composite Leading Indicators: Frequently Asked Questions}.
 OECD, Paris.

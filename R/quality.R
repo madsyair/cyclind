@@ -201,6 +201,18 @@ setMethod("quality_criteria", "OecdClassifier", function(classifier, row,
   )
 })
 
+#' @rdname Classifier-class
+setMethod("quality_criteria", "OecdDocumentClassifier",
+          function(classifier, row, spec) {
+  out <- callNextMethod()
+  tolerance <- round(classifier@ccf_tolerance * spec@freq / 12, 3)
+  fit <- q_row("turning points", "cross-correlation lead minus median lead",
+               row$ccf_lag - row$median_lead,
+               sprintf("within +/- %s", tolerance),
+               oecd_ccf_fit(classifier, row, spec))
+  rbind(out[1:2, ], fit, out[-(1:2), ])
+})
+
 quality_prediction <- function(prob, spec) {
   g <- "prediction"
   # validations made before 0.6.0 have no count of out-of-sample forecasts

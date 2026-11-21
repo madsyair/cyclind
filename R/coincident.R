@@ -21,6 +21,11 @@
 #'   strictly inside the same band (lags -1 to 1 for monthly data, lag 0 for
 #'   quarterly data), so that an index whose median lead is coincident but
 #'   which moves with the reference several periods later is not accepted.
+#' * `OecdDocumentClassifier` (`oecd_classifier(rule = "document")`): at
+#'   least `min_matched` matched turning points, a median lead strictly
+#'   inside +/- `coincident` months, and a cross-correlation peak within
+#'   `ccf_tolerance` months of the median lead, the cross-check of the OECD
+#'   documents (Gyomai, Ahmad and Astolfi 2017, p. 286).
 #' * any other `Classifier`: at least three matched turning points and a
 #'   median lead within the timing band.
 #'
@@ -92,6 +97,15 @@ setMethod("coincident_criteria", "OecdClassifier", function(classifier, row,
     c(ccf = oecd_ccf_coincident(classifier, row, spec))
   }
   c(matched = isTRUE(row$n_matched >= classifier@min_matched), ccf,
+    timing = isTRUE(in_timing_band(classifier, row$median_lead, band)))
+})
+
+#' @rdname coincident_criteria
+setMethod("coincident_criteria", "OecdDocumentClassifier",
+          function(classifier, row, spec) {
+  band <- timing_band(classifier, spec)
+  c(matched = isTRUE(row$n_matched >= classifier@min_matched),
+    ccf = oecd_ccf_fit(classifier, row, spec),
     timing = isTRUE(in_timing_band(classifier, row$median_lead, band)))
 })
 

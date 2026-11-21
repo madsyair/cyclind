@@ -19,7 +19,8 @@
 #      OECD specification of cyclind (oecd_spec()). Tests cycle extraction
 #      against the OECD's cycles and the composite of the four.
 # Outputs in inst/calibration/:
-#   oecd-idn-components.csv   A and B per component
+#   oecd-idn-components.csv   A and B per component (A_*_document_*: the
+#                             rule of the OECD documents, O-M1)
 #   oecd-idn-composite.csv    composites against the published CLI
 #   oecd-idn-turning-points.csv  turning points of the CLI and composites
 #   oecd-idn-gaps.csv         C. sources of the remaining differences
@@ -112,8 +113,13 @@ data_a <- nor[, c("RS", names(comps))]
 cand_a <- cli_candidates(data_a, "RS", meta = meta)
 spec_median <- update(spec_a,
                       classifier = oecd_classifier(conformity = FALSE))
+# the rule of the OECD documents: median lead and the cross-check of the
+# lag of the cross-correlation peak (O-M1; ccf_tolerance = 6 months)
+spec_document <- update(spec_a,
+                        classifier = oecd_classifier(rule = "document"))
 ass_a <- list(oecd = cli_assess(cand_a, spec_a, cycles = cyc_a),
               median = cli_assess(cand_a, spec_median, cycles = cyc_a),
+              document = cli_assess(cand_a, spec_document, cycles = cyc_a),
               cyclind = cli_assess(cand_a, cli_spec(freq = 12), cycles = cyc_a))
 # the same with the OECD's signs given as economic priors (meta$sign)
 meta_sign <- meta
@@ -121,6 +127,7 @@ meta_sign$sign <- ifelse(meta$name %in% c("LOCOEX", "LOCOST", "LOCOPP"),
                          -1, 1)
 cand_sign <- cli_candidates(data_a, "RS", meta = meta_sign)
 ass_sign <- cli_assess(cand_sign, spec_a, cycles = cyc_a)
+ass_sign_document <- cli_assess(cand_sign, spec_document, cycles = cyc_a)
 cyc_sign <- cyc_a
 for (nm in ass_sign@inverted) cyc_sign[[nm]] <- invert_cycle(cyc_sign[[nm]])
 inv_a <- ass_a$oecd@inverted
@@ -219,6 +226,10 @@ row_comp <- function(nm) {
     A_class_cyclind_rule = rr$class, A_reasons_oecd_rule = ra$reasons,
     A_median_lead = ra$median_lead, A_ccf_lag = rr$ccf_lag,
     A_ccf_r = rr$ccf_r,
+    A_class_oecd_document_rule = row(ass_a$document)$class,
+    A_reasons_oecd_document_rule = row(ass_a$document)$reasons,
+    A_ccf_lag_oecd_spec = ra$ccf_lag,
+    A_class_oecd_document_rule_oecd_signs = row(ass_sign_document)$class,
     B_original = NA_character_, B_corr_with_oecd_cycle = NA_real_,
     B_best_lag = NA_real_, B_tp_matched = NA_real_, B_tp_oecd = NA_real_)
   if (nm %in% names(cyc_b)) {
@@ -248,6 +259,9 @@ ref_row <- {
              A_class_oecd_median_rule = "reference",
              A_class_cyclind_rule = "reference", A_reasons_oecd_rule = "",
              A_median_lead = NA, A_ccf_lag = NA, A_ccf_r = NA,
+             A_class_oecd_document_rule = "reference",
+             A_reasons_oecd_document_rule = "", A_ccf_lag_oecd_spec = NA,
+             A_class_oecd_document_rule_oecd_signs = "reference",
              B_original = "B1GQ quarterly (Denton-Cholette to monthly)",
              B_corr_with_oecd_cycle = p[["r0"]], B_best_lag = p[["lag"]],
              B_tp_matched = g$matched, B_tp_oecd = g$ref_tp)
