@@ -443,3 +443,48 @@ test_that("O-M1: the rule of the OECD documents is chosen in the browser", {
 
 # no Chrome directories left behind (detritus NOTE of R CMD check)
 remove_chrome_temp_dirs(chrome_before)
+
+test_that("a user applies an expert chronology and sees the log", {
+  skip_if_no_browser()
+  app <- start_app("expert-en", "en")
+  on.exit(app$stop(), add = TRUE)
+  app$set_inputs(source = "example_m", wait_ = FALSE)
+  app$click("run1")
+  app$wait_for_idle()
+  go_to(app, 2L)
+  app$click("run2")
+  for (k in 3:5) {
+    go_to(app, k)
+    app$click(paste0("run", k))
+    app$wait_for_idle()
+  }
+  app$set_inputs(tp_series = "reference", wait_ = FALSE)
+  app$wait_for_idle()
+  tab <- utils::read.table(text = app$get_value(output = "tp_table"),
+                           sep = "\n", stringsAsFactors = FALSE)
+  # drop the last two turning points of the reference, with a reason
+  periods <- regmatches(tab[[1]], regexpr("[0-9]{4}-[0-9]{2}", tab[[1]]))
+  drop <- paste(utils::tail(periods, 2L), collapse = ", ")
+  app$set_inputs(tp_drop = drop, tp_reason = "end of sample, not confirmed",
+                 tp_who = "tester", wait_ = FALSE)
+  app$click("tp_apply")
+  app$wait_for_idle()
+  expect_match(notifications(app), "Expert chronology applied")
+  expect_match(app$get_value(output = "tp_log"), "end of sample")
+  for (k in 6:7) {
+    go_to(app, k)
+    app$click(paste0("run", k))
+    app$wait_for_idle()
+  }
+  go_to(app, 8L)
+  go_to(app, 9L)
+  go_to(app, 10L)
+  expect_match(app$get_value(output = "expert_log"), "tester")
+  log <- utils::read.csv(app$get_download("dl_expert_log"))
+  expect_equal(nrow(log), 2L)
+  env <- new.env()
+  utils::capture.output(source(app$get_download("dl_script"), local = env))
+  expect_equal(nrow(expert_log(env$res)), 2L)
+  shot(app, "expert-step10")
+  expect_no_browser_errors(app)
+})

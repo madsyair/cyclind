@@ -265,6 +265,12 @@ dfm_two_step <- function(z) {
 #'   `lag_shift` in [cli_spec()]). The value of a shifted component at date
 #'   \eqn{t} is its value at \eqn{t - s}; values moved past the last date
 #'   are dropped.
+#' @param reason,who Optional reason for a composite chosen by hand, and
+#'   who chose it. With a reason the choice of components (and shifts) is
+#'   recorded in the composite and in the log of a result holding it
+#'   ([expert_log()]); the OECD composes the CLI from a heuristic search
+#'   and practical considerations (Gyomai, Ahmad and Astolfi 2017,
+#'   p. 279), and a manual composite records the latter.
 #' @param aggregator,z,levels Internal arguments of the aggregation methods.
 #' @return A [CompositeIndex-class].
 #' @examples
@@ -276,7 +282,7 @@ dfm_two_step <- function(z) {
 #' cli
 #' @export
 cli_composite <- function(cycles, components, spec, reference = NULL,
-                          shifts = NULL) {
+                          shifts = NULL, reason = NULL, who = NULL) {
   if (!is(spec, "CliSpec")) {
     cyclind_abort("`spec` must be a CliSpec.", "cyclind_error_argument")
   }
@@ -340,7 +346,24 @@ cli_composite <- function(cycles, components, spec, reference = NULL,
       aggregator = if (is.null(agg$aggregator)) spec@aggregator else
         agg$aggregator,
       amplitude = amp,
-      shifts = shifts)
+      shifts = shifts,
+      decisions = manual_composite_log(components, shifts, reason, who))
+}
+
+# The decision behind a composite chosen by hand (empty without a reason).
+manual_composite_log <- function(components, shifts, reason, who) {
+  if (is.null(reason) && is.null(who)) return(empty_decision_log())
+  reason <- check_reasons(reason, 1L, "manual composite")
+  sh <- if (length(shifts) > 0L) {
+    sprintf(" (shifts: %s)", paste(names(shifts), shifts, sep = " = ",
+                                   collapse = ", "))
+  } else {
+    ""
+  }
+  decision_rows("composite", "composite",
+                sprintf("manual composite of %s%s",
+                        paste(components, collapse = ", "), sh),
+                reason[1], check_who(who))
 }
 
 check_shifts <- function(shifts, components) {

@@ -14,6 +14,11 @@
 #' shifted so that their median leads align on the shortest one (OECD
 #' lag-shifting; see [cli_composite()]).
 #'
+#' With `selector = loss_selection()` in the specification the loop is
+#' replaced by a heuristic search that minimises a loss function, as in
+#' the OECD workflow (Gyomai, Ahmad and Astolfi 2017, pp. 279--280); see
+#' [Selector-class].
+#'
 #' Composites are ranked by the score
 #' \deqn{10 \times \textrm{criteria met} + \min(\textrm{lead}, 2\,
 #' \textrm{min\_lead}) + 5 \times \textrm{concordance} - 5 \times
@@ -34,8 +39,21 @@
 #' ([cli_selection_bias()]) is run as well and stored in the validation.
 #'
 #' @param candidates A [CandidateSet-class].
+#' **Expert judgement.** With `reference_tp` the reference is dated by an
+#' expert chronology instead of the dating algorithm, in every step:
+#' classification, selection, validation and the selection-bias check (the
+#' specification of the result holds an [expert_dater()]). Expert decisions
+#' on outliers enter through the specification ([tramo_outliers()],
+#' `decisions`). Both are listed by [expert_log()], with the result.
+#' Without them the result is the same as before they existed.
+#'
 #' @param spec A [CliSpec-class]; by default [cli_spec()] at the frequency of
 #'   the data.
+#' @param reference_tp Optional chronology of reference turning points fixed
+#'   by an expert: a [TurningPoints-class] (for example from
+#'   [edit_turning_points()]) or a data frame with `period` (or `time`) and
+#'   `type`. Its turning points must alternate and lie within the data of
+#'   the reference.
 #' @return A [CliResult-class].
 #' @examples
 #' sim <- simulate_cycles(seed = 1)
@@ -44,12 +62,20 @@
 #' res
 #' leaders(res)
 #' audit_log(res)
+#' # an expert chronology of the reference, without the minor cycle of 2019
+#' tp <- edit_turning_points(turning_points(res)$reference,
+#'                           drop = c("2019-02", "2019-09"),
+#'                           reason = "minor cycle below trend")
+#' res2 <- cli_build(cli_candidates(sim, "reference", meta = meta),
+#'                   reference_tp = tp)
+#' expert_log(res2)
 #' @export
-cli_build <- function(candidates, spec = NULL) {
+cli_build <- function(candidates, spec = NULL, reference_tp = NULL) {
   if (is.null(spec) && is(candidates, "CandidateSet")) {
     spec <- cli_spec(freq = stats::frequency(candidates@data))
   }
   check_inputs(candidates, spec)
+  spec <- expert_reference_spec(spec, reference_tp, candidates)
   cycles <- cli_cycles(candidates, spec)
   candidates <- drop_excluded(candidates, cycles)
   assessment <- cli_assess(candidates, spec, cycles)
@@ -65,7 +91,8 @@ cli_build <- function(candidates, spec = NULL) {
   }
   new("CliResult", spec = spec, candidates = candidates, cycles = cycles,
       turning_points = tps, assessment = assessment,
-      composite = sel$composite, validation = validation, audit = sel$audit)
+      composite = sel$composite, validation = validation, audit = sel$audit,
+      decisions = result_decisions(spec, cycles))
 }
 
 composite_score <- function(val, spec) {
@@ -116,8 +143,8 @@ select_components <- function(cycles, assessment, spec, reference) {
     val <- validate_leading(comp, ref, spec, prediction = FALSE)
     list(composite = comp, validation = val, score = composite_score(val, spec))
   }
-  sel <- elimination_loop(comps, evaluate, spec,
-                          "initial composite of all leading candidates")
+  sel <- search_components(spec_selector(spec), comps, evaluate, spec,
+                           "initial composite of all leading candidates")
   sel$audit <- rbind(twins$audit, sel$audit)
   # the prediction group only for the chosen composite
   sel$validation <- cli_validate(sel$composite, ref, spec)

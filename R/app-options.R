@@ -319,7 +319,9 @@ holidays_text <- function(input, span = NULL) {
 
 # Code of step 3: `spec <- cli_spec(...)` or `spec <- oecd_spec(...)`.
 # `span`: first and last time of the data (see holidays_text()).
-spec_call <- function(input, freq, span = NULL) {
+# `decisions`: TRUE when the script defines a table `decisions` of expert
+# outlier decisions (see tramo_outliers()).
+spec_call <- function(input, freq, span = NULL, decisions = FALSE) {
   cuts <- parse_cutoffs(input$oos_cutoffs)
   cut <- if (length(cuts) > 0L) deparse_value(cuts)
   if (identical(input$method, "oecd")) {
@@ -335,7 +337,8 @@ spec_call <- function(input, freq, span = NULL) {
       filter = if (isTRUE(input$oecd_rates)) {
         call_text("hp_smoother", list(
           period = num_in(input, "oecd_smooth_period")))
-      }, form = form_text(input))))
+      }, form = form_text(input),
+      decisions = if (isTRUE(decisions)) "decisions")))
   }
   tramo <- identical(input$outlier_method, "tramo")
   assign_text("spec", "cli_spec", list(
@@ -347,7 +350,10 @@ spec_call <- function(input, freq, span = NULL) {
     seasonal_adjust = deparse_value(isTRUE(input$seasonal)),
     holidays = holidays_text(input, span),
     outlier_threshold = if (!tramo) num_in(input, "outlier"),
-    outliers = if (tramo) "tramo_outliers()",
+    outliers = if (tramo) {
+      if (isTRUE(decisions)) "tramo_outliers(decisions = decisions)" else
+        "tramo_outliers()"
+    },
     min_lead = num_in(input, "min_lead"),
     min_median_lead = num_in(input, "min_median_lead"),
     min_consistency = num_in(input, "min_consistency"),
@@ -435,15 +441,16 @@ align_text <- function(al) {
   if (!is.null(al$indicator) && !is.atomic(al$indicator)) {
     bad_input("align_indicator")
   }
-  chow <- identical(al$method, "chow-lin") && given(al$indicator)
-  # the indicator of Chow-Lin explains the reference, so it is not a
-  # candidate (see ?cli_align)
-  first <- if (chow) {
+  by_regression <- isTRUE(al$method %in% names(td_methods)) &&
+    given(al$indicator)
+  # the indicator of a regression method explains the reference, so it is
+  # not a candidate (see ?cli_align)
+  first <- if (by_regression) {
     sprintf("series[names(series) != %s]", chr_text(al$indicator))
   } else {
     "series"
   }
-  indicator <- if (chow) {
+  indicator <- if (by_regression) {
     sprintf("cli_align(series[%s], freq = %s)[, %s]",
             chr_text(al$indicator), al$freq, chr_text(al$indicator))
   }
@@ -455,7 +462,7 @@ align_text <- function(al) {
     reference = chr_text(al$reference),
     method = if (!is.null(al$method) &&
                  !identical(al$method, "denton-cholette")) {
-      choice_text(al$method, c("chow-lin", "linear"), "align_method")
+      choice_text(al$method, c(names(td_methods), "linear"), "align_method")
     },
     indicator = indicator,
     week_date = if (identical(al$week_date, "end")) "\"end\"",
@@ -478,16 +485,18 @@ align_ui <- function(t, series, reference, freq, old) {
   convert <- !identical(attr(series[[reference]], "frequency"), target)
   has_td <- requireNamespace("tempdisagg", quietly = TRUE)
   methods <- stats::setNames(
-    c("denton-cholette", "chow-lin", "linear"),
+    c("denton-cholette", names(td_methods), "linear"),
     c(t("align_dc"),
-      paste(t("align_cl"), if (!has_td) t("tempdisagg_missing")),
+      paste(c(t("align_cl"), t("align_lit"), t("align_fer")),
+            if (!has_td) t("tempdisagg_missing")),
       t("align_lin")))
   shiny::fluidRow(
     if (convert) shiny::column(3, shiny::selectInput(
       "align_method", t("align_method"), methods,
       selected = keep("align_method", "denton-cholette"))),
     if (convert) shiny::column(3, shiny::conditionalPanel(
-      "input.align_method == 'chow-lin'",
+      sprintf("[%s].indexOf(input.align_method) >= 0",
+              paste0("'", names(td_methods), "'", collapse = ", ")),
       shiny::selectInput("align_indicator", t("align_indicator"),
                          c(stats::setNames("", t("none")), same),
                          selected = keep("align_indicator", "")),

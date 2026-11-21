@@ -22,6 +22,7 @@ oecd_spec(
   min_median_lead = NULL,
   outliers = NULL,
   extension = NULL,
+  decisions = NULL,
   ...
 )
 }
@@ -85,6 +86,12 @@ band of \code{classifier} (2 months).}
 
 \item{extension}{An \linkS4class{Extension}; \code{NULL} means \code{\link[=no_extension]{no_extension()}}
 (the TRAMO forecasts of \code{outliers} extend the series).}
+
+\item{decisions}{Optional table of expert decisions on single outliers
+(series, date, type, remove or keep, reason), passed to
+\code{\link[=tramo_outliers]{tramo_outliers()}}: the OECD removes level shifts only on expert
+judgement (Gyomai, Ahmad and Astolfi 2017, p. 283). Entries override
+\code{outlier_types} for that outlier only.}
 
 \item{...}{Further arguments of \code{\link[=cli_spec]{cli_spec()}}. With \verb{form =}
 \code{\link[=growth_form]{growth_form()}} (experimental, not part of the OECD method) the

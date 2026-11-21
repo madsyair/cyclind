@@ -46,6 +46,10 @@
 #' period: one month for quarterly data, 3 months for semiannual and 6 months
 #' for annual data.
 #'
+#' When expert decisions shaped a [CliResult-class] (an expert reference
+#' chronology, outlier decisions or a manual composite; see
+#' [expert_log()]), an information row counts them and the note says so.
+#'
 #' **Verdict**: `"good"` when all three groups pass; `"acceptable"` when the
 #' turning-point and prediction groups pass but no out-of-sample check was
 #' run; `"weak"` otherwise.
@@ -76,8 +80,10 @@
 #' @export
 cli_quality <- function(x, spec = NULL) {
   ref_conv <- NULL
+  decisions <- empty_decision_log()
   if (is(x, "CliResult")) {
     ref_conv <- reference_conversion(x@candidates)
+    decisions <- expert_log(x)
     spec <- x@spec
     x <- x@validation
     if (is.null(x)) {
@@ -94,7 +100,8 @@ cli_quality <- function(x, spec = NULL) {
                quality_prediction(x@probability, spec),
                quality_out_of_sample(x@out_of_sample, spec, role),
                quality_information(x@turning_points, spec, role),
-               quality_reference(ref_conv))
+               quality_reference(ref_conv),
+               quality_decisions(decisions))
   rownames(tab) <- NULL
   ok <- function(g) {
     r <- tab$passed[tab$group == g]
@@ -124,7 +131,21 @@ cli_quality <- function(x, spec = NULL) {
                                       "the lead are uncertain by about %s."),
                                 dis$from, dis$about))
   }
+  if (nrow(decisions) > 0L) {
+    note <- paste(note, sprintf(paste("%d expert decision(s) (%s) shaped",
+                                      "this result; see expert_log()."),
+                                nrow(decisions),
+                                paste(unique(decisions$step),
+                                      collapse = ", ")))
+  }
   new("CliQuality", table = tab, verdict = verdict, note = note)
+}
+
+# Information row on the expert decisions behind a result.
+quality_decisions <- function(decisions) {
+  if (nrow(decisions) == 0L) return(NULL)
+  q_row("information", "expert decisions (see expert_log())",
+        nrow(decisions), "recorded with reasons", NA)
 }
 
 q_row <- function(group, criterion, value, threshold, passed) {

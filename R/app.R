@@ -459,7 +459,14 @@ app_ui <- function(language = "en") {
             shiny::conditionalPanel(
               "input.method == 'cyclind'",
               shiny::checkboxInput("extend", t("extend"), TRUE)),
-            shiny::textInput("oos_cutoffs", t("oos_cutoffs"), "")
+            shiny::textInput("oos_cutoffs", t("oos_cutoffs"), ""),
+            # expert decisions on single outliers need the TRAMO-type
+            # treatment (GAA17 p. 283)
+            shiny::conditionalPanel(
+              "input.method == 'oecd' || input.outlier_method == 'tramo'",
+              shiny::fileInput("decisions_file", t("decisions_file"),
+                               accept = c(".csv", ".txt", ".tsv")),
+              shiny::helpText(t("decisions_help")))
           ),
           shiny::column(6,
             # classification thresholds of the cyclind method only
@@ -503,7 +510,8 @@ app_ui <- function(language = "en") {
         shiny::h4(t("tp_counts")), shiny::tableOutput("tp_counts"),
         shiny::selectInput("tp_series", t("series"), choices = NULL),
         shiny::h4(t("tp_plot")), shiny::plotOutput("tp_plot"),
-        shiny::h4(t("tp_table")), shiny::tableOutput("tp_table")
+        shiny::h4(t("tp_table")), shiny::tableOutput("tp_table"),
+        expert_tp_ui(t)
       ),
       step_panel(
         t, 6L,
@@ -526,6 +534,9 @@ app_ui <- function(language = "en") {
           inline = TRUE),
         shiny::checkboxGroupInput("manual_components", t("components"),
                                   choices = character(0), inline = TRUE),
+        shiny::conditionalPanel(
+          "input.comp_mode == 'manual'",
+          shiny::textInput("manual_reason", t("manual_reason"), "")),
         shiny::actionButton("run7", t("run7"), class = "btn-primary"),
         shiny::h4(t("composite_plot")), shiny::plotOutput("composite_plot"),
         shiny::fluidRow(
@@ -593,6 +604,8 @@ app_ui <- function(language = "en") {
         shiny::downloadButton("dl_script", t("dl_script")),
         shiny::downloadButton("dl_cci", t("dl_cci")),
         shiny::downloadButton("dl_cci_quality", t("dl_cci_quality")),
+        shiny::downloadButton("dl_expert_log", t("dl_expert_log")),
+        shiny::h4(t("expert_log")), shiny::tableOutput("expert_log"),
         shiny::h4(t("code")), shiny::verbatimTextOutput("script")
       )
     )
@@ -900,9 +913,21 @@ meta_column <- function(meta, col) {
 
 # Steps 3 to 9 of the script.
 analysis_lines <- function(state) {
-  lines <- c("", "# 3. Specification", state$spec_call, "",
-             "# 4-7. Cycles, turning points, classification, composite",
-             "res <- cli_build(cand, spec)", "assessment(res)")
+  build <- "res <- cli_build(cand, spec)"
+  expert <- NULL
+  if (!is.null(state$ref_tp_code)) {
+    build <- c("res <- cli_build(cand, spec, reference_tp = reference_tp)",
+               "spec <- res@spec  # dates the reference by the chronology")
+    expert <- c("", "# 5. Expert chronology of the reference turning points",
+                state$ref_tp_code)
+  }
+  decisions <- if (!is.null(state$decisions)) {
+    c("# expert decisions on single outliers",
+      table_code("decisions", state$decisions))
+  }
+  lines <- c("", "# 3. Specification", decisions, state$spec_call, expert,
+             "", "# 4-7. Cycles, turning points, classification, composite",
+             build, "assessment(res)")
   if (identical(state$mode, "manual")) {
     shift_arg <- if (isTRUE(state$lag_shift)) {
       sprintf(paste0(",\n                     shifts = ",
@@ -912,6 +937,12 @@ analysis_lines <- function(state) {
       ""
     }
     ref <- chr_text(state$reference)
+    reason <- one_text(state$manual_reason)
+    if (!is.na(reason)) {
+      shift_arg <- paste0(shift_arg,
+                          sprintf(",\n                     reason = %s",
+                                  deparse_value(reason)))
+    }
     lines <- c(lines, sprintf(
       "cli <- cli_composite(cycles(res), %s, spec, cycles(res)[[%s]]%s)",
       chr_text(unname(state$components)), ref, shift_arg),
@@ -926,11 +957,13 @@ analysis_lines <- function(state) {
       "res_manual@composite <- cli",
       "res_manual@validation <- val",
       "pres <- cli_presentation(res_manual)  # three OECD forms",
-      "", "# 8. Validation and quality", "cli_quality(res_manual)")
+      "", "# 8. Validation and quality", "cli_quality(res_manual)",
+      if (has_expert_state(state)) "expert_log(res_manual)")
   } else {
     lines <- c(lines, "audit_log(res)", "plot(res)",
                "pres <- cli_presentation(res)  # three OECD forms", "",
-               "# 8. Validation and quality", "cli_quality(res)")
+               "# 8. Validation and quality", "cli_quality(res)",
+               if (has_expert_state(state)) "expert_log(res)")
   }
   if (!is.null(state$cci_mode)) {
     call <- if (identical(state$cci_mode, "manual")) {
@@ -960,14 +993,18 @@ app_server <- function(language = "en") {
       validation = NULL, audit = NULL, done = integer(0), meta = NULL,
       spec_call = NULL, mode = "auto", components = character(0),
       cci = NULL, cci_mode = NULL, prelude = NULL, cand_rebuilt = FALSE,
-      loaded = NULL, meta_known = NULL, series = NULL, align = NULL
+      loaded = NULL, meta_known = NULL, series = NULL, align = NULL,
+      decisions = NULL, reference_tp = NULL, ref_tp_code = NULL,
+      manual_reason = NULL
     )
     fields <- list(`1` = c("data", "series"),
                    `2` = c("cand", "meta", "align"),
-                   `3` = c("spec", "spec_call"), `4` = "cycles", `5` = "tps",
+                   `3` = c("spec", "spec_call", "decisions"), `4` = "cycles",
+                   `5` = c("tps", "reference_tp", "ref_tp_code"),
                    `6` = c("assessment", "cycles_used", "tps_used"),
                    `7` = c("composite", "validation", "audit", "cci",
-                           "cci_mode", "mode", "components"))
+                           "cci_mode", "mode", "components",
+                           "manual_reason"))
     reset_from <- function(k) {
       for (s in names(fields)) {
         if (as.integer(s) >= k) for (f in fields[[s]]) rv[[f]] <- NULL
@@ -1003,6 +1040,11 @@ app_server <- function(language = "en") {
       shiny::validate(shiny::need(k %in% rv$done, t("need_prev")))
     }
     reference <- function() rv$cand@reference
+    # the specification of steps 6 to 10: that of step 3 with the expert
+    # chronology of step 5, if any
+    spec_used <- function() {
+      expert_reference_spec(rv$spec, rv$reference_tp, rv$cand)
+    }
     # the coincident index (step 9) needs only the classification; it is
     # stored with the step-7 fields so that rebuilding the composite keeps it
     need_cci <- function() {
@@ -1326,9 +1368,9 @@ app_server <- function(language = "en") {
                       indicator = if (convert) input$align_indicator,
                       week_date = input$week_date,
                       min_coverage = input$align_coverage)
-        if (identical(align$method, "chow-lin") &&
+        if (isTRUE(align$method %in% names(td_methods)) &&
             given(align$indicator)) {
-          # the Chow-Lin indicator is not a candidate
+          # the indicator of a regression method is not a candidate
           keep <- meta$name != align$indicator
           meta <- meta[keep, , drop = FALSE]
           align$type <- align$type[names(align$type) != align$indicator]
@@ -1384,15 +1426,28 @@ app_server <- function(language = "en") {
         return()
       }
       freq <- stats::frequency(rv$cand@data)
+      decisions <- NULL
+      uses_tramo <- identical(input$method, "oecd") ||
+        identical(input$outlier_method, "tramo")
+      if (uses_tramo && !is.null(input$decisions_file)) {
+        decisions <- safely(decision_table(read_expert_table(
+          checked_upload(input$decisions_file)$datapath[1],
+          c("series", "type", "action", "reason"))))
+        if (is.null(decisions)) return()
+      }
       # the interface runs the code it writes into the script
       code <- safely(spec_call(input, freq,
-                               range(stats::time(rv$cand@data))))
+                               range(stats::time(rv$cand@data)),
+                               decisions = !is.null(decisions)))
       spec <- if (!is.null(code)) {
-        safely(eval_code(code, "spec", functions = spec_functions))
+        safely(eval_code(code, "spec",
+                         values = list(decisions = decisions),
+                         functions = spec_functions))
       }
       if (is.null(spec)) return()
       rv$spec <- spec
       rv$spec_call <- code
+      rv$decisions <- decisions
       finish(3L)
     })
     output$spec_print <- shiny::renderPrint({
@@ -1444,10 +1499,60 @@ app_server <- function(language = "en") {
         shiny::showNotification(t("need_prev"), type = "warning")
         return()
       }
-      tps <- safely(cli_turning_points(rv$cycles, rv$spec))
+      tps <- safely(cli_turning_points(rv$cycles, spec_used()))
       if (is.null(tps)) return()
       rv$tps <- tps
       finish(5L)
+    })
+    # the expert chronology of the reference: an uploaded file, or edits of
+    # the algorithm's chronology
+    shiny::observeEvent(input$tp_apply, {
+      if (!5L %in% rv$done) {
+        shiny::showNotification(t("need_prev"), type = "warning")
+        return()
+      }
+      ref <- reference()
+      edits <- !is.null(parse_period_list(input$tp_drop)) ||
+        !is.null(parse_period_list(input$tp_add))
+      out <- safely({
+        table <- if (!edits && !is.null(input$ref_tp_file)) {
+          read_expert_table(checked_upload(input$ref_tp_file)$datapath[1],
+                            "type")
+        }
+        tp <- date_turning_points(rv$spec@dater,
+                                  rv$cycles[[ref]]@normalised, name = ref)
+        ch <- expert_chronology(tp, table, input$tp_drop, input$tp_add,
+                                input$tp_reason, input$tp_who)
+        spec <- expert_reference_spec(rv$spec, ch$chronology, rv$cand)
+        ch$tp <- date_turning_points(spec@dater, rv$cycles[[ref]]@normalised,
+                                     name = ref)
+        ch
+      })
+      if (is.null(out)) return()
+      rv$reference_tp <- out$chronology
+      rv$ref_tp_code <- out$code
+      tps <- rv$tps
+      tps[[ref]] <- out$tp
+      rv$tps <- tps
+      finish(5L)
+      shiny::showNotification(t("tp_applied"), type = "message")
+    })
+    shiny::observeEvent(input$tp_reset, {
+      if (!5L %in% rv$done) return()
+      rv$reference_tp <- NULL
+      rv$ref_tp_code <- NULL
+      tps <- rv$tps
+      ref <- reference()
+      tps[[ref]] <- date_turning_points(rv$spec@dater,
+                                        rv$cycles[[ref]]@normalised,
+                                        name = ref)
+      rv$tps <- tps
+      finish(5L)
+    })
+    output$tp_log <- shiny::renderTable({
+      need(5L)
+      shiny::req(!is.null(rv$reference_tp))
+      expert_log_app(spec_used(), p)
     })
     output$tp_counts <- shiny::renderTable({
       need(5L)
@@ -1479,12 +1584,12 @@ app_server <- function(language = "en") {
         return()
       }
       out <- shiny::withProgress(message = t("run6"), safely({
-        a <- cli_assess(rv$cand, rv$spec, rv$cycles)
+        a <- cli_assess(rv$cand, spec_used(), rv$cycles)
         used <- rv$cycles
         for (nm in a@inverted) used[[nm]] <- invert_cycle(used[[nm]])
         # inverted candidates are dated again, as in cli_build()
         tps <- rv$tps
-        tps[a@inverted] <- cli_turning_points(used[a@inverted], rv$spec)
+        tps[a@inverted] <- cli_turning_points(used[a@inverted], spec_used())
         list(a = a, used = used, tps = tps)
       }))
       if (is.null(out)) return()
@@ -1506,14 +1611,14 @@ app_server <- function(language = "en") {
     })
     output$leads_plot <- shiny::renderPlot({
       need(6L)
-      plot_leads(rv$assessment, rv$spec, tr = p)
+      plot_leads(rv$assessment, spec_used(), tr = p)
     })
     output$ccf_plot <- shiny::renderPlot({
       need(6L)
       shiny::req(input$as_series %in% names(rv$cycles_used))
       tab <- rv$assessment@table
       plot_ccf(rv$cycles_used, reference(), input$as_series,
-               rv$spec@ccf_lag_max, tr = p,
+               spec_used()@ccf_lag_max, tr = p,
                peak = tab$ccf_lag[tab$name == input$as_series])
     })
     output$aligned_plot <- shiny::renderPlot({
@@ -1546,22 +1651,25 @@ app_server <- function(language = "en") {
           if (length(leaders(rv$assessment)) == 0L) {
             cyclind_abort(t("no_leaders"), "cyclind_error_no_leaders")
           }
-          select_components(rv$cycles_used, rv$assessment, rv$spec,
+          select_components(rv$cycles_used, rv$assessment, spec_used(),
                             reference())
         } else {
           comps <- input$manual_components
           if (length(comps) == 0L) {
             cyclind_abort(t("need_component"), "cyclind_error_argument")
           }
-          shifts <- if (isTRUE(rv$spec@lag_shift)) {
+          spec <- spec_used()
+          shifts <- if (isTRUE(spec@lag_shift)) {
             lag_shifts(comps, rv$assessment)
           }
-          comp <- cli_composite(rv$cycles_used, comps, rv$spec, ref_cs,
-                                shifts = shifts)
-          val <- cli_validate(comp, ref_cs, rv$spec)
+          reason <- one_text(input$manual_reason)
+          comp <- cli_composite(rv$cycles_used, comps, spec, ref_cs,
+                                shifts = shifts,
+                                reason = if (!is.na(reason)) reason)
+          val <- cli_validate(comp, ref_cs, spec)
           list(composite = comp, validation = val,
                audit = audit_row(1L, "manual selection", comps, val,
-                                 composite_score(val, rv$spec), rv$spec))
+                                 composite_score(val, spec), spec))
         }
       })
       if (is.null(res) || is.null(res$composite)) return()
@@ -1570,6 +1678,9 @@ app_server <- function(language = "en") {
       rv$audit <- res$audit
       rv$mode <- input$comp_mode
       rv$components <- res$composite@components
+      rv$manual_reason <- if (identical(input$comp_mode, "manual")) {
+        one_text(input$manual_reason)
+      }
       finish(7L)
     })
     output$composite_plot <- shiny::renderPlot({
@@ -1610,19 +1721,20 @@ app_server <- function(language = "en") {
         shiny::showNotification(t("need_prev"), type = "warning")
         return()
       }
-      if (length(rv$spec@oos_cutoffs) == 0L) {
+      if (length(spec_used()@oos_cutoffs) == 0L) {
         shiny::showNotification(t("no_cutoffs"), type = "warning")
         return()
       }
       sb <- shiny::withProgress(
         message = t("run8"),
-        safely(cli_selection_bias(rv$cand, rv$spec, rv$spec@oos_cutoffs),
+        safely(cli_selection_bias(rv$cand, spec_used(),
+                                  spec_used()@oos_cutoffs),
                quiet = "cyclind_warning_outlier_share")
       )
       if (is.null(sb)) return()
       val <- rv$validation
       val@out_of_sample <- sb
-      val@quality <- cli_quality(val, rv$spec)
+      val@quality <- cli_quality(val, spec_used())
       rv$validation <- val
     })
     output$verdict <- shiny::renderUI({
@@ -1643,7 +1755,7 @@ app_server <- function(language = "en") {
     probability <- shiny::reactive({
       need(7L)
       contraction_probability(rv$composite, rv$cycles_used[[reference()]],
-                              rv$spec)
+                              spec_used())
     })
     output$roc_plot <- shiny::renderPlot({
       pr <- probability()
@@ -1682,10 +1794,11 @@ app_server <- function(language = "en") {
         shiny::showNotification(t("need_prev"), type = "warning")
         return()
       }
-      base <- new("CliResult", spec = rv$spec, candidates = rv$cand,
+      base <- new("CliResult", spec = spec_used(), candidates = rv$cand,
                   cycles = rv$cycles_used, turning_points = rv$tps_used,
                   assessment = rv$assessment, composite = NULL,
-                  validation = NULL, audit = data.frame())
+                  validation = NULL, audit = data.frame(),
+                  decisions = result_decisions(spec_used(), rv$cycles_used))
       cci <- shiny::withProgress(message = t("run9"), safely({
         if (input$cci_mode == "auto") {
           if (length(coincidents(rv$assessment)) == 0L) {
@@ -1779,10 +1892,11 @@ app_server <- function(language = "en") {
     # 10. Export -----------------------------------------------------------
     result <- shiny::reactive({
       need(7L)
-      new("CliResult", spec = rv$spec, candidates = rv$cand,
+      new("CliResult", spec = spec_used(), candidates = rv$cand,
           cycles = rv$cycles_used, turning_points = rv$tps_used,
           assessment = rv$assessment, composite = rv$composite,
-          validation = rv$validation, audit = rv$audit)
+          validation = rv$validation, audit = rv$audit,
+          decisions = result_decisions(spec_used(), rv$cycles_used))
     })
     current_state <- function() {
       list(
@@ -1803,7 +1917,9 @@ app_server <- function(language = "en") {
         cci_mode = rv$cci_mode,
         cci_components = if (is.null(rv$cci)) NULL else
           rv$cci@composite@components,
-        prelude = rv$prelude, cand_rebuilt = rv$cand_rebuilt
+        prelude = rv$prelude, cand_rebuilt = rv$cand_rebuilt,
+        decisions = rv$decisions, ref_tp_code = rv$ref_tp_code,
+        manual_reason = rv$manual_reason
       )
     }
     script <- shiny::reactive({
@@ -1852,6 +1968,13 @@ app_server <- function(language = "en") {
     })
     output$dl_cci_quality <- csv_download("cci_quality", function() {
       as.data.frame(cci_quality())
+    })
+    output$expert_log <- shiny::renderTable({
+      need(7L)
+      expert_log_app(result(), p)
+    })
+    output$dl_expert_log <- csv_download("expert_log", function() {
+      expert_log(result())
     })
   }
 }

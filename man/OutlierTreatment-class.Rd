@@ -21,7 +21,8 @@ tramo_outliers(
   remove = "AO",
   forecast = NULL,
   critical = NULL,
-  max_share = 0.05
+  max_share = 0.05,
+  decisions = NULL
 )
 
 treat_outliers(method, x, ...)
@@ -53,6 +54,12 @@ Astolfi 2017, p. 284); \code{\link[=oecd_spec]{oecd_spec()}} uses 2 months.}
 
 \item{critical}{Critical t-value of the outlier detection; \code{NULL} uses
 the program's default, which depends on the length of the series.}
+
+\item{decisions}{Optional table of expert decisions on single outliers,
+a data frame with columns \code{series}, \code{period} (such as \code{"2020-04"} or
+\code{"2020Q2"}; or \code{time}, decimal), \code{type} (\code{"AO"}, \code{"TC"} or \code{"LS"}),
+\code{action} (\code{"remove"} or \code{"keep"}), \code{reason} and, optionally, \code{who}.
+See \strong{Expert decisions} below.}
 
 \item{method}{An \code{OutlierTreatment}.}
 
@@ -144,6 +151,29 @@ the error, and the \code{notes} slot records it. Errors of the system (a full
 disk, a missing X-13 binary, a file that cannot be written) stop the run
 with an error of class \code{cyclind_error_system}.
 
+\strong{Expert decisions.} The OECD "detects and filters out 'additive'
+outliers (temporary shocks), and analyses 'level shift' outliers
+(permanent shocks) but does not necessarily filter these out; it is based
+on expert judgement whether level shifts are eliminated or not", and
+when "an extreme event triggers a whole set of changes in economic
+activity the rule of removing outliers is more ambiguous" (Gyomai, Ahmad
+and Astolfi 2017, p. 283). The \code{decisions} table of \code{tramo_outliers()}
+records such judgements one series and one date at a time: an outlier
+found by the model in that series, at that date and of that type, is
+removed or kept as the table says, whatever \code{remove} says for its type;
+every other outlier follows \code{remove}. For example, the level shift of
+April 2020 can be removed from the reference only, and kept in the
+candidates where it is a genuine cyclical movement. A decision needs a
+reason. A decision that matches no outlier found by the model (another
+date or type, or a failed model) has no effect and gives a warning of
+class \code{cyclind_warning_outlier_decision} that lists the outliers found;
+so does a decision for a series that is not in the data. The decisions
+cannot add an outlier that the model did not find. The effect removed is
+the estimated coefficient times the regressor of the outlier (for an AO
+and a TC on the same date, their rewritten effects, see above), also in
+the forecasts. The \code{steps} of the cycle record the decisions applied,
+and \code{\link[=expert_log]{expert_log()}} lists them with their status.
+
 New treatments are added by defining a subclass and a method for the
 generic \code{treat_outliers()}, which returns a list with the cleaned series
 \code{x}, the number of outliers \code{n}, a description \code{step}, a numeric vector
@@ -154,6 +184,11 @@ character \code{failed} (the error message when the model failed).
 \examples{
 robust_outliers()
 tramo_outliers(engine = "x13")
+# remove the level shift of April 2020 from the reference only
+dec <- data.frame(series = "reference", period = "2020-04", type = "LS",
+                  action = "remove",
+                  reason = "lockdown: not a cyclical movement")
+tramo_outliers(engine = "x13", decisions = dec)
 }
 \references{
 Chen, C. and Liu, L.-M. (1993). Joint estimation of model parameters and

@@ -9,7 +9,7 @@ cli_align(
   freq = 12,
   type = NULL,
   reference = NULL,
-  method = c("denton-cholette", "chow-lin", "linear"),
+  method = c("denton-cholette", "chow-lin", "litterman", "fernandez", "linear"),
   indicator = NULL,
   position = NULL,
   week_date = c("start", "end"),
@@ -36,8 +36,8 @@ with \code{method} instead of interpolated.}
 \item{method}{Disaggregation method for a quarterly, semiannual or annual
 reference series.}
 
-\item{indicator}{\code{ts} at the target frequency used by
-\code{method = "chow-lin"}.}
+\item{indicator}{\code{ts} at the target frequency used by the regression
+methods \code{"chow-lin"}, \code{"litterman"} and \code{"fernandez"}.}
 
 \item{position}{Named integers: subperiod at which a value is placed
 before linear interpolation, 1 to 3 (month of the quarter) for a
@@ -84,10 +84,16 @@ candidates are an error (\link{series_frequencies}).
 \item \strong{Quarterly to monthly, reference series}: temporal disaggregation that
 keeps the quarterly constraint: \code{"denton-cholette"} (the smoothest
 monthly path, Denton 1971 with the Cholette modification, computed
-here), \code{"chow-lin"} (regression on a monthly \code{indicator}, Chow and Lin
-1971, via the 'tempdisagg' package; the indicator must not also be a
-candidate) or \code{"linear"}. The OECD builds a monthly GDP reference
-with its own method, which cyclind does not reproduce; any of these
+here), one of three regressions on a monthly \code{indicator} via the
+'tempdisagg' package (Sax and Steiner 2013), or \code{"linear"}. The
+regressions differ in the residuals they assume: \code{"chow-lin"} (AR(1),
+for a reference and indicator that are stationary or cointegrated;
+Chow and Lin 1971), \code{"litterman"} (random walk with AR(1) increments;
+Litterman 1983) and \code{"fernandez"} (random walk, the Litterman model with
+zero autocorrelation; Fernandez 1981); the autocorrelation is estimated
+by maximum likelihood. The indicator must not also be a candidate. The
+OECD builds a monthly GDP reference with its own method, which cyclind
+does not reproduce; any of these
 gives a similar reference cycle (\code{vignette("oecd-indonesia")}).
 \item \strong{Quarterly to monthly, candidates}: linear interpolation with the
 quarterly value placed in the central month (flows, averages) or the
@@ -122,11 +128,18 @@ Denton, F. T. (1971). Adjustment of monthly or quarterly series to annual
 totals: an approach based on quadratic minimization. \emph{Journal of the
 American Statistical Association}, 66(333), 99--102.
 
+Fernandez, R. B. (1981). A methodological note on the estimation of
+time series. \emph{Review of Economics and Statistics}, 63(3), 471--476.
+
 Gyomai, G. and Guidetti, E. (2012). \emph{OECD System of Composite Leading
 Indicators}. OECD, Paris.
 
 International Monetary Fund (2017). \emph{Quarterly National Accounts Manual},
 chapter 6: Benchmarking and reconciliation. IMF, Washington.
+
+Litterman, R. B. (1983). A random walk, Markov model for the
+distribution of time series. \emph{Journal of Business & Economic
+Statistics}, 1(2), 169--173.
 
 Sax, C. and Steiner, P. (2013). Temporal disaggregation of time series.
 \emph{The R Journal}, 5(2), 80--87.

@@ -265,7 +265,7 @@ test_that("R4: Chow-Lin uses the indicator from the start of the reference", {
   ind <- ts(100 + cumsum(rnorm(300)), start = 2001, frequency = 12)
   y <- ts(aggregate_k(window(ind, start = 2003), 12, "average") + 5,
           start = 2003, frequency = 1)
-  x <- cyclind:::chow_lin(y, "average", ind, 12)
+  x <- cyclind:::regression_disagg(y, "average", ind, 12)
   expect_equal(start(x), c(2003, 1))
   expect_equal(aggregate_k(window(x, end = c(2025, 12)), 12, "average"),
                as.numeric(y), tolerance = 1e-8)
@@ -319,7 +319,7 @@ test_that("R16: Chow-Lin and linear placement for annual and semiannual", {
   # a semiannual reference starting in its second half: k = 6, not 3
   sem <- ts(aggregate_k(window(ind, start = c(2001, 7), end = c(2024, 12)),
                         6, "flow") * 1.05, start = c(2001, 2), frequency = 2)
-  x <- cyclind:::chow_lin(sem, "flow", ind, 12)
+  x <- cyclind:::regression_disagg(sem, "flow", ind, 12)
   expect_equal(start(x), c(2001, 7))
   expect_equal(aggregate_k(window(x, end = c(2024, 12)), 6, "flow"),
                as.numeric(sem), tolerance = 1e-8)
