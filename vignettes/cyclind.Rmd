@@ -935,6 +935,99 @@ New aggregation methods work the same way with `Aggregator` and
 `aggregate_components()`, and new turning-point rules with `Dater` and
 `date_turning_points()`.
 
+## 13. Expert judgement
+
+The OECD does not run its system mechanically. Its dating routine "does
+not always locate the most plausible turning points", so "expert judgment
+complements the identification of turning points" (Gyomai, Ahmad and
+Astolfi 2017, p. 285); its censoring rules "are set by rules of thumb", and
+a good chronology is the one "closer to an economist's assessment of where
+the major turning-points are" (Fulop and Gyomai 2012, p. 3). Additive
+outliers are removed, but "it is based on expert judgement whether level
+shifts are eliminated or not" (Gyomai, Ahmad and Astolfi 2017, p. 283).
+And the components are found by a heuristic search scored with a loss
+function (pp. 279--280). cyclind lets each of these judgements in, and
+records each one with its reason.
+
+**The reference chronology.** In the simulated reference one trough lies
+above the trend: a slowdown rather than a contraction. An analyst may
+judge that it does not mark a cycle and drop it with the peak before it.
+`edit_turning_points()` adds, drops or moves turning points; every change
+needs a reason.
+
+```{r expert-tp}
+tp <- turning_points(res)$reference
+tp_df <- as.data.frame(tp)
+# the trough highest above the trend, and the peak before it
+k <- which.max(ifelse(tp_df$type == "trough", tp_df$value, -Inf))
+minor <- tp_df$period[c(k - 1, k)]
+tp_expert <- edit_turning_points(
+  tp, drop = minor,
+  reason = "slowdown above trend, not a contraction", who = "analyst")
+res_expert <- cli_build(cand, spec, reference_tp = tp_expert)
+res_expert
+```
+
+The chronology replaces the dating algorithm for the reference in every
+step: classification, selection, validation and the out-of-sample check.
+A chronology can also be given as a data frame of `period` and `type`.
+Every decision is listed by `expert_log()`, counted in the scorecard and
+printed by the script exported from the interface:
+
+```{r expert-log}
+expert_log(res_expert)[, c("step", "decision", "reason", "who")]
+cli_quality(res_expert)@note
+```
+
+**Single outliers.** A table of decisions overrides the general rule of
+`tramo_outliers()` (remove additive outliers only) for one series and one
+date: for example, the level shift of a lockdown can be removed from the
+reference and kept in the candidates, where it is a genuine cyclical
+movement. A decision that matches no outlier found by the model gives a
+warning; the log says which decisions were applied.
+
+```{r expert-outliers}
+decisions <- data.frame(series = "reference", period = "2020-04",
+                        type = "LS", action = "remove",
+                        reason = "lockdown: not a cyclical movement")
+oecd_spec(decisions = decisions)@outliers
+```
+
+A composite chosen by hand records its reason too
+(`cli_composite(..., reason = )`).
+
+**A loss-function search.** `loss_selection()` replaces the selection loop
+by a heuristic search that minimises a loss combining the shares of missed
+and extra turning points, the standard deviation of the lead, one minus
+the peak cross-correlation and the shortfall of the median lead from the
+target lead. The OECD does not publish its loss function; these terms
+follow its evaluation measures, and their weights (all 1 by default) are a
+choice of cyclind (`?Selector`). The default remains the selection loop.
+
+```{r expert-loss}
+res_loss <- cli_build(cand, update(spec, selector = loss_selection()))
+audit_log(res_loss)[, c("action", "components")]
+```
+
+**What the analyst would have seen.** The two-sided filter revises the
+end of every cycle as data come in, so the scores above are pseudo
+out-of-sample. `cli_realtime()` cuts the data at each origin (or uses the
+data vintage stored for that date in the candidate set), extracts the
+cycles again and compares the end point of the composite with its final
+value:
+
+```{r expert-realtime}
+rt <- cli_realtime(res, origins = c("2008-06", "2012-06", "2016-06",
+                                    "2020-06"), reselect = FALSE)
+rt[, c("period", "cli_realtime", "cli_final", "same_direction")]
+attr(rt, "summary")[, c("cor_composite", "same_direction")]
+```
+
+With `reselect = TRUE` the selection is run again at each origin as well.
+Store real data releases in `vintages` of `cli_candidates()`, named by the
+date at which each was available; the growing window used without them
+ignores data revisions and publication lags.
+
 ## References
 
 Bry, G. and Boschan, C. (1971). *Cyclical Analysis of Time Series:
@@ -957,6 +1050,9 @@ American Statistical Association*, 66(333), 99–102.
 
 Fernandez, R. B. (1981). A methodological note on the estimation of time
 series. *Review of Economics and Statistics*, 63(3), 471–476.
+
+Fulop, G. and Gyomai, G. (2012). *Transition of the OECD CLI System to a
+GDP-based Business Cycle Target*. OECD background note, Paris.
 
 Gyomai, G., Ahmad, N. and Astolfi, R. (2017). The OECD system of composite
 leading indicators. In G. L. Mazzi and A. Ozyildirim (eds.), *Handbook on

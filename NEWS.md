@@ -2,6 +2,43 @@
 
 ## New features
 
+* Expert judgement, as in OECD practice, enters the workflow and is
+  recorded (ADR-014):
+  - `cli_build()`, `cli_assess()` and `cci_build()` take `reference_tp`, a
+    chronology of reference turning points fixed by an expert (Gyomai,
+    Ahmad and Astolfi 2017, p. 285; Fulop and Gyomai 2012, p. 3). It
+    replaces the dating algorithm for the reference in every step through
+    the new strategy `expert_dater()`. `edit_turning_points()` adds, drops
+    or moves turning points of the algorithm's chronology; every change
+    needs a reason.
+  - `tramo_outliers(decisions =)` and `oecd_spec(decisions =)` read a table
+    of decisions per series and date (`series`, `period`, `type`,
+    `action`, `reason`) that overrides the global rule for that outlier
+    only: a level shift can be removed from one series and kept in the
+    others (GAA17, p. 283). Decisions that match no outlier found by the
+    model give a warning of class `cyclind_warning_outlier_decision`.
+  - `expert_log()` lists the decisions behind a result (reference
+    chronology, outliers, a manual composite from
+    `cli_composite(reason =)`) with their reasons, who decided and when.
+    `CliResult` has a new slot `decisions`; `show()`, `summary()`,
+    `cli_quality()` and the script exported by the interface report it.
+  - Without these arguments results are unchanged.
+* Component selection is a strategy, the new `selector` of `cli_spec()`:
+  `backward_selection()` (the default, the selection loop as before) or
+  `loss_selection()`, a heuristic search (stepwise or random) that
+  minimises a documented loss of missed and extra turning points, the
+  standard deviation of the lead, one minus the cross-correlation and the
+  shortfall of the median lead, after the OECD workflow (GAA17,
+  pp. 279--280). The loss and its weights are a choice of cyclind.
+* `cli_realtime()` replays a composite at earlier origins with growing
+  windows of data, or with the data vintage stored for an origin in
+  `cli_candidates(vintages =)`, and compares the end point and direction
+  of the real-time composite and reference with their final values.
+* Graphical interface: step 3 reads a CSV of outlier decisions, step 5
+  applies an expert chronology (edits with a reason, or an uploaded
+  chronology), step 7 records the reason of a manual composite, and step 10
+  shows and downloads the log of expert decisions; the exported script
+  reproduces them.
 * `cli_align()` disaggregates a reference series with two more regression
   methods from 'tempdisagg': `method = "litterman"` (random-walk residuals
   with AR(1) increments; Litterman 1983) and `method = "fernandez"`
