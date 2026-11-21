@@ -101,6 +101,10 @@
 #'   is kept (default 0.99, as in CIF, Vraná 2020). The twins dropped are
 #'   listed in the
 #'   audit log and in a warning. 1 drops identical cycles only.
+#' @param selector A [Selector-class]: how [cli_build()] searches the
+#'   components. `NULL` means [backward_selection()], the selection loop;
+#'   [loss_selection()] minimises a loss function, after the heuristic
+#'   search of the OECD (Gyomai, Ahmad and Astolfi 2017, pp. 279--280).
 #' @param ccf_lag_max Largest lead or lag of the cross-correlation search
 #'   (default 24 months or 8 quarters).
 #' @param alpha Significance level of the tests (default 0.05).
@@ -191,7 +195,7 @@ cli_spec <- function(freq = 12, filter = NULL, dater = NULL,
                      extension = NULL, form = NULL,
                      amplitude = c("mad", "sd"),
                      matching = c("nearest", "maximum"),
-                     twin_threshold = 0.99) {
+                     twin_threshold = 0.99, selector = NULL) {
   check_frequency(freq)
   matching <- match.arg(matching)
   monthly <- freq == 12
@@ -200,6 +204,7 @@ cli_spec <- function(freq = 12, filter = NULL, dater = NULL,
   check_strategy(outliers, "OutlierTreatment", "outliers")
   check_strategy(extension, "Extension", "extension")
   check_strategy(form, "CycleForm", "form")
+  check_strategy(selector, "Selector", "selector")
   if (is.null(form)) form <- level_form()
   if (identical(amplitude, c("mad", "sd"))) amplitude <- "mad"
   spec <- new_valid(
@@ -272,7 +277,8 @@ cli_spec <- function(freq = 12, filter = NULL, dater = NULL,
     form = form,
     amplitude = amplitude,
     matching = matching,
-    twin_threshold = as.numeric(twin_threshold)
+    twin_threshold = as.numeric(twin_threshold),
+    selector = if (is.null(selector)) backward_selection() else selector
   )
   if (is(spec@outliers, "RobustOutliers")) {
     spec@outlier_threshold <- spec@outliers@threshold
@@ -323,7 +329,7 @@ upgrade_spec <- function(object) {
               outliers = robust_outliers(object@outlier_threshold),
               lag_shift = FALSE, extension = no_extension(),
               form = level_form(), amplitude = "mad", matching = "nearest",
-              twin_threshold = 1)
+              twin_threshold = 1, selector = backward_selection())
   for (nm in names(old)) {
     if (!methods::.hasSlot(object, nm)) attr(object, nm) <- old[[nm]]
   }
@@ -662,6 +668,11 @@ setMethod("update", "CliSpec", function(object, ...) {
 #'   outlier_types)`. When given, `outlier_types` is ignored.
 #' @param extension An [Extension-class]; `NULL` means [no_extension()]
 #'   (the TRAMO forecasts of `outliers` extend the series).
+#' @param decisions Optional table of expert decisions on single outliers
+#'   (series, date, type, remove or keep, reason), passed to
+#'   [tramo_outliers()]: the OECD removes level shifts only on expert
+#'   judgement (Gyomai, Ahmad and Astolfi 2017, p. 283). Entries override
+#'   `outlier_types` for that outlier only.
 #' @param ... Further arguments of [cli_spec()]. With `form =`
 #'   [growth_form()] (experimental, not part of the OECD method) the
 #'   filter is [hp_smoother()], as in [cli_spec()].
@@ -704,8 +715,12 @@ oecd_spec <- function(freq = 12, seasonal_adjust = FALSE, holidays = list(),
                       dater = NULL, aggregator = NULL,
                       lag_shift = FALSE, lead_window = NULL,
                       min_median_lead = NULL, outliers = NULL,
-                      extension = NULL, ...) {
+                      extension = NULL, decisions = NULL, ...) {
   check_frequency(freq)
+  if (!is.null(decisions) && !is.null(outliers)) {
+    cyclind_abort(paste("Give `decisions` to tramo_outliers() when you give",
+                        "`outliers`."), "cyclind_error_argument")
+  }
   engine <- match.arg(engine)
   if (identical(amplitude, c("sd", "mad"))) amplitude <- "sd"
   if (is.null(forecast)) forecast <- if (freq == 12) 2 else 1
@@ -744,7 +759,7 @@ oecd_spec <- function(freq = 12, seasonal_adjust = FALSE, holidays = list(),
            classifier = cls,
            outliers = if (is.null(outliers)) {
              tramo_outliers(engine = engine, forecast = forecast,
-                            remove = outlier_types)
+                            remove = outlier_types, decisions = decisions)
            } else {
              outliers
            },
