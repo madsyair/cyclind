@@ -579,6 +579,11 @@ invert_cycle <- function(cs) {
 #' @param candidates A [CandidateSet-class].
 #' @param spec A [CliSpec-class].
 #' @param cycles Optional output of [cli_cycles()] to avoid recomputation.
+#' @param reference_tp Optional chronology of reference turning points fixed
+#'   by an expert, which replaces the dating algorithm for the reference: a
+#'   [TurningPoints-class] (for example from [edit_turning_points()]) or a
+#'   data frame with `period` (or `time`) and `type`. See [expert_dater()]
+#'   and the OECD practice there (Gyomai, Ahmad and Astolfi 2017, p. 285).
 #' @return A [LeadAssessment-class].
 #' @references
 #' Atabek, A., Coşar, E. E. and Şahinöz, S. (2005). A new composite leading
@@ -596,8 +601,9 @@ invert_cycle <- function(cs) {
 #' a
 #' leaders(a)
 #' @export
-cli_assess <- function(candidates, spec, cycles = NULL) {
+cli_assess <- function(candidates, spec, cycles = NULL, reference_tp = NULL) {
   check_inputs(candidates, spec)
+  spec <- expert_reference_spec(spec, reference_tp, candidates)
   if (is.null(cycles)) cycles <- cli_cycles(candidates, spec)
   candidates <- drop_excluded(candidates, cycles)
   lost <- setdiff(c(candidates@reference, candidate_names(candidates)),

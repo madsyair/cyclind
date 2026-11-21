@@ -24,6 +24,9 @@ Composite index
 
 \item{\code{shifts}}{Named periods by which each component was moved later
 (lag-shifting); empty when the components were not shifted.}
+
+\item{\code{decisions}}{Expert decision behind a manual composite (see
+\code{\link[=expert_log]{expert_log()}}); empty for a composite of the selection loop.}
 }}
 
 \seealso{

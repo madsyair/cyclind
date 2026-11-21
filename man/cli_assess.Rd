@@ -4,7 +4,7 @@
 \alias{cli_assess}
 \title{Classify candidates as leading, coincident, lagging or rejected}
 \usage{
-cli_assess(candidates, spec, cycles = NULL)
+cli_assess(candidates, spec, cycles = NULL, reference_tp = NULL)
 }
 \arguments{
 \item{candidates}{A \linkS4class{CandidateSet}.}
@@ -12,6 +12,12 @@ cli_assess(candidates, spec, cycles = NULL)
 \item{spec}{A \linkS4class{CliSpec}.}
 
 \item{cycles}{Optional output of \code{\link[=cli_cycles]{cli_cycles()}} to avoid recomputation.}
+
+\item{reference_tp}{Optional chronology of reference turning points fixed
+by an expert, which replaces the dating algorithm for the reference: a
+\linkS4class{TurningPoints} (for example from \code{\link[=edit_turning_points]{edit_turning_points()}}) or a
+data frame with \code{period} (or \code{time}) and \code{type}. See \code{\link[=expert_dater]{expert_dater()}}
+and the OECD practice there (Gyomai, Ahmad and Astolfi 2017, p. 285).}
 }
 \value{
 A \linkS4class{LeadAssessment}.

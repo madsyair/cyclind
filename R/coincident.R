@@ -252,6 +252,9 @@ validate_coincident <- function(composite, reference, spec, prediction) {
 #'   default the candidates classified as coincident.
 #' @param select Logical; remove components by backward elimination when the
 #'   index fails? With `FALSE` the index keeps every component.
+#' @param reference_tp Optional expert chronology of the reference turning
+#'   points, as in [cli_build()]; with a [CliResult-class] `x` the run is
+#'   repeated with its specification and this chronology.
 #' @return A [CciResult-class].
 #' @seealso [cci_validate()], [coincident_criteria()], [cci_as_reference()]
 #' @examples
@@ -264,7 +267,11 @@ validate_coincident <- function(composite, reference, spec, prediction) {
 #' coincidents(cci)
 #' cli_quality(cci)
 #' @export
-cci_build <- function(x, spec = NULL, components = NULL, select = TRUE) {
+cci_build <- function(x, spec = NULL, components = NULL, select = TRUE,
+                      reference_tp = NULL) {
+  if (is(x, "CliResult") && is.null(spec) && !is.null(reference_tp)) {
+    spec <- x@spec
+  }
   if (is(x, "CliResult") && is.null(spec)) {
     candidates <- x@candidates
     spec <- x@spec
@@ -277,6 +284,7 @@ cci_build <- function(x, spec = NULL, components = NULL, select = TRUE) {
       spec <- cli_spec(freq = stats::frequency(candidates@data))
     }
     check_inputs(candidates, spec)
+    spec <- expert_reference_spec(spec, reference_tp, candidates)
     cycles <- cli_cycles(candidates, spec)
     candidates <- drop_excluded(candidates, cycles)
     assessment <- cli_assess(candidates, spec, cycles)
@@ -330,7 +338,8 @@ cci_build <- function(x, spec = NULL, components = NULL, select = TRUE) {
   }
   new("CciResult", spec = spec, candidates = candidates, cycles = cycles,
       turning_points = tps, assessment = assessment,
-      composite = sel$composite, validation = validation, audit = sel$audit)
+      composite = sel$composite, validation = validation, audit = sel$audit,
+      decisions = result_decisions(spec, cycles))
 }
 
 # One evaluation without selection (cci_build(select = FALSE)).
@@ -478,6 +487,7 @@ setMethod("show", "CciResult", function(object) {
   }
   cat("  selection loop: ", nrow(object@audit), " step(s); see audit_log()\n",
       sep = "")
+  show_decision_count(object)
   invisible(object)
 })
 
@@ -496,6 +506,8 @@ setMethod("summary", "CciResult", function(object, ...) {
     cat("\n")
     show(cli_quality(object))
   }
+  lg <- show_decision_log(object)
   invisible(list(assessment = object@assessment@table,
-                 validation = object@validation, audit = object@audit))
+                 validation = object@validation, audit = object@audit,
+                 decisions = lg))
 })

@@ -65,6 +65,10 @@ turning-point dates, and so the lead, are uncertain by about half a source
 period: one month for quarterly data, 3 months for semiannual and 6 months
 for annual data.
 
+When expert decisions shaped a \linkS4class{CliResult} (an expert reference
+chronology, outlier decisions or a manual composite; see
+\code{\link[=expert_log]{expert_log()}}), an information row counts them and the note says so.
+
 \strong{Verdict}: \code{"good"} when all three groups pass; \code{"acceptable"} when the
 turning-point and prediction groups pass but no out-of-sample check was
 run; \code{"weak"} otherwise.

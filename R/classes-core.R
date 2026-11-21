@@ -54,6 +54,8 @@
 #'   paired with a reference turning point: `"nearest"` or `"maximum"`.
 #' @slot twin_threshold Absolute correlation of two candidate cycles from
 #'   which the weaker one is dropped before aggregation.
+#' @slot selector A [Selector-class]: how [cli_build()] searches the
+#'   components.
 #' @seealso [cli_spec()]
 #' @exportClass CliSpec
 setClass("CliSpec", representation(
@@ -70,11 +72,12 @@ setClass("CliSpec", representation(
   oos_cutoffs = "numeric", holidays = "list", classifier = "Classifier",
   outliers = "OutlierTreatment", lag_shift = "logical",
   extension = "Extension", form = "CycleForm", amplitude = "character",
-  matching = "character", twin_threshold = "numeric"
+  matching = "character", twin_threshold = "numeric", selector = "Selector"
 ), prototype(holidays = list(), classifier = cyclind_classifier(),
              outliers = robust_outliers(5), lag_shift = FALSE,
              extension = no_extension(), form = level_form(),
-             amplitude = "mad", matching = "nearest", twin_threshold = 0.99))
+             amplitude = "mad", matching = "nearest", twin_threshold = 0.99,
+             selector = backward_selection()))
 
 #' Reference and candidate series
 #'
@@ -169,6 +172,16 @@ setClass("LeadAssessment", representation(
   table = "data.frame", matches = "list", inverted = "character"
 ))
 
+# Columns of the log of expert decisions (see expert_log()).
+decision_columns <- c("step", "object", "decision", "status", "reason",
+                      "who", "when")
+
+empty_decision_log <- function() {
+  as.data.frame(stats::setNames(
+    replicate(length(decision_columns), character(0), simplify = FALSE),
+    decision_columns), stringsAsFactors = FALSE)
+}
+
 #' Composite index
 #'
 #' @slot index Composite leading indicator (`ts`, long-term average 100).
@@ -179,12 +192,15 @@ setClass("LeadAssessment", representation(
 #' @slot amplitude Amplitude factor matching the reference cycle.
 #' @slot shifts Named periods by which each component was moved later
 #'   (lag-shifting); empty when the components were not shifted.
+#' @slot decisions Expert decision behind a manual composite (see
+#'   [expert_log()]); empty for a composite of the selection loop.
 #' @seealso [cli_composite()]
 #' @exportClass CompositeIndex
 setClass("CompositeIndex", representation(
   index = "ts", cycle = "ts", components = "character", weights = "numeric",
-  aggregator = "Aggregator", amplitude = "numeric", shifts = "numeric"
-), prototype(shifts = numeric(0)),
+  aggregator = "Aggregator", amplitude = "numeric", shifts = "numeric",
+  decisions = "data.frame"
+), prototype(shifts = numeric(0), decisions = empty_decision_log()),
 validity = function(object) {
   if (length(object@weights) != length(object@components)) {
     return("`weights` must have one value per component.")
@@ -256,13 +272,16 @@ setClass("CliQuality", representation(
 #'   candidate qualifies).
 #' @slot validation The final [CliValidation-class] (or `NULL`).
 #' @slot audit Data frame recording every iteration of the selection loop.
+#' @slot decisions Data frame of the expert decisions (reference
+#'   chronology, outliers) behind the result; see [expert_log()].
 #' @seealso [cli_build()]
 #' @exportClass CliResult
 setClass("CliResult", representation(
   spec = "CliSpec", candidates = "CandidateSet", cycles = "list",
   turning_points = "list", assessment = "LeadAssessment",
-  composite = "ANY", validation = "ANY", audit = "data.frame"
-))
+  composite = "ANY", validation = "ANY", audit = "data.frame",
+  decisions = "data.frame"
+), prototype(decisions = empty_decision_log()))
 
 #' Result of the coincident-index workflow
 #'

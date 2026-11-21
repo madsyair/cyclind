@@ -88,6 +88,9 @@ paired with a reference turning point: \code{"nearest"} or \code{"maximum"}.}
 
 \item{\code{twin_threshold}}{Absolute correlation of two candidate cycles from
 which the weaker one is dropped before aggregation.}
+
+\item{\code{selector}}{A \linkS4class{Selector}: how \code{\link[=cli_build]{cli_build()}} searches the
+components.}
 }}
 
 \seealso{

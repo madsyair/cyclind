@@ -96,8 +96,14 @@ setMethod("show", "CliSpec", function(object) {
   if (methods::.hasSlot(object, "lag_shift") && isTRUE(object@lag_shift)) {
     cat("  lag-shift:   components aligned on the shortest median lead\n")
   }
-  cat("  loop:        at most ", object@max_iter, " iterations, at least ",
-      object@min_components, " components\n", sep = "")
+  sel <- spec_selector(object)
+  if (is(sel, "BackwardSelection")) {
+    cat("  loop:        at most ", object@max_iter, " iterations, at least ",
+        object@min_components, " components\n", sep = "")
+  } else {
+    cat("  selection:   ", sel@label, ", at least ", object@min_components,
+        " components\n", sep = "")
+  }
   invisible(object)
 })
 
@@ -342,8 +348,31 @@ setMethod("show", "CliResult", function(object) {
   }
   cat("  selection loop: ", nrow(object@audit), " step(s); see audit_log()\n",
       sep = "")
+  show_decision_count(object)
   invisible(object)
 })
+
+# One line on the expert decisions of a result (nothing when there are none).
+show_decision_count <- function(object) {
+  lg <- expert_log(object)
+  if (nrow(lg) > 0L) {
+    cat("  expert decisions: ", nrow(lg), " (",
+        paste(unique(lg$step), collapse = ", "), "); see expert_log()\n",
+        sep = "")
+  }
+  invisible(lg)
+}
+
+# The log of expert decisions in summary() (nothing when there are none).
+show_decision_log <- function(object) {
+  lg <- expert_log(object)
+  if (nrow(lg) > 0L) {
+    cat("\nExpert decisions:\n")
+    print(lg[, c("step", "object", "decision", "status", "reason", "who")],
+          row.names = FALSE)
+  }
+  invisible(lg)
+}
 
 #' @rdname show-methods
 #' @export
@@ -367,8 +396,10 @@ setMethod("summary", "CliResult", function(object, ...) {
           "it is likely a selection effect.\n")
     }
   }
+  lg <- show_decision_log(object)
   invisible(list(assessment = object@assessment@table,
-                 validation = object@validation, audit = object@audit))
+                 validation = object@validation, audit = object@audit,
+                 decisions = lg))
 })
 
 #' @rdname show-methods
