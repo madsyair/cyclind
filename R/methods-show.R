@@ -397,9 +397,10 @@ setMethod("summary", "CliResult", function(object, ...) {
     }
   }
   lg <- show_decision_log(object)
-  invisible(list(assessment = object@assessment@table,
-                 validation = object@validation, audit = object@audit,
-                 decisions = lg))
+  out <- list(assessment = object@assessment@table,
+              validation = object@validation, audit = object@audit)
+  if (nrow(lg) > 0L) out$decisions <- lg
+  invisible(out)
 })
 
 #' @rdname show-methods
