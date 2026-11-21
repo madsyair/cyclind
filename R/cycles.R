@@ -33,6 +33,7 @@ cli_cycles <- function(candidates, spec) {
   data <- candidates@data
   ref <- candidates@reference
   nms <- c(ref, candidate_names(candidates))
+  warn_unknown_decision_series(spec, nms)
   out <- list()
   excluded <- data.frame(name = character(0), reason = character(0),
                          stringsAsFactors = FALSE)
@@ -173,6 +174,7 @@ cycle_one <- function(x, name, spec, unit = "level") {
     cycle_one_body(x, name, spec, unit),
     cyclind_warning_x13 = record, cyclind_warning_outlier_share = record,
     cyclind_warning_outlier_collinear = record,
+    cyclind_warning_outlier_decision = record,
     cyclind_warning_seasonal_failed = record
   )
   out@notes <- unique(store$notes)
@@ -211,7 +213,7 @@ cycle_one_body <- function(x, name, spec, unit) {
   }
   core <- if (decision$log) log(core) else core
   steps <- c(steps, decision$step)
-  out <- treat_outliers(outliers, core)
+  out <- treat_outliers(outliers, core, name = name)
   steps <- c(steps, out$step)
   found <- located_outliers(out$table, span[1] + seq_along(core) - 1L, x)
   check_outlier_share(found, length(core), outliers, name)

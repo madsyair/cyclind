@@ -75,6 +75,29 @@
 #' disk, a missing X-13 binary, a file that cannot be written) stop the run
 #' with an error of class `cyclind_error_system`.
 #'
+#' **Expert decisions.** The OECD "detects and filters out 'additive'
+#' outliers (temporary shocks), and analyses 'level shift' outliers
+#' (permanent shocks) but does not necessarily filter these out; it is based
+#' on expert judgement whether level shifts are eliminated or not", and
+#' when "an extreme event triggers a whole set of changes in economic
+#' activity the rule of removing outliers is more ambiguous" (Gyomai, Ahmad
+#' and Astolfi 2017, p. 283). The `decisions` table of `tramo_outliers()`
+#' records such judgements one series and one date at a time: an outlier
+#' found by the model in that series, at that date and of that type, is
+#' removed or kept as the table says, whatever `remove` says for its type;
+#' every other outlier follows `remove`. For example, the level shift of
+#' April 2020 can be removed from the reference only, and kept in the
+#' candidates where it is a genuine cyclical movement. A decision needs a
+#' reason. A decision that matches no outlier found by the model (another
+#' date or type, or a failed model) has no effect and gives a warning of
+#' class `cyclind_warning_outlier_decision` that lists the outliers found;
+#' so does a decision for a series that is not in the data. The decisions
+#' cannot add an outlier that the model did not find. The effect removed is
+#' the estimated coefficient times the regressor of the outlier (for an AO
+#' and a TC on the same date, their rewritten effects, see above), also in
+#' the forecasts. The `steps` of the cycle record the decisions applied,
+#' and [expert_log()] lists them with their status.
+#'
 #' New treatments are added by defining a subclass and a method for the
 #' generic `treat_outliers()`, which returns a list with the cleaned series
 #' `x`, the number of outliers `n`, a description `step`, a numeric vector
@@ -97,6 +120,11 @@
 #'   Astolfi 2017, p. 284); [oecd_spec()] uses 2 months.
 #' @param critical Critical t-value of the outlier detection; `NULL` uses
 #'   the program's default, which depends on the length of the series.
+#' @param decisions Optional table of expert decisions on single outliers,
+#'   a data frame with columns `series`, `period` (such as `"2020-04"` or
+#'   `"2020Q2"`; or `time`, decimal), `type` (`"AO"`, `"TC"` or `"LS"`),
+#'   `action` (`"remove"` or `"keep"`), `reason` and, optionally, `who`.
+#'   See **Expert decisions** below.
 #' @return An `OutlierTreatment` object.
 #' @references
 #' Chen, C. and Liu, L.-M. (1993). Joint estimation of model parameters and
@@ -117,6 +145,11 @@
 #' @examples
 #' robust_outliers()
 #' tramo_outliers(engine = "x13")
+#' # remove the level shift of April 2020 from the reference only
+#' dec <- data.frame(series = "reference", period = "2020-04", type = "LS",
+#'                   action = "remove",
+#'                   reason = "lockdown: not a cyclical movement")
+#' tramo_outliers(engine = "x13", decisions = dec)
 #' @name OutlierTreatment-class
 #' @aliases OutlierTreatment
 #' @exportClass OutlierTreatment
@@ -146,10 +179,20 @@ outlier_max_share <- function(method) {
 setClass("RobustOutliers", contains = "OutlierTreatment",
          representation(threshold = "numeric"))
 
+# Columns of a table of outlier decisions (see tramo_outliers()).
+empty_outlier_decisions <- function() {
+  data.frame(series = character(0), time = numeric(0), period = character(0),
+             type = character(0), action = character(0),
+             reason = character(0), who = character(0), when = character(0),
+             stringsAsFactors = FALSE)
+}
+
 #' @rdname OutlierTreatment-class
 setClass("TramoOutliers", contains = "OutlierTreatment",
          representation(engine = "character", remove = "character",
-                        forecast = "numeric", critical = "numeric"))
+                        forecast = "numeric", critical = "numeric",
+                        decisions = "data.frame"),
+         prototype(decisions = empty_outlier_decisions()))
 
 #' @rdname OutlierTreatment-class
 #' @export
@@ -168,7 +211,8 @@ robust_outliers <- function(threshold = 5, max_share = 0.05) {
 #' @export
 tramo_outliers <- function(engine = c("auto", "tramo", "x13"),
                            remove = "AO", forecast = NULL,
-                           critical = NULL, max_share = 0.05) {
+                           critical = NULL, max_share = 0.05,
+                           decisions = NULL) {
   engine <- match.arg(engine)
   remove <- toupper(remove)
   if (length(remove) == 0L || !all(remove %in% c("AO", "TC", "LS"))) {
@@ -180,9 +224,14 @@ tramo_outliers <- function(engine = c("auto", "tramo", "x13"),
   }
   if (!is.null(critical)) check_number(critical, "critical", lower = 1)
   check_max_share(max_share)
+  decisions <- check_outlier_decisions(decisions)
+  label <- sprintf("TRAMO-type regARIMA (%s), remove %s", engine,
+                   paste(unique(remove), collapse = ", "))
+  if (nrow(decisions) > 0L) {
+    label <- sprintf("%s; %d expert decision(s)", label, nrow(decisions))
+  }
   new("TramoOutliers",
-      label = sprintf("TRAMO-type regARIMA (%s), remove %s", engine,
-                      paste(unique(remove), collapse = ", ")),
+      label = label, decisions = decisions,
       engine = engine, remove = unique(remove),
       forecast = if (is.null(forecast)) NA_real_ else as.numeric(forecast),
       critical = if (is.null(critical)) NA_real_ else as.numeric(critical),
