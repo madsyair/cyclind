@@ -73,6 +73,14 @@ setMethod("treat_outliers", "TramoOutliers", function(method, x, ...) {
   pairs <- collinear_pairs(tab)
   effect <- effect + collinear_shift(pairs, length(x), method@remove)
   tab$collinear <- tab$type %in% c("AO", "TC") & tab$index %in% pairs$index
+  rate <- if (is.null(fit$tc_rate)) tc_rate(engine, f) else fit$tc_rate
+  # X-13 writes a level shift as -1 before its date and 0 after it
+  dec <- apply_outlier_decisions(tab, pairs, outlier_decisions(method),
+                                 list(...)$name, x, rate, max(h, 0),
+                                 ls_before = engine == "x13")
+  n <- n + sum(dec$removed & !tab$removed) - sum(!dec$removed & tab$removed)
+  tab$removed <- dec$removed
+  effect <- effect + dec$effect
   tab$coef <- NULL
   step <- if (is.null(fit$failed)) {
     sprintf("outliers (%s): found %s; removed %s", label, found,
@@ -82,18 +90,195 @@ setMethod("treat_outliers", "TramoOutliers", function(method, x, ...) {
             fit$failed)
   }
   if (nrow(pairs) > 0L) {
-    rate <- if (is.null(fit$tc_rate)) tc_rate(engine, f) else fit$tc_rate
     step <- paste0(step, "; ", warn_collinear(pairs, x, rate))
   }
+  if (length(dec$step) > 0L) step <- paste0(step, "; ", dec$step)
   list(x = as_ts_like(as.numeric(x) - effect, x), n = as.integer(n),
        step = step, table = tab, failed = fit$failed,
        forecast = if (h > 0) {
          clean_forecast(utils::head(fit$forecast, h), fit$effects,
-                        method@remove, fit$tc_rate)
+                        method@remove, fit$tc_rate) - dec$forecast
        } else {
          numeric(0)
        })
 })
+
+# ---- expert decisions on single outliers -----------------------------------
+
+# Decisions of a treatment (objects saved before they existed have none).
+outlier_decisions <- function(method) {
+  if (methods::.hasSlot(method, "decisions") && nrow(method@decisions) > 0L) {
+    method@decisions
+  } else {
+    empty_outlier_decisions()
+  }
+}
+
+# Check and normalise a table of outlier decisions (see tramo_outliers()).
+check_outlier_decisions <- function(decisions) {
+  if (is.null(decisions)) return(empty_outlier_decisions())
+  need <- c("series", "type", "action", "reason")
+  if (!is.data.frame(decisions) || !all(need %in% names(decisions)) ||
+      !any(c("period", "time") %in% names(decisions))) {
+    cyclind_abort(paste("`decisions` must be a data frame with columns",
+                        "`series`, `period` (or `time`), `type`, `action`",
+                        "and `reason`."), "cyclind_error_argument")
+  }
+  n <- nrow(decisions)
+  type <- toupper(trimws(as.character(decisions$type)))
+  action <- tolower(trimws(as.character(decisions$action)))
+  if (!all(type %in% c("AO", "TC", "LS"))) {
+    cyclind_abort("`decisions$type` must be \"AO\", \"TC\" or \"LS\".",
+                  "cyclind_error_argument")
+  }
+  if (!all(action %in% c("remove", "keep"))) {
+    cyclind_abort("`decisions$action` must be \"remove\" or \"keep\".",
+                  "cyclind_error_argument")
+  }
+  reason <- check_reasons(decisions$reason, n, "outlier decision")
+  tm <- if ("time" %in% names(decisions)) decisions$time else
+    as_vector(decisions$period)
+  freq <- period_frequency(tm)
+  time <- parse_period(tm, freq, "periods of `decisions`")
+  period <- if (is.na(freq)) format(time) else period_label(time, freq)
+  series <- as.character(decisions$series)
+  key <- paste(series, round(time * 1e6), type)
+  if (anyDuplicated(key) > 0L) {
+    dup <- key[duplicated(key)][1]
+    k <- match(dup, key)
+    cyclind_abort(sprintf("`decisions` has two rows for %s %s of '%s'.",
+                          type[k], period[k], series[k]),
+                  "cyclind_error_argument")
+  }
+  who <- if ("who" %in% names(decisions)) as.character(decisions$who) else
+    rep(NA_character_, n)
+  data.frame(series = series, time = time, period = period, type = type,
+             action = action, reason = reason, who = who,
+             when = rep(decision_time(), n), stringsAsFactors = FALSE)
+}
+
+# Apply the decisions of one series to the outliers found (`tab`): which
+# are removed, and the change of the removed effect over the series and
+# its `h` forecasts, relative to the global rule.
+apply_outlier_decisions <- function(tab, pairs, decisions, name, x, rate,
+                                    h, ls_before = FALSE) {
+  n <- length(x)
+  out <- list(removed = tab$removed, effect = numeric(n),
+              forecast = numeric(h), step = character(0))
+  if (is.null(name) || nrow(decisions) == 0L) return(out)
+  d <- decisions[decisions$series == name, , drop = FALSE]
+  if (nrow(d) == 0L) return(out)
+  tm <- as.numeric(stats::time(x))
+  found_time <- tm[tab$index]
+  eff <- numeric(n + h)
+  done <- character(0)
+  unmatched <- logical(nrow(d))
+  for (k in seq_len(nrow(d))) {
+    hit <- which(!is.na(tab$index) & same_time(found_time, d$time[k]) &
+                   tab$type == d$type[k])
+    if (length(hit) == 0L) {
+      unmatched[k] <- TRUE
+      next
+    }
+    want <- d$action[k] == "remove"
+    for (j in hit[out$removed[hit] != want]) {
+      e <- single_outlier_effect(tab, j, pairs, n + h, rate, ls_before)
+      eff <- eff + if (want) e else -e
+      out$removed[j] <- want
+    }
+    done <- c(done, sprintf("%s %s %s", if (want) "removed" else "kept",
+                            d$type[k], d$period[k]))
+  }
+  if (any(unmatched)) warn_unmatched_decisions(d[unmatched, ], tab, x, name)
+  out$effect <- eff[seq_len(n)]
+  out$forecast <- eff[n + seq_len(h)]
+  if (length(done) > 0L) {
+    out$step <- sprintf("expert decisions: %s", paste(done, collapse = ", "))
+  }
+  out
+}
+
+# Effect of one outlier over `len` periods; an AO and a TC on the same date
+# take their rewritten effects (ADR-012): the AO the joint deviation at that
+# date, the TC the decay after it. A level shift is 1 from its date on
+# (TRAMO), or -1 before its date (`ls_before`, X-13), as each engine writes
+# its regressor.
+single_outlier_effect <- function(tab, j, pairs, len, rate,
+                                  ls_before = FALSE) {
+  t0 <- tab$index[j]
+  coef <- if (is.null(tab$coef)) NA_real_ else tab$coef[j]
+  if (is.na(coef)) {
+    cyclind_abort(sprintf(paste("The effect of the %s outlier at position %d",
+                                "is not known; the decision cannot be",
+                                "applied."), tab$type[j], t0),
+                  "cyclind_error_outliers")
+  }
+  tt <- seq_len(len)
+  ao <- as.numeric(tt == t0)
+  ls <- if (ls_before) -as.numeric(tt < t0) else as.numeric(tt >= t0)
+  reg <- switch(tab$type[j], AO = ao, LS = ls,
+                TC = ifelse(tt >= t0, rate^(tt - t0), 0))
+  e <- coef * reg
+  if (tab$type[j] %in% c("AO", "TC") && t0 %in% pairs$index) {
+    c_tc <- pairs$coef_tc[match(t0, pairs$index)]
+    e <- e + if (tab$type[j] == "AO") c_tc * ao else -c_tc * ao
+  }
+  e
+}
+
+warn_unmatched_decisions <- function(d, tab, x, name) {
+  f <- stats::frequency(x)
+  tm <- as.numeric(stats::time(x))
+  ok <- !is.na(tab$index)
+  found <- if (any(ok)) {
+    paste(sprintf("%s %s", tab$type[ok], period_label(tm[tab$index[ok]], f)),
+          collapse = ", ")
+  } else {
+    "none"
+  }
+  cyclind_warn(sprintf(paste("Series '%s': the model found no outlier for the",
+                             "expert decision(s) %s, which have no effect.",
+                             "Outliers found: %s."), name,
+                       paste(sprintf("%s %s %s", d$action, d$type, d$period),
+                             collapse = ", "), found),
+               "cyclind_warning_outlier_decision")
+}
+
+# Decisions of a treatment for the log: `status` is "pending" before the
+# data are seen, then "applied" when an outlier of that series, date and
+# type was found, and "not matched" otherwise.
+outlier_decision_log <- function(method, cycles = NULL) {
+  d <- outlier_decisions(method)
+  if (nrow(d) == 0L) return(empty_decision_log())
+  status <- if (is.null(cycles)) {
+    rep("pending", nrow(d))
+  } else {
+    vapply(seq_len(nrow(d)), function(k) {
+      cs <- cycles[[d$series[k]]]
+      if (is.null(cs)) return("not matched")
+      o <- cs@outliers
+      hit <- same_time(o$time, d$time[k]) & o$type == d$type[k]
+      if (any(hit)) "applied" else "not matched"
+    }, character(1))
+  }
+  out <- decision_rows("outliers", d$series,
+                       sprintf("%s %s %s", d$action, d$type, d$period),
+                       d$reason, d$who, d$when, status)
+  out
+}
+
+# Decisions for series that are not in the data (cli_cycles()).
+warn_unknown_decision_series <- function(spec, names) {
+  d <- outlier_decisions(spec_outliers(spec))
+  unknown <- setdiff(unique(d$series), names)
+  if (length(unknown) > 0L) {
+    cyclind_warn(sprintf(paste("Outlier decisions name series that are not",
+                               "in the data: %s; they have no effect."),
+                         paste(unknown, collapse = ", ")),
+                 "cyclind_warning_outlier_decision")
+  }
+  invisible(unknown)
+}
 
 # Same-date pairs of an additive outlier and a transitory change: date
 # (`index`) and coefficient of the TC (`coef_tc`). Their regressors

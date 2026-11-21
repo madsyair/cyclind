@@ -4,13 +4,26 @@
 \alias{cli_build}
 \title{Build a composite leading indicator}
 \usage{
-cli_build(candidates, spec = NULL)
+cli_build(candidates, spec = NULL, reference_tp = NULL)
 }
 \arguments{
-\item{candidates}{A \linkS4class{CandidateSet}.}
+\item{candidates}{A \linkS4class{CandidateSet}.
+\strong{Expert judgement.} With \code{reference_tp} the reference is dated by an
+expert chronology instead of the dating algorithm, in every step:
+classification, selection, validation and the selection-bias check (the
+specification of the result holds an \code{\link[=expert_dater]{expert_dater()}}). Expert decisions
+on outliers enter through the specification (\code{\link[=tramo_outliers]{tramo_outliers()}},
+\code{decisions}). Both are listed by \code{\link[=expert_log]{expert_log()}}, with the result.
+Without them the result is the same as before they existed.}
 
 \item{spec}{A \linkS4class{CliSpec}; by default \code{\link[=cli_spec]{cli_spec()}} at the frequency of
 the data.}
+
+\item{reference_tp}{Optional chronology of reference turning points fixed
+by an expert: a \linkS4class{TurningPoints} (for example from
+\code{\link[=edit_turning_points]{edit_turning_points()}}) or a data frame with \code{period} (or \code{time}) and
+\code{type}. Its turning points must alternate and lie within the data of
+the reference.}
 }
 \value{
 A \linkS4class{CliResult}.
@@ -30,6 +43,11 @@ log (\code{\link[=audit_log]{audit_log()}}).
 When \code{spec@lag_shift} is \code{TRUE}, every composite is built from components
 shifted so that their median leads align on the shortest one (OECD
 lag-shifting; see \code{\link[=cli_composite]{cli_composite()}}).
+
+With \code{selector = loss_selection()} in the specification the loop is
+replaced by a heuristic search that minimises a loss function, as in
+the OECD workflow (Gyomai, Ahmad and Astolfi 2017, pp. 279--280); see
+\linkS4class{Selector}.
 
 Composites are ranked by the score
 \deqn{10 \times \textrm{criteria met} + \min(\textrm{lead}, 2\,
@@ -57,4 +75,11 @@ res <- cli_build(cli_candidates(sim, "reference", meta = meta))
 res
 leaders(res)
 audit_log(res)
+# an expert chronology of the reference, without the minor cycle of 2019
+tp <- edit_turning_points(turning_points(res)$reference,
+                          drop = c("2019-02", "2019-09"),
+                          reason = "minor cycle below trend")
+res2 <- cli_build(cli_candidates(sim, "reference", meta = meta),
+                  reference_tp = tp)
+expert_log(res2)
 }

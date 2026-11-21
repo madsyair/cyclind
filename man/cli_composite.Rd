@@ -22,7 +22,15 @@ aggregate_components(aggregator, z, levels, spec)
 
 \S4method{aggregate_components}{DynamicFactor}(aggregator, z, levels, spec)
 
-cli_composite(cycles, components, spec, reference = NULL, shifts = NULL)
+cli_composite(
+  cycles,
+  components,
+  spec,
+  reference = NULL,
+  shifts = NULL,
+  reason = NULL,
+  who = NULL
+)
 }
 \arguments{
 \item{aggregator, z, levels}{Internal arguments of the aggregation methods.}
@@ -42,6 +50,13 @@ components are moved later before aggregation (OECD lag-shifting; see
 \code{lag_shift} in \code{\link[=cli_spec]{cli_spec()}}). The value of a shifted component at date
 \eqn{t} is its value at \eqn{t - s}; values moved past the last date
 are dropped.}
+
+\item{reason, who}{Optional reason for a composite chosen by hand, and
+who chose it. With a reason the choice of components (and shifts) is
+recorded in the composite and in the log of a result holding it
+(\code{\link[=expert_log]{expert_log()}}); the OECD composes the CLI from a heuristic search
+and practical considerations (Gyomai, Ahmad and Astolfi 2017,
+p. 279), and a manual composite records the latter.}
 }
 \value{
 A \linkS4class{CompositeIndex}.

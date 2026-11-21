@@ -26,6 +26,9 @@ candidate qualifies).}
 \item{\code{validation}}{The final \linkS4class{CliValidation} (or \code{NULL}).}
 
 \item{\code{audit}}{Data frame recording every iteration of the selection loop.}
+
+\item{\code{decisions}}{Data frame of the expert decisions (reference
+chronology, outliers) behind the result; see \code{\link[=expert_log]{expert_log()}}.}
 }}
 
 \seealso{

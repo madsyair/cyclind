@@ -37,7 +37,8 @@ cli_spec(
   form = NULL,
   amplitude = c("mad", "sd"),
   matching = c("nearest", "maximum"),
-  twin_threshold = 0.99
+  twin_threshold = 0.99,
+  selector = NULL
 )
 }
 \arguments{
@@ -201,6 +202,11 @@ only the one with the higher peak cross-correlation with the reference
 is kept (default 0.99, as in CIF, Vraná 2020). The twins dropped are
 listed in the
 audit log and in a warning. 1 drops identical cycles only.}
+
+\item{selector}{A \linkS4class{Selector}: how \code{\link[=cli_build]{cli_build()}} searches the
+components. \code{NULL} means \code{\link[=backward_selection]{backward_selection()}}, the selection loop;
+\code{\link[=loss_selection]{loss_selection()}} minimises a loss function, after the heuristic
+search of the OECD (Gyomai, Ahmad and Astolfi 2017, pp. 279--280).}
 }
 \value{
 A \linkS4class{CliSpec} object.

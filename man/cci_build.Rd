@@ -4,7 +4,13 @@
 \alias{cci_build}
 \title{Build a coincident index}
 \usage{
-cci_build(x, spec = NULL, components = NULL, select = TRUE)
+cci_build(
+  x,
+  spec = NULL,
+  components = NULL,
+  select = TRUE,
+  reference_tp = NULL
+)
 }
 \arguments{
 \item{x}{A \linkS4class{CandidateSet} or a \linkS4class{CliResult}.}
@@ -19,6 +25,10 @@ default the candidates classified as coincident.}
 
 \item{select}{Logical; remove components by backward elimination when the
 index fails? With \code{FALSE} the index keeps every component.}
+
+\item{reference_tp}{Optional expert chronology of the reference turning
+points, as in \code{\link[=cli_build]{cli_build()}}; with a \linkS4class{CliResult} \code{x} the run is
+repeated with its specification and this chronology.}
 }
 \value{
 A \linkS4class{CciResult}.
